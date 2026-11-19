@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -8,7 +9,45 @@ using System.Windows.Media;
 
 namespace Aumentos;
 
-internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView Source);
+internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView Source,
+    Int32Rect? Shop = null);
+
+internal sealed class BuildVisibility
+{
+    private enum Preference { Automatic, Forced, Dismissed }
+
+    private readonly object gate = new();
+    private Preference preference;
+    private bool shopOpen;
+
+    internal void ObserveShop(bool open)
+    {
+        lock (gate)
+        {
+            shopOpen = open;
+            if (!open && preference == Preference.Dismissed)
+                preference = Preference.Automatic;
+        }
+    }
+
+    internal bool ShouldShow(bool shopInFrame)
+    {
+        lock (gate)
+            return preference == Preference.Forced || (preference == Preference.Automatic && shopInFrame);
+    }
+
+    internal bool Toggle()
+    {
+        lock (gate)
+        {
+            bool visible = preference == Preference.Forced || (preference == Preference.Automatic && shopOpen);
+            preference = shopOpen
+                ? (visible ? Preference.Dismissed : Preference.Automatic)
+                : (visible ? Preference.Automatic : Preference.Forced);
+            return !visible;
+        }
+    }
+}
 
 internal sealed class BuildOverlay : Window
 {
@@ -23,14 +62,16 @@ internal sealed class BuildOverlay : Window
     private static readonly Brush PreviousPatch = Overlay.Paint("#FFD76D");
     private readonly StackPanel content = new();
     private readonly Border panel;
+    private readonly BuildItemIcons? itemIcons;
     private BuildDisplay? displayed;
     private Int32Rect placement;
     private nint handle;
     private HwndSource? hotkeySource;
     private Action? onShortcut;
 
-    internal BuildOverlay()
+    internal BuildOverlay(BuildItemIcons? itemIcons = null)
     {
+        this.itemIcons = itemIcons;
         Title = "Aumentos LoL · Build de OP.GG";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -110,6 +151,7 @@ internal sealed class BuildOverlay : Window
         {
             if (IsVisible)
                 Hide();
+            displayed = null;
             return;
         }
 
@@ -123,13 +165,24 @@ internal sealed class BuildOverlay : Window
         double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
         int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         int maxWidth = bounds.Width - 2 * margin, maxHeight = bounds.Height - 2 * margin;
+        bool placeLeft = false;
+        if (view.Shop is { } shop)
+        {
+            int leftSpace = shop.X - shop.Width / 12 - 2 * margin;
+            int rightSpace = bounds.Width - shop.X - shop.Width - 2 * margin;
+            int desiredWidth = (int)Math.Ceiling(PanelWidth * dpi);
+            placeLeft = rightSpace < desiredWidth && leftSpace > rightSpace && leftSpace >= desiredWidth * 3 / 4;
+            int sideSpace = placeLeft ? leftSpace : rightSpace;
+            if (sideSpace >= desiredWidth * 3 / 4)
+                maxWidth = Math.Min(maxWidth, sideSpace);
+        }
 
         panel.Measure(new Size(PanelWidth, double.PositiveInfinity));
         var desired = panel.DesiredSize;
         double scale = Math.Min(dpi, Math.Min(maxWidth / desired.Width, maxHeight / desired.Height));
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
         int height = Math.Clamp((int)Math.Ceiling(desired.Height * scale), 1, maxHeight);
-        var target = new Int32Rect(bounds.X + bounds.Width - margin - width,
+        var target = new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
             bounds.Y + Math.Clamp((int)(bounds.Height * 0.12), margin, bounds.Height - margin - height), width, height);
 
         if (IsVisible && Native.IsWindowVisible(handle) && target == placement)
@@ -162,13 +215,64 @@ internal sealed class BuildOverlay : Window
         foreach (var group in build.Groups)
         {
             AddLine(SectionLabel(group.Section), 12, Accent, bold: true, top: 9);
+            if ((group.Section is OpGgBuildSection.Boots or OpGgBuildSection.Prismatic) &&
+                group.Choices.All(choice => choice.Length == 1))
+            {
+                AddItems(group.Choices.Select(choice => choice[0]).ToArray(), build.SourcePatch, ordered: false);
+                continue;
+            }
             foreach (var (choice, index) in group.Choices.Take(2).Select((items, index) => (items, index)))
             {
-                var text = ChoiceText(group.Section, choice);
-                AddLine(index == 0 ? text : $"Alternativa · {text}", index == 0 ? 13 : 12,
-                    index == 0 ? Brushes.WhiteSmoke : Muted, top: index == 0 ? 2 : 3);
+                if (index == 1)
+                    AddLine("Alternativa", 11, Muted, top: 4);
+                AddItems(choice, build.SourcePatch, ordered: group.Section == OpGgBuildSection.Core);
             }
         }
+    }
+
+    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered)
+    {
+        var row = new Grid { Margin = new Thickness(0, 4, 0, 1), HorizontalAlignment = HorizontalAlignment.Left };
+        double cellWidth = Math.Min(90, (PanelWidth - 34 - (ordered ? (items.Length - 1) * 12 : 0)) / items.Length);
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (i > 0 && ordered)
+            {
+                var arrow = new TextBlock { Text = "→", Foreground = Accent, FontSize = 12, Margin = new Thickness(0, 8, 0, 0) };
+                AddColumn(arrow, 12);
+            }
+            var item = items[i];
+            var image = new Image { Width = 32, Height = 32, Stretch = Stretch.UniformToFill };
+            System.Windows.Automation.AutomationProperties.SetName(image, item.Name);
+            var tile = new StackPanel { Margin = new Thickness(2, 0, 2, 0) };
+            tile.Children.Add(new Border
+            {
+                Child = image, Width = 34, Height = 34, CornerRadius = new CornerRadius(3),
+                BorderBrush = Accent, BorderThickness = new Thickness(1), Background = Overlay.Paint("#253851")
+            });
+            tile.Children.Add(new TextBlock
+            {
+                Text = item.Name, FontSize = 10.5, Foreground = Brushes.WhiteSmoke,
+                TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0)
+            });
+            AddColumn(tile, cellWidth);
+            if (itemIcons is not null)
+                _ = SetIcon(image, itemIcons, patch, item.Id);
+        }
+        content.Children.Add(row);
+
+        void AddColumn(UIElement element, double width)
+        {
+            Grid.SetColumn(element, row.ColumnDefinitions.Count);
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+            row.Children.Add(element);
+        }
+    }
+
+    private static async Task SetIcon(Image image, BuildItemIcons icons, string patch, int id)
+    {
+        if (await icons.Read(patch, id) is { } icon)
+            image.Source = icon;
     }
 
     internal static string SectionLabel(OpGgBuildSection section) => section switch

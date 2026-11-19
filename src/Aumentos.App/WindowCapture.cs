@@ -66,12 +66,22 @@ internal static class LeaguePatch
 
     internal static string? Installed()
     {
+        try
+        {
+            var install = InstallDirectory();
+            return install is null ? null : ReadBinary(Path.Combine(install, "Game", "League of Legends.exe"));
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    internal static string? InstallDirectory()
+    {
         var metadata = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
             "Riot Games", "Metadata", "league_of_legends.live", "league_of_legends.live.product_settings.yaml");
         try
         {
-            var install = FindInstallPath(File.ReadLines(metadata));
-            return install is null ? null : ReadBinary(Path.Combine(install, "Game", "League of Legends.exe"));
+            return FindInstallPath(File.ReadLines(metadata));
         }
         catch (IOException) { return null; }
         catch (UnauthorizedAccessException) { return null; }

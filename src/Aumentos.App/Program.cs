@@ -107,7 +107,9 @@ internal static class Program
                 }
             };
             var overlay = new Overlay();
-            var buildOverlay = new BuildOverlay();
+            var buildOverlay = new BuildOverlay(new BuildItemIcons(http));
+            var spellOverlay = new SpellOverlay();
+            var spellAdvice = new ChampionSelectAdvice(ratings.Catalog, assets, builds, app.Dispatcher, spellOverlay.Render);
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, builds, assets, app.Dispatcher, state =>
@@ -146,23 +148,19 @@ internal static class Program
                 OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
             menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
                 OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
-            var showBuild = new Forms.ToolStripMenuItem("Mostrar build de OP.GG") { CheckOnClick = true };
-            showBuild.CheckedChanged += (_, _) =>
-            {
-                worker.ShowBuild = showBuild.Checked;
-                if (!showBuild.Checked)
-                    buildOverlay.Render(null);
-            };
+            var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
             menu.Items.Add("Abrir build de OP.GG", null, (_, _) => OpenProviderPage(builds.SourceUrl, "OP.GG"));
             var pause = new Forms.ToolStripMenuItem("Pausar overlay") { CheckOnClick = true };
             pause.CheckedChanged += (_, _) =>
             {
                 worker.Paused = pause.Checked;
+                spellAdvice.Paused = pause.Checked;
                 if (pause.Checked)
                 {
                     overlay.Hide();
                     buildOverlay.Render(null);
+                    spellOverlay.Render(null);
                 }
             };
             menu.Items.Add(pause);
@@ -176,7 +174,7 @@ internal static class Program
             tray.DoubleClick += (_, _) => OpenDiagnostics();
             app.Startup += (_, _) =>
             {
-                if (buildOverlay.RegisterShortcut(() => showBuild.Checked = !showBuild.Checked))
+                if (buildOverlay.RegisterShortcut(ToggleBuild))
                     showBuild.ShortcutKeyDisplayString = "Ctrl+Alt+B";
                 if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
@@ -197,8 +195,28 @@ internal static class Program
                             });
                     }
                 });
+                _ = Task.Run(async () =>
+                {
+                    try { await spellAdvice.Run(stop.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+                    catch (Exception error)
+                    {
+                        if (!app.Dispatcher.HasShutdownStarted)
+                            await app.Dispatcher.InvokeAsync(() =>
+                            {
+                                spellOverlay.Render(null);
+                                WriteStatus($"No se pudo mostrar la recomendación de hechizos · {error.GetType().Name}");
+                            });
+                    }
+                });
             };
             return app.Run();
+
+            void ToggleBuild()
+            {
+                if (!worker.ToggleBuild())
+                    buildOverlay.Render(null);
+            }
 
             void OpenDiagnostics()
             {
@@ -242,6 +260,9 @@ internal static class Program
             Console.WriteLine($"{champion.Name} · {view.Status}");
             if (view.Data is not { } data)
                 return 4;
+            if (data.Spells is { Length: > 0 } spells)
+                Console.WriteLine("Hechizos de invocador · " +
+                    string.Join(" | ", spells.Select(pair => $"{pair.First} + {pair.Second}")));
             foreach (var group in data.Groups)
                 Console.WriteLine($"{BuildOverlay.SectionLabel(group.Section)} · " +
                     string.Join(" | ", group.Choices.Select(items => BuildOverlay.ChoiceText(group.Section, items))));

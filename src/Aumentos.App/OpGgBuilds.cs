@@ -91,7 +91,7 @@ internal sealed class OpGgBuilds
         if (data is not null)
         {
             var cachedUntil = data.FetchedAt + (data.IsPrevious ? RecheckAfter : FreshFor);
-            if (cachedUntil > DateTimeOffset.UtcNow)
+            if (cachedUntil > DateTimeOffset.UtcNow && (game.Mode != Mode.Caos || data.Spells is not null))
             {
                 SetView(entry, data, Describe(data), cachedUntil);
                 return;
@@ -117,6 +117,8 @@ internal sealed class OpGgBuilds
                 SetView(entry, data, $"{Describe(data)} · Copia guardada", nextCheck);
                 return;
             }
+            if (updated.Groups.Length == 0 && data is { Groups.Length: > 0 } && data.SourcePatch == updated.SourcePatch)
+                updated = updated with { Groups = data.Groups };
             data = updated;
             StatsCache.Write(path, data);
             SetView(entry, data, Describe(data), data.FetchedAt + (data.IsPrevious ? RecheckAfter : FreshFor));
@@ -143,7 +145,10 @@ internal sealed class OpGgBuilds
             if (data.Mode != game.Mode || data.ClientPatch != patch || data.SourcePatch is null ||
                 (data.SourcePatch != patch && data.SourcePatch != previousPatch) ||
                 !string.Equals(data.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ||
-                data.FetchedAt > DateTimeOffset.UtcNow || data.Groups is not { Length: >= 1 and <= 4 })
+                data.FetchedAt > DateTimeOffset.UtcNow || data.Groups is not { Length: <= 4 } ||
+                (data.Groups.Length == 0 && data.Spells is not { Length: > 0 }) ||
+                (data.Spells is { } spells && (spells.Length > 2 || (game.Mode == Mode.Arena && spells.Length != 0) ||
+                    spells.Any(pair => pair is null || !OpGgBuildPage.ValidSpell(pair.First) || !OpGgBuildPage.ValidSpell(pair.Second)))))
                 return null;
             var sections = new HashSet<OpGgBuildSection>();
             foreach (var group in data.Groups)

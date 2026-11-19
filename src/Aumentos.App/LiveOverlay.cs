@@ -31,8 +31,8 @@ internal sealed class LiveOverlay
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private readonly Action<BuildDisplay?> updateBuild;
+    private readonly BuildVisibility buildVisibility = new();
     private int paused;
-    private int showBuild;
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
         AramMayhemRatings aramMayhem, GgezArenaRatings ggez, OpGgBuilds builds, string assets,
@@ -52,29 +52,36 @@ internal sealed class LiveOverlay
     }
 
     public bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
-    public bool ShowBuild { get => Volatile.Read(ref showBuild) != 0; set => Volatile.Write(ref showBuild, value ? 1 : 0); }
+    public bool ToggleBuild() => buildVisibility.Toggle();
 
     public async Task Run(CancellationToken cancellation)
     {
         using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        var shopDetector = new ShopDetection();
         WindowCapture? capture = null;
         GameContext? game = null;
         long nextPoll = 0;
         long lastFrame = 0;
         long lastOffer = 0;
+        long nextShopScan = 0;
         string idle = "Esperando la partida…";
         Calibration? previous = null;
         GameWindow? lastWindow = null;
         BuildDisplay? lastBuild = null;
         bool cardsVisible = false;
+        Int32Rect? shop = null;
         try
         {
             while (!cancellation.IsCancellationRequested)
             {
                 var window = Paused ? null : GameWindow.Foreground(lastWindow);
                 if (window is not null)
+                {
+                    if (window.Handle != lastWindow?.Handle)
+                        buildVisibility.ObserveShop(open: false);
                     lastWindow = window;
+                }
                 OverlayUpdate? result;
                 BuildDisplay? build = null;
                 if (window is null || window.Bounds.Width < 1 || window.Bounds.Height < 1)
@@ -109,8 +116,10 @@ internal sealed class LiveOverlay
                     if (game is { } currentGame && window.Patch == ratings.Catalog.Patch)
                     {
                         var suggestion = builds.Current(currentGame, cancellation);
-                        if (ShowBuild && !Paused && !cardsVisible && Native.GetForegroundWindow() == window.Handle)
-                            build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame), currentGame.Mode, suggestion);
+                        if (buildVisibility.ShouldShow(shop.HasValue) && !Paused && !cardsVisible &&
+                            Native.GetForegroundWindow() == window.Handle)
+                            build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
+                                currentGame.Mode, suggestion, shop);
                     }
                 }
 
@@ -137,6 +146,9 @@ internal sealed class LiveOverlay
             detector.Clear();
             lastFrame = 0;
             lastOffer = 0;
+            nextShopScan = 0;
+            cardsVisible = false;
+            shop = null;
         }
 
         OverlayUpdate? ReadOverlay(GameWindow window, GameContext current)
@@ -159,11 +171,6 @@ internal sealed class LiveOverlay
             var sources = extraStatus is null ? source.Status : $"{source.Status} · {extraStatus}";
             idle = $"{label} · {name} · Esperando cartas… · {sources}";
             var candidates = layouts.Find(current.Mode, window.Bounds.Width, window.Bounds.Height);
-            if (candidates.Length == 0)
-            {
-                StopCapture();
-                return new OverlayUpdate($"{label} · Calibra un panel de {window.Bounds.Width} × {window.Bounds.Height}.");
-            }
 
             try
             {
@@ -172,8 +179,23 @@ internal sealed class LiveOverlay
                 var frame = capture.Read(new Int32Rect(window.Bounds.X - window.Frame.X,
                     window.Bounds.Y - window.Frame.Y, scan.Width, scan.Height));
                 if (frame is null)
-                    return Environment.TickCount64 - lastFrame > 600 ? new OverlayUpdate($"{label} · Esperando imagen de League…") : null;
-                lastFrame = Environment.TickCount64;
+                {
+                    if (Environment.TickCount64 - lastFrame <= 600)
+                        return null;
+                    shop = null;
+                    nextShopScan = 0;
+                    return new OverlayUpdate($"{label} · Esperando imagen de League…");
+                }
+                var now = Environment.TickCount64;
+                lastFrame = now;
+                if (now >= nextShopScan)
+                {
+                    shop = shopDetector.Read(frame, detector, shop);
+                    buildVisibility.ObserveShop(shop.HasValue);
+                    nextShopScan = Environment.TickCount64 + (shop is null ? 400 : 180);
+                }
+                if (candidates.Length == 0)
+                    return new OverlayUpdate($"{label} · Calibra un panel de {window.Bounds.Width} × {window.Bounds.Height}.");
                 string status = idle;
                 var read = detector.ReadPanel(frame, scan, candidates, current.Mode, previous);
                 if (read is { Layout: var candidate, Result: var result })

@@ -21,21 +21,25 @@ internal sealed class LiveGame : IDisposable
     public LiveGame(string rootPath)
     {
         root = X509Certificate2.CreateFromPem(File.ReadAllText(rootPath));
-        client = new HttpClient(new HttpClientHandler
-        {
-            UseProxy = false,
-            AllowAutoRedirect = false,
-            ServerCertificateCustomValidationCallback = Validate
-        })
+        client = new HttpClient(LocalHandler(root, 2999))
         {
             BaseAddress = new Uri("https://127.0.0.1:2999/liveclientdata/"),
             Timeout = TimeSpan.FromMilliseconds(750)
         };
     }
 
-    private bool Validate(HttpRequestMessage request, X509Certificate2? certificate, X509Chain? _, SslPolicyErrors errors)
+    internal static HttpClientHandler LocalHandler(X509Certificate2 root, int port) => new()
     {
-        if (request.RequestUri?.Host != "127.0.0.1" || request.RequestUri.Port != 2999 || certificate is null)
+        UseProxy = false,
+        AllowAutoRedirect = false,
+        ServerCertificateCustomValidationCallback = (request, certificate, _, errors) =>
+            ValidateLocal(request, certificate, errors, root, port)
+    };
+
+    private static bool ValidateLocal(HttpRequestMessage request, X509Certificate2? certificate, SslPolicyErrors errors,
+        X509Certificate2 root, int port)
+    {
+        if (request.RequestUri is not { Scheme: "https", Host: "127.0.0.1" } address || address.Port != port || certificate is null)
             return false;
         if (errors == SslPolicyErrors.None)
             return true;

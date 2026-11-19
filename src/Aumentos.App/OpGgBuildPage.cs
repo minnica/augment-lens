@@ -12,8 +12,9 @@ internal enum OpGgBuildSection { Start, Boots, Core, Prismatic }
 
 internal sealed record OpGgBuildItem(int Id, string Name);
 internal sealed record OpGgBuildGroup(OpGgBuildSection Section, OpGgBuildItem[][] Choices);
+internal sealed record OpGgSpellPair(string First, string Second);
 internal sealed record OpGgBuildSnapshot(Mode Mode, string Champion, string ClientPatch, string SourcePatch,
-    DateTimeOffset FetchedAt, OpGgBuildGroup[] Groups)
+    DateTimeOffset FetchedAt, OpGgBuildGroup[] Groups, OpGgSpellPair[]? Spells = null)
 {
     internal bool IsPrevious => SourcePatch != ClientPatch;
 }
@@ -35,6 +36,7 @@ internal static class OpGgBuildPage
     private static readonly Regex Alt = Attribute("alt");
     private static readonly Regex Tags = HtmlPattern(@"<[^>]*>");
     private static readonly Regex ItemPath = HtmlPattern(@"^/meta/images/lol/[^/]+/item/(\d+)\.png$");
+    private static readonly Regex SpellPath = HtmlPattern(@"^/meta/images/lol/[^/]+/spell/Summoner[a-z0-9]+\.png$");
 
     internal static Uri Address(GameContext game)
     {
@@ -58,9 +60,23 @@ internal static class OpGgBuildPage
             throw new InvalidDataException($"OP.GG publica la build para el parche {sourcePatch}; el cliente usa {clientPatch}.");
 
         var groups = new Dictionary<OpGgBuildSection, List<OpGgBuildItem[]>>();
+        var spells = new List<OpGgSpellPair>();
         foreach (Match table in Table.Matches(html))
         {
             var markup = table.Groups[1].Value;
+            if (game.Mode == Mode.Caos && spells.Count < 2 && IsSpellTable(markup))
+            {
+                foreach (Match row in Row.Matches(Body.Match(markup).Groups[1].Value))
+                {
+                    var cell = Cell.Match(row.Groups[1].Value).Groups[1].Value;
+                    var names = ReadIcons(cell, SpellPath).Select(icon => IconName(icon.Image)).ToArray();
+                    if (names is not [var first, var second] || !ValidSpell(first) || !ValidSpell(second) || first == second ||
+                        spells.Any(pair => pair.First == first && pair.Second == second || pair.First == second && pair.Second == first))
+                        continue;
+                    spells.Add(new OpGgSpellPair(first, second));
+                    if (spells.Count == 2) break;
+                }
+            }
             var section = Classify(markup);
             if (section is null || (section == OpGgBuildSection.Prismatic && game.Mode != Mode.Arena))
                 continue;
@@ -87,9 +103,9 @@ internal static class OpGgBuildPage
         }
 
         var result = groups.OrderBy(group => group.Key).Select(group => new OpGgBuildGroup(group.Key, group.Value.ToArray())).ToArray();
-        if (result.Length == 0)
+        if (result.Length == 0 && spells.Count == 0)
             throw new InvalidDataException("OP.GG no publicó una tabla de builds reconocible.");
-        return new(game.Mode, game.Champion, clientPatch, sourcePatch, DateTimeOffset.UtcNow, result);
+        return new(game.Mode, game.Champion, clientPatch, sourcePatch, DateTimeOffset.UtcNow, result, spells.ToArray());
     }
 
     private static OpGgBuildSection? Classify(string table)
@@ -115,15 +131,9 @@ internal static class OpGgBuildPage
     private static OpGgBuildItem[] ReadItems(string cell)
     {
         var items = new List<OpGgBuildItem>();
-        foreach (Match image in Image.Matches(cell))
+        foreach (var (image, path) in ReadIcons(cell, ItemPath))
         {
-            var src = WebUtility.HtmlDecode(Src.Match(image.Value).Groups[2].Value);
-            if (!Uri.TryCreate(src, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
-                uri.Host != "opgg-static.akamaized.net")
-                continue;
-            var path = ItemPath.Match(uri.AbsolutePath);
-            if (!path.Success) continue;
-            var name = WebUtility.HtmlDecode(Alt.Match(image.Value).Groups[2].Value).Trim();
+            var name = IconName(image);
             if (!int.TryParse(path.Groups[1].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int id) ||
                 id <= 0 || name.Length is < 1 or > 120)
                 return [];
@@ -131,6 +141,28 @@ internal static class OpGgBuildPage
         }
         return items.ToArray();
     }
+
+    private static IEnumerable<(Match Image, Match Path)> ReadIcons(string cell, Regex pathPattern)
+    {
+        foreach (Match image in Image.Matches(cell))
+        {
+            var src = WebUtility.HtmlDecode(Src.Match(image.Value).Groups[2].Value);
+            if (!Uri.TryCreate(src, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
+                uri.Host != "opgg-static.akamaized.net")
+                continue;
+            var path = pathPattern.Match(uri.AbsolutePath);
+            if (path.Success)
+                yield return (image, path);
+        }
+    }
+
+    private static string IconName(Match image) => WebUtility.HtmlDecode(Alt.Match(image.Value).Groups[2].Value).Trim();
+
+    private static bool IsSpellTable(string markup) =>
+        Ratings.Normalize(PlainText(Heading.Match(markup).Groups[1].Value)) is "hechizos de invocador" or "summoner spells" ||
+        Ratings.Normalize(PlainText(Caption.Match(markup).Groups[1].Value)) == "summonerspells table";
+
+    internal static bool ValidSpell(string? name) => name is { Length: >= 1 and <= 60 };
 
     private static bool IsBoot(int id) => (id >= 220000 ? id - 220000 : id) is
         3005 or 3006 or 3009 or 3010 or 3013 or 3020 or 3047 or 3111 or 3117 or 3158;

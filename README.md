@@ -34,11 +34,15 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 
 ## Builds de OP.GG en partida
 
-Pulsa **Ctrl+Alt+B** para mostrar u ocultar el panel de builds de tu campeón en **ARAM Caos** o **Arena**. También puedes activarlo desde **Mostrar build de OP.GG** en la bandeja. La vista aparece junto al borde derecho mientras League está en primer plano y se aparta durante la elección de aumentos.
+El panel de builds de OP.GG aparece al abrir la tienda en **ARAM Caos** o **Arena**. Pulsa **Ctrl+Alt+B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja para consultarlo manualmente o esconderlo hasta la próxima apertura de la tienda. El panel se aparta durante la elección de aumentos.
 
-El panel muestra en español las primeras opciones de objetos que publica OP.GG para el modo, incluidas las botas, las rutas principales y los prismáticos de Arena cuando están disponibles. Las opciones conservan el orden de la fuente. La app reutiliza una copia por campeón, modo y parche. Si la tabla disponible es del parche inmediatamente anterior de la misma temporada, la vista lo indica. **Abrir build de OP.GG** en la bandeja lleva a la página del último campeón detectado. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
+El panel muestra los iconos y nombres en español de los objetos que publica OP.GG, incluidas las botas y los prismáticos de Arena cuando están disponibles. Las flechas indican el orden de compra de la build principal y de la alternativa. La app reutiliza una copia por campeón, modo y parche. Si la tabla disponible es del parche inmediatamente anterior de la misma temporada, la vista lo indica. **Abrir build de OP.GG** en la bandeja lleva a la página del último campeón detectado. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
 
 Para comprobar los datos sin entrar a una partida, ejecuta `dist\win-x64\Iniciar.cmd --verificar-build Caos Zyra` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
+
+### Hechizos de invocador
+
+En la selección de campeón de **ARAM Caos**, el panel de OP.GG aparece abajo a la derecha y se actualiza cuando cambias de campeón. Muestra la combinación principal, una alternativa cuando OP.GG publica otra y si ya tienes equipados los dos hechizos recomendados. Los hechizos se eligen en el cliente de League.
 
 ## Historial de aumentos
 

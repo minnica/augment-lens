@@ -23,6 +23,8 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
         BuildTests.Run(ratings).GetAwaiter().GetResult();
+        BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
+        ChampionSelectTests.Run();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
@@ -97,6 +99,7 @@ internal static class Program
             CaptureSmoke();
             OverlaySmoke();
             BuildOverlaySmoke();
+            ChampionSelectTests.Smoke();
         }
         var samples = new List<SavedLayout>();
         if (Option("--caos") is { } caosPath)
@@ -445,12 +448,17 @@ internal static class Program
 
     private static void BuildOverlaySmoke()
     {
-        var overlay = new BuildOverlay();
+        using var http = new System.Net.Http.HttpClient(new TestIcons());
+        var icons = new BuildItemIcons(http);
+        var overlay = new BuildOverlay(icons);
         try
         {
             var bounds = new Int32Rect(10, 10, 1040, 720);
             var data = new OpGgBuildSnapshot(Mode.Caos, "Zyra", "16.23", "16.23", DateTimeOffset.UtcNow,
                 [new(OpGgBuildSection.Core, [[new(6653, "El Tormento de Liandry"), new(3116, "Cetro de Cristal de Rylai")]])]);
+            foreach (var item in data.Groups[0].Choices[0])
+                Check(icons.Read(data.SourcePatch, item.Id).GetAwaiter().GetResult() is { PixelWidth: 1, PixelHeight: 1 },
+                    "icono PNG descargado");
             overlay.Render(new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(data, "Prueba")));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
@@ -462,11 +470,45 @@ internal static class Program
                 "build visible dentro del juego, sin tomar el foco ni bloquear clics");
             Check(BuildOverlay.ChoiceText(OpGgBuildSection.Core, data.Groups[0].Choices[0])
                 .StartsWith("El Tormento de Liandry", StringComparison.Ordinal), "orden de objetos en la ruta");
+            var rows = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            var route = rows.Children.OfType<Grid>().Single();
+            var displayedIcons = route.Children.OfType<StackPanel>().Select(tile => (Image)((Border)tile.Children[0]).Child).ToArray();
+            Check(displayedIcons.Length == 2 && displayedIcons.All(icon => icon.Source is BitmapSource) &&
+                displayedIcons.Select(icon => System.Windows.Automation.AutomationProperties.GetName(icon))
+                    .SequenceEqual(["El Tormento de Liandry", "Cetro de Cristal de Rylai"]) &&
+                route.Children.OfType<TextBlock>().Single().Text == "→",
+                "iconos y flechas en el orden de compra");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
         }
         finally { overlay.Close(); }
+    }
+
+    private sealed class TestIcons : System.Net.Http.HttpMessageHandler
+    {
+        private readonly byte[] png;
+
+        internal TestIcons()
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null,
+                new byte[] { 72, 89, 198, 255 }, 4)));
+            using var output = new MemoryStream();
+            encoder.Save(output);
+            png = output.ToArray();
+        }
+
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Check(request.RequestUri is { Host: "opgg-static.akamaized.net" } address &&
+                address.AbsolutePath.StartsWith("/meta/images/lol/16.23.1/item/", StringComparison.Ordinal),
+                "los iconos usan el CDN y el parche de la build");
+            var content = new System.Net.Http.ByteArrayContent(png);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+            return Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
+        }
     }
 
     private static void OverlaySmoke()
