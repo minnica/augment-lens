@@ -59,7 +59,7 @@ internal sealed class LiveOverlay
         using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
         var shopDetector = new ShopDetection();
-        var mayhemBuilds = MayhemBuilds.Load(ratings.Catalog, assets);
+        var mayhemBuilds = MayhemBuilds.Load(ratings, assets);
         var arenaBuilds = new ArenaBuilds(ratings);
         WindowCapture? capture = null;
         GameContext? game = null;
@@ -68,6 +68,7 @@ internal sealed class LiveOverlay
         long lastMatchRead = 0;
         (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
         MayhemBuildPlan? plan = null;
+        EnemyDamageMix? enemyDamage = null;
         long nextPoll = 0;
         long lastFrame = 0;
         long lastOffer = 0;
@@ -167,10 +168,13 @@ internal sealed class LiveOverlay
                                     : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
                                 if (updated is null || plan is null || !updated.Steps.SequenceEqual(plan.Steps))
                                     plan = updated;
+                                enemyDamage = currentGame.Mode == Mode.Arena
+                                    ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
+                                    : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
                             }
                             build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
                                 currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
-                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0);
+                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage);
                         }
                     }
                 }

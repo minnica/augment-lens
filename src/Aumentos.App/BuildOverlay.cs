@@ -12,7 +12,7 @@ namespace Aumentos;
 internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layout, string Patch);
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
-    string? ClientPatch = null, bool ArenaRivalsDetected = false);
+    string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null);
 
 internal sealed class BuildVisibility
 {
@@ -161,7 +161,8 @@ internal sealed class BuildOverlay : Window
 
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
-            displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected)
+            displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected ||
+            displayed.EnemyDamage != view.EnemyDamage)
             RenderContent(view);
         displayed = view;
 
@@ -228,6 +229,11 @@ internal sealed class BuildOverlay : Window
         AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 17, Brushes.WhiteSmoke, bold: true);
         AddLine(view.Plan is not null && build is not null ? $"{patch} · Base OP.GG" : patch,
             12, build?.IsPrevious == true ? PreviousPatch : Muted);
+
+        var enemyDamage = view.EnemyDamage is { } mix
+            ? $"{mix.PhysicalPercent}% AD · {mix.MagicPercent}% AP"
+            : view.Mode == Mode.Arena && !view.ArenaRivalsDetected ? "esperando rivales" : "sin datos suficientes";
+        AddLine($"Daño rival estimado · {enemyDamage}", 12, Accent, bold: true, top: 5);
 
         if (view.Mode == Mode.Arena && view.Plan is { } arenaPlan)
         {

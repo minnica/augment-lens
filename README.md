@@ -62,6 +62,8 @@ En **ARAM Caos**, la **Ruta a 6 objetos** cuenta las botas mejoradas y los demá
 
 En **Arena**, la ruta cuenta las botas mejoradas, los legendarios y los prismáticos equipados. Destaca la **Siguiente compra**, ordena los pendientes y agrupa los objetos **Comprados**. Antes del primer enfrentamiento que puede confirmar, usa el inventario, el perfil de tu campeón y el núcleo de OP.GG cuando está disponible. Después, puede adaptar la ruta a las compras y al perfil de hasta tres rivales confirmados en rondas jugadas. Los prismáticos de OP.GG sirven como referencia en su propia sección. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
+El panel muestra **Daño rival estimado** en ambos modos, por ejemplo **70% AD · 30% AP**. Estima la proporción de daño físico y mágico a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas y muestra **esperando rivales** hasta confirmar el primero.
+
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.

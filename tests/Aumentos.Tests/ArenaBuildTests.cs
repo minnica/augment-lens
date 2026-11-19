@@ -25,6 +25,14 @@ internal static class ArenaBuildTests
         Check(planner.Recommend(cho, physical, source)?.Steps[5] is { Item.Id: 223143, Detail: "Críticos rivales · Jinx" },
             "el sexto objeto cambia ante un rival con varios objetos de críticos");
 
+        var damageMix = match with { Opponents = [new("Lux", [223031]), new("Jinx", [223031]), new("Brand", []), new("Caitlyn", [])] };
+        var updatedMix = damageMix with { Opponents = [new("Lux", [223089]), ..damageMix.Opponents.Skip(1)] };
+        Check(planner.EstimateEnemyDamage(damageMix) is { PhysicalPercent: 50, MagicPercent: 50 } &&
+            planner.EstimateEnemyDamage(updatedMix) is { PhysicalPercent: 33, MagicPercent: 67 } &&
+            planner.EstimateEnemyDamage(physical) is { PhysicalPercent: 100, MagicPercent: 0 } &&
+            planner.EstimateEnemyDamage(match with { Opponents = [] }) is null,
+            "el daño estimado usa las compras de hasta tres rivales confirmados y espera si aún no hay rivales");
+
         var jinx = new GameContext(Mode.Arena, "Jinx");
         var antiHeal = planner.Recommend(jinx, new ArenaMatch([223006, 223032, 223031, 223072],
             [new("Aatrox", [223074, 223075]), new("Ornn", [223110, 226665]), new("Lux", [])]), null);

@@ -549,13 +549,19 @@ internal static class Program
                 new(new(3135, "Báculo del Vacío"), "2 rivales con compras de resistencia mágica"),
                 new(new(3165, "Morellonomicón"), "Curación rival")
             ]);
-            overlay.Render(new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(data, "Prueba"), Plan: plan));
+            var view = new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(data, "Prueba"), Plan: plan, EnemyDamage: new(70));
+            overlay.Render(view);
             var routeRows = rows.Children.OfType<Grid>().ToArray();
             var tiles = routeRows.SelectMany(itemRow => itemRow.Children.OfType<StackPanel>()).ToArray();
             var routeDetails = tiles.SelectMany(tile => tile.Children.OfType<TextBlock>()).Select(text => text.Text).ToArray();
             Check(routeRows.Length == 2 && tiles.Length == 6 && routeDetails.Contains("Comprado") &&
                 routeDetails.Contains("2 rivales con compras de resistencia mágica") && routeDetails.Contains("Curación rival"),
                 "la ruta cabe en dos filas y muestra los motivos situacionales");
+            Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "Daño rival estimado · 70% AD · 30% AP"),
+                "ARAM Caos muestra la proporción de daño junto a la ruta");
+            overlay.Render(view with { EnemyDamage = new(60) });
+            Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "Daño rival estimado · 60% AD · 40% AP"),
+                "el panel actualiza el daño rival aunque la ruta siga igual");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");

@@ -19,15 +19,16 @@ internal static class ArenaBuildOverlayTests
         var build = new OpGgBuildSnapshot(Mode.Arena, "Jax", clientPatch, clientPatch, DateTimeOffset.UtcNow,
             [new(OpGgBuildSection.Prismatic, [[new(443090, "Cuota del Segador")]])]);
         var view = new BuildDisplay(new Int32Rect(0, 0, 1600, 900), 0, "Jax", Mode.Arena, new(build, "Prueba"),
-            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true);
+            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67));
         var overlay = new BuildOverlay();
         try
         {
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             overlay.RenderContent(view);
             var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-            Check(blocks.Skip(3).SequenceEqual(["Por comprar · 2", "Después", "Comprados · 4/6", "Referencia de prismáticos · OP.GG"]),
-                "Arena separa dos compras, cuatro objetos equipados y la referencia prismática");
+            Check(blocks.Skip(2).SequenceEqual(["Daño rival estimado · 67% AD · 33% AP", "Rivales de rondas jugadas",
+                "Por comprar · 2", "Después", "Comprados · 4/6", "Referencia de prismáticos · OP.GG"]),
+                "Arena muestra el daño rival junto a las compras y la referencia prismática");
             var next = panel.Children.OfType<Border>().Single();
             Check(next.BorderThickness.Left > 0 && next.Background is not null &&
                 ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Curación rival · Karma, Zed"]) &&
@@ -40,9 +41,10 @@ internal static class ArenaBuildOverlayTests
 
             var empty = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with
                 { Detail = "Afinidad con tu campeón", Owned = false }).ToArray());
-            overlay.RenderContent(view with { Plan = empty, Source = null });
+            overlay.RenderContent(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null });
             var emptyLabels = ReadText(panel).ToArray();
-            Check(emptyLabels.Contains("Por comprar · 6") && emptyLabels.Contains("Comprados · 0/6") &&
+            Check(emptyLabels.Contains("Daño rival estimado · esperando rivales") &&
+                emptyLabels.Contains("Por comprar · 6") && emptyLabels.Contains("Comprados · 0/6") &&
                 emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<DockPanel>().Count() == 5 &&
                 !panel.Children.OfType<Grid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
 

@@ -75,26 +75,36 @@ internal sealed class MayhemBuilds
         ["Camille", "Diana", "Hecarim", "Irelia", "Jax", "Kled", "Nocturne", "Pantheon", "Rengar", "Vi", "Yone", "Zac"],
         StringComparer.OrdinalIgnoreCase);
 
+    private readonly Ratings ratings;
     private readonly Dictionary<string, Champion> champions;
     private readonly Dictionary<int, MayhemItem> items;
 
-    private MayhemBuilds(Catalog catalog, Dictionary<int, MayhemItem> items)
+    private MayhemBuilds(Ratings ratings, Dictionary<int, MayhemItem> items)
     {
-        champions = catalog.Champions.ToDictionary(champion => champion.Key, StringComparer.OrdinalIgnoreCase);
+        this.ratings = ratings;
+        champions = ratings.Catalog.Champions.ToDictionary(champion => champion.Key, StringComparer.OrdinalIgnoreCase);
         this.items = items;
     }
 
-    internal static MayhemBuilds Load(Catalog catalog, string assets)
+    internal static MayhemBuilds Load(Ratings ratings, string assets)
     {
         try
         {
             var data = Ratings.Read<MayhemItemCatalog>(Path.Combine(assets, "mayhem-items.json"));
-            if (data.Patch == catalog.Patch && data.Items is { Count: > 0 })
-                return new(catalog, data.Items);
+            if (data.Patch == ratings.Catalog.Patch && data.Items is { Count: > 0 })
+                return new(ratings, data.Items);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { }
-        return new(catalog, []);
+        return new(ratings, []);
     }
+
+    internal EnemyDamageMix? EstimateEnemyDamage(MayhemMatch? match) => match is null ? null :
+        EnemyDamageMix.Estimate(match.Opponents.Where(opponent => champions.ContainsKey(opponent.Champion)).Select(opponent =>
+        {
+            var equipped = EquippedItems(opponent).Where(item => item.Finished && !item.Boots).ToArray();
+            return EnemyDamageMix.PhysicalShare(ratings, champions[opponent.Champion],
+                equipped.Count(item => item.AttackDamage > 0 || item.Crit > 0), equipped.Count(item => item.AbilityPower > 0));
+        }));
 
     internal MayhemBuildPlan? Recommend(GameContext game, MayhemMatch? match, OpGgBuildSnapshot? build)
     {
@@ -227,7 +237,7 @@ internal sealed class MayhemBuilds
     private Opponent ReadOpponent(MayhemOpponent opponent)
     {
         var champion = champions[opponent.Champion];
-        var equipped = opponent.Items.Select(id => items.GetValueOrDefault(id)).OfType<MayhemItem>().ToArray();
+        var equipped = EquippedItems(opponent).ToArray();
         var ap = equipped.Sum(item => item.AbilityPower);
         var ad = equipped.Sum(item => item.AttackDamage);
         bool mage = champion.Roles.Contains("Mage");
@@ -239,6 +249,9 @@ internal sealed class MayhemBuilds
             Shielders.Contains(champion.Key) || opponent.Items.Any(id => id is 3053 or 3156 or 3190 or 6673), magic, physical,
             champion.Roles[0] == "Assassin" || Divers.Contains(champion.Key));
     }
+
+    private IEnumerable<MayhemItem> EquippedItems(MayhemOpponent opponent) =>
+        opponent.Items.Select(id => items.GetValueOrDefault(id)).OfType<MayhemItem>();
 
     private static string PurchaseReason(int count, string stat) => count == 1
         ? $"1 rival con compras de {stat}" : $"{count} rivales con compras de {stat}";

@@ -31,7 +31,7 @@ internal static class MayhemBuildTests
                 [[new(6655, "Eco de Luden"), new(4645, "Lumbría"), new(3089, "Sombrero Mortífero de Rabadon")],
                  [new(6655, "Eco de Luden"), new(4646, "Descarga Tormentosa"), new(4645, "Lumbría")]])
         ]);
-        var source = MayhemBuilds.Load(ratings.Catalog, assets);
+        var source = MayhemBuilds.Load(ratings, assets);
         var initial = source.Recommend(game, match!.Mayhem, build);
         Check(initial?.Steps.Select(step => step.Item.Id).SequenceEqual([6655, 3020, 4645, 3089, 3135, 3165]) == true &&
             initial.Steps[4].Detail == "2 rivales con compras de resistencia mágica" && initial.Steps[5].Detail == "Curación · Soraka",
@@ -52,6 +52,13 @@ internal static class MayhemBuildTests
         Check(source.Recommend(game, full, build)?.Steps.All(step => step.Detail == "Comprado") == true &&
             source.Recommend(game with { Mode = Mode.Arena }, match.Mayhem, build) is null,
             "reconoce el inventario completo y las builds situacionales no se activan en Arena");
+
+        var damageMix = flat with { Opponents = [..flat.Opponents, new("Zed", []), new("Akali", [6673])] };
+        var updatedMix = damageMix with { Opponents = [..flat.Opponents, new("Zed", []), new("Akali", [3089])] };
+        Check(source.EstimateEnemyDamage(damageMix) is { PhysicalPercent: 70, MagicPercent: 30 } &&
+            source.EstimateEnemyDamage(updatedMix) is { PhysicalPercent: 60, MagicPercent: 40 } &&
+            source.EstimateEnemyDamage(damageMix with { Opponents = [new("Ornn", []), new("Desconocido", [])] }) is null,
+            "la proporción cambia con las compras rivales y queda pendiente sin perfiles de daño identificables");
 
         var marksman = game with { Champion = "Jinx" };
         var marksmanBuild = build with { Champion = "Jinx", Groups =

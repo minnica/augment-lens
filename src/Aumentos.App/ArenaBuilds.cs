@@ -19,6 +19,14 @@ internal sealed class ArenaBuilds(Ratings ratings)
         .Concat(ratings.Catalog.ArenaPrismatics ?? []).Concat(ratings.Catalog.ArenaEquipment ?? [])
         .DistinctBy(item => item.Id).ToDictionary(item => item.Id);
 
+    internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match) => match is null ? null :
+        EnemyDamageMix.Estimate(RecentOpponents(match).Where(opponent => champions.ContainsKey(opponent.Champion)).Select(opponent =>
+        {
+            var items = EquippedItems(opponent).Where(item => !IsBoot(item)).ToArray();
+            return EnemyDamageMix.PhysicalShare(ratings, champions[opponent.Champion],
+                items.Count(item => Has(item, "Damage") || Has(item, "CriticalStrike")), items.Count(item => Has(item, "SpellDamage")));
+        }));
+
     internal MayhemBuildPlan? Recommend(GameContext game, ArenaMatch? match, OpGgBuildSnapshot? build)
     {
         if (game.Mode != Mode.Arena || match is null || !champions.TryGetValue(game.Champion, out var champion) || equipment.Count == 0)
@@ -38,7 +46,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         var baseIds = owned.Select(item => BaseId(item.Id)).ToHashSet();
         var core = paths.MaxBy(path => path.Count(item => baseIds.Contains(item.Id))) ?? [];
         var role = BuildRole(champion, owned, core);
-        var rivals = match.Opponents.Take(3).Select(ReadRival).OfType<Rival>().ToArray();
+        var rivals = RecentOpponents(match).Select(ReadRival).OfType<Rival>().ToArray();
 
         int[] defaults = role switch
         {
@@ -158,7 +166,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
     {
         if (!champions.TryGetValue(opponent.Champion, out var champion))
             return null;
-        var items = opponent.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => item.Id).ToArray();
+        var items = EquippedItems(opponent).ToArray();
         int ap = items.Count(item => Has(item, "SpellDamage") && !Has(item, "Damage"));
         int ad = items.Count(item => Has(item, "Damage") && !Has(item, "SpellDamage"));
         var role = champion.Roles[0];
@@ -172,6 +180,10 @@ internal sealed class ArenaBuilds(Ratings ratings)
             items.Count(item => !IsBoot(item) && (Has(item, "SpellBlock") || Has(item, "MagicResist"))),
             items.Count(item => Has(item, "CriticalStrike")), items.Count(item => Has(item, "Health")));
     }
+
+    private static IEnumerable<ArenaOpponent> RecentOpponents(ArenaMatch match) => match.Opponents.Take(3);
+    private IEnumerable<ArenaItem> EquippedItems(ArenaOpponent opponent) =>
+        opponent.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => item.Id);
 
     private ArenaItem? Resolve(int id) => equipment.GetValueOrDefault(id) ?? equipment.GetValueOrDefault(id is > 0 and < 10000 ? id + 220000 : id);
     private static bool Has(ArenaItem item, string category) => item.Categories?.Contains(category) == true;
