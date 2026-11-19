@@ -19,6 +19,8 @@ internal static class Program
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
         var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AumentosLoL");
         using var http = OpGgRatings.CreateClient();
+        if (args.FirstOrDefault() == "--verificar-build")
+            return VerifyBuild(args, assets, settings, http);
         if (Array.IndexOf(args, "--verificar") >= 0)
         {
             try
@@ -90,6 +92,7 @@ internal static class Program
             var opgg = new OpGgRatings(ratings.Catalog, settings, http);
             var aramMayhem = new AramMayhemRatings(ratings.Catalog, settings, http);
             var ggez = new GgezArenaRatings(ratings.Catalog, settings, http);
+            var builds = new OpGgBuilds(ratings.Catalog, settings, http);
             if (args.FirstOrDefault() == "--registrar-capturas")
                 return ImportCaptures(args, assets, ratings, layouts, history, opgg, aramMayhem, ggez);
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -104,9 +107,10 @@ internal static class Program
                 }
             };
             var overlay = new Overlay();
+            var buildOverlay = new BuildOverlay();
             using var stop = new CancellationTokenSource();
             string previous = "";
-            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, assets, app.Dispatcher, state =>
+            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, builds, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
@@ -116,7 +120,7 @@ internal static class Program
                     previous = info;
                     WriteStatus(info);
                 }
-            });
+            }, buildOverlay.Render);
             using var menu = new Forms.ContextMenuStrip();
             using var appIcon = Icon.ExtractAssociatedIcon(Path.Combine(AppContext.BaseDirectory, "AumentosLoL.exe"))
                 ?? (Icon)SystemIcons.Application.Clone();
@@ -142,11 +146,24 @@ internal static class Program
                 OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
             menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
                 OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
+            var showBuild = new Forms.ToolStripMenuItem("Mostrar build de OP.GG") { CheckOnClick = true };
+            showBuild.CheckedChanged += (_, _) =>
+            {
+                worker.ShowBuild = showBuild.Checked;
+                if (!showBuild.Checked)
+                    buildOverlay.Render(null);
+            };
+            menu.Items.Add(showBuild);
+            menu.Items.Add("Abrir build de OP.GG", null, (_, _) => OpenProviderPage(builds.SourceUrl, "OP.GG"));
             var pause = new Forms.ToolStripMenuItem("Pausar overlay") { CheckOnClick = true };
             pause.CheckedChanged += (_, _) =>
             {
                 worker.Paused = pause.Checked;
-                if (pause.Checked) overlay.Hide();
+                if (pause.Checked)
+                {
+                    overlay.Hide();
+                    buildOverlay.Render(null);
+                }
             };
             menu.Items.Add(pause);
             menu.Items.Add("Salir", null, (_, _) =>
@@ -159,6 +176,8 @@ internal static class Program
             tray.DoubleClick += (_, _) => OpenDiagnostics();
             app.Startup += (_, _) =>
             {
+                if (buildOverlay.RegisterShortcut(() => showBuild.Checked = !showBuild.Checked))
+                    showBuild.ShortcutKeyDisplayString = "Ctrl+Alt+B";
                 if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
                 _ = Task.Run(async () =>
@@ -171,6 +190,7 @@ internal static class Program
                             await app.Dispatcher.InvokeAsync(() =>
                             {
                                 overlay.Hide();
+                                buildOverlay.Render(null);
                                 var message = $"No se pudo iniciar el overlay · {error.Message}";
                                 diagnostics.SetStatus(message);
                                 WriteStatus(message);
@@ -203,6 +223,33 @@ internal static class Program
         catch (Exception error)
         {
             MessageBox.Show(error.Message, "Aumentos LoL", MessageBoxButton.OK, MessageBoxImage.Error);
+            return 1;
+        }
+    }
+
+    private static int VerifyBuild(string[] args, string assets, string settings, System.Net.Http.HttpClient http)
+    {
+        try
+        {
+            if (args.Length != 3 || !Enum.TryParse<Mode>(args[1], true, out var mode) || !Enum.IsDefined(mode))
+                throw new ArgumentException("Uso: --verificar-build Caos|Arena Campeón");
+            var ratings = new Ratings(assets);
+            var champion = ratings.Catalog.Champions.FirstOrDefault(item =>
+                string.Equals(item.Key, args[2], StringComparison.OrdinalIgnoreCase)) ??
+                throw new ArgumentException($"Campeón desconocido: {args[2]}.");
+            var builds = new OpGgBuilds(ratings.Catalog, settings, http);
+            var view = builds.ForCaptureAsync(new GameContext(mode, champion.Key), CancellationToken.None).GetAwaiter().GetResult();
+            Console.WriteLine($"{champion.Name} · {view.Status}");
+            if (view.Data is not { } data)
+                return 4;
+            foreach (var group in data.Groups)
+                Console.WriteLine($"{BuildOverlay.SectionLabel(group.Section)} · " +
+                    string.Join(" | ", group.Choices.Select(items => BuildOverlay.ChoiceText(group.Section, items))));
+            return 0;
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(error.Message);
             return 1;
         }
     }

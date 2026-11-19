@@ -32,6 +32,14 @@ En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese
 
 En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global de la carta en la muestra de esa fuente. La app prioriza el archivo del parche actual y, si aún falta, usa el inmediatamente anterior de la misma temporada. En ese caso, debajo del porcentaje aparece «Parche anterior» con el número. La fuente se consulta en segundo plano y se comparte entre todos los campeones. La app vuelve a comprobar los archivos anteriores cada 15 minutos y los del parche actual cada 12 horas mientras se usa el modo. [Datos de ARAMMayhem.com · CC BY 4.0](https://arammayhem.com/data/)
 
+## Builds de OP.GG en partida
+
+Pulsa **Ctrl+Alt+B** para mostrar u ocultar el panel de builds de tu campeón en **ARAM Caos** o **Arena**. También puedes activarlo desde **Mostrar build de OP.GG** en la bandeja. La vista aparece junto al borde derecho mientras League está en primer plano y se aparta durante la elección de aumentos.
+
+El panel muestra en español las primeras opciones de objetos que publica OP.GG para el modo, incluidas las botas, las rutas principales y los prismáticos de Arena cuando están disponibles. Las opciones conservan el orden de la fuente. La app reutiliza una copia por campeón, modo y parche. Si la tabla disponible es del parche inmediatamente anterior de la misma temporada, la vista lo indica. **Abrir build de OP.GG** en la bandeja lleva a la página del último campeón detectado. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
+
+Para comprobar los datos sin entrar a una partida, ejecuta `dist\win-x64\Iniciar.cmd --verificar-build Caos Zyra` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
+
 ## Historial de aumentos
 
 Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CSV se guarda en `%LOCALAPPDATA%\AumentosLoL\historial-aumentos.csv` y se puede abrir en Excel o cualquier lector de CSV.

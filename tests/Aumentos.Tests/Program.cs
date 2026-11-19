@@ -22,6 +22,7 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
+        BuildTests.Run(ratings).GetAwaiter().GetResult();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
@@ -95,6 +96,7 @@ internal static class Program
         {
             CaptureSmoke();
             OverlaySmoke();
+            BuildOverlaySmoke();
         }
         var samples = new List<SavedLayout>();
         if (Option("--caos") is { } caosPath)
@@ -439,6 +441,32 @@ internal static class Program
     {
         if (!result)
             throw new InvalidOperationException($"Falló: {description}");
+    }
+
+    private static void BuildOverlaySmoke()
+    {
+        var overlay = new BuildOverlay();
+        try
+        {
+            var bounds = new Int32Rect(10, 10, 1040, 720);
+            var data = new OpGgBuildSnapshot(Mode.Caos, "Zyra", "16.23", "16.23", DateTimeOffset.UtcNow,
+                [new(OpGgBuildSection.Core, [[new(6653, "El Tormento de Liandry"), new(3116, "Cetro de Cristal de Rylai")]])]);
+            overlay.Render(new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(data, "Prueba")));
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var handle = new WindowInteropHelper(overlay).Handle;
+            var placement = Native.Bounds(handle);
+            Check(Native.IsWindowVisible(handle) &&
+                placement.X > bounds.X + bounds.Width / 2 && placement.X + placement.Width <= bounds.X + bounds.Width &&
+                placement.Y >= bounds.Y && placement.Y + placement.Height <= bounds.Y + bounds.Height &&
+                (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
+                "build visible dentro del juego, sin tomar el foco ni bloquear clics");
+            Check(BuildOverlay.ChoiceText(OpGgBuildSection.Core, data.Groups[0].Choices[0])
+                .StartsWith("El Tormento de Liandry", StringComparison.Ordinal), "orden de objetos en la ruta");
+            overlay.Render(null);
+            Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
+            Console.WriteLine("Panel de builds de OP.GG verificado.");
+        }
+        finally { overlay.Close(); }
     }
 
     private static void OverlaySmoke()

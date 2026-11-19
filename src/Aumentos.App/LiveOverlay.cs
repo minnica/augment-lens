@@ -26,14 +26,17 @@ internal sealed class LiveOverlay
     private readonly OpGgRatings opgg;
     private readonly AramMayhemRatings aramMayhem;
     private readonly GgezArenaRatings ggez;
+    private readonly OpGgBuilds builds;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
+    private readonly Action<BuildDisplay?> updateBuild;
     private int paused;
+    private int showBuild;
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
-        AramMayhemRatings aramMayhem, GgezArenaRatings ggez, string assets,
-        Dispatcher dispatcher, Action<OverlayUpdate> update)
+        AramMayhemRatings aramMayhem, GgezArenaRatings ggez, OpGgBuilds builds, string assets,
+        Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild)
     {
         this.ratings = ratings;
         this.layouts = layouts;
@@ -41,12 +44,15 @@ internal sealed class LiveOverlay
         this.opgg = opgg;
         this.aramMayhem = aramMayhem;
         this.ggez = ggez;
+        this.builds = builds;
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
+        this.updateBuild = updateBuild;
     }
 
     public bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
+    public bool ShowBuild { get => Volatile.Read(ref showBuild) != 0; set => Volatile.Write(ref showBuild, value ? 1 : 0); }
 
     public async Task Run(CancellationToken cancellation)
     {
@@ -60,6 +66,8 @@ internal sealed class LiveOverlay
         string idle = "Esperando la partida…";
         Calibration? previous = null;
         GameWindow? lastWindow = null;
+        BuildDisplay? lastBuild = null;
+        bool cardsVisible = false;
         try
         {
             while (!cancellation.IsCancellationRequested)
@@ -68,6 +76,7 @@ internal sealed class LiveOverlay
                 if (window is not null)
                     lastWindow = window;
                 OverlayUpdate? result;
+                BuildDisplay? build = null;
                 if (window is null || window.Bounds.Width < 1 || window.Bounds.Height < 1)
                 {
                     StopCapture();
@@ -95,11 +104,26 @@ internal sealed class LiveOverlay
                     result = game is null
                         ? new OverlayUpdate("Esperando ARAM Caos o Arena…")
                         : ReadOverlay(window, game);
+                    if (result is not null)
+                        cardsVisible = result.Labels is not null;
+                    if (game is { } currentGame && window.Patch == ratings.Catalog.Patch)
+                    {
+                        var suggestion = builds.Current(currentGame, cancellation);
+                        if (ShowBuild && !Paused && !cardsVisible && Native.GetForegroundWindow() == window.Handle)
+                            build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame), currentGame.Mode, suggestion);
+                    }
                 }
 
                 history.WriteIfDue(Environment.TickCount64);
-                if (result is not null)
-                    await dispatcher.InvokeAsync(() => update(result), DispatcherPriority.Normal, cancellation);
+                if (result is not null || lastBuild != build)
+                    await dispatcher.InvokeAsync(() =>
+                    {
+                        if (result is not null)
+                            update(result);
+                        if (lastBuild != build)
+                            updateBuild(build);
+                    }, DispatcherPriority.Normal, cancellation);
+                lastBuild = build;
                 await Task.Delay(capture is null ? 240 : 115, cancellation).ConfigureAwait(false);
             }
         }
@@ -127,8 +151,7 @@ internal sealed class LiveOverlay
                 StopCapture();
 
             var label = current.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
-            var name = ratings.Catalog.Champions.FirstOrDefault(item =>
-                string.Equals(item.Key, current.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? current.Champion;
+            var name = ChampionName(current);
             var source = opgg.Current(current, cancellation);
             var mayhem = aramMayhem.Current(current.Mode, cancellation);
             var arena = ggez.Current(current, cancellation);
@@ -189,6 +212,8 @@ internal sealed class LiveOverlay
         }
     }
 
+    private string ChampionName(GameContext game) => ratings.Catalog.Champions.FirstOrDefault(item =>
+        string.Equals(item.Key, game.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? game.Champion;
 }
 
 internal sealed class Overlay
