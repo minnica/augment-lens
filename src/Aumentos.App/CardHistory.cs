@@ -4,16 +4,19 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Microsoft.VisualBasic.FileIO;
 
 namespace Aumentos;
 
 internal sealed class CardHistory
 {
-    private const string Header = "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen";
+    private const string OriginalHeader = "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen";
+    private const string Header = OriginalHeader + ",opgg";
     private readonly Ratings ratings;
     private readonly Dictionary<(Mode, int), string> names;
     private readonly List<string> pending = [];
-    private readonly (int Id, string Tier)?[] slots = new (int, string)?[4];
+    private readonly (int Id, CardComparison Comparison)?[] slots = new (int, CardComparison)?[4];
+    private bool checkedHeader;
     private nint window;
     private Guid match;
     private int selection;
@@ -28,7 +31,7 @@ internal sealed class CardHistory
         names = ratings.Catalog.Augments.ToDictionary(card => (Enum.Parse<Mode>(card.Mode), card.Id), card => card.Name);
     }
 
-    internal void Observe(nint handle, Mode mode, string champion, int?[] cards, string?[] labels, long now)
+    internal void Observe(nint handle, Mode mode, string champion, int?[] cards, CardComparison?[] labels, long now)
     {
         if (window != handle || selection == 0)
         {
@@ -52,31 +55,32 @@ internal sealed class CardHistory
             closedSince ??= now;
     }
 
-    internal void Import(DateTimeOffset date, Mode mode, string champion, string reference, int?[] cards)
+    internal void Import(DateTimeOffset date, Mode mode, string champion, string reference, int?[] cards,
+        OpGgSnapshot? snapshot = null)
     {
-        var labels = cards.Select(id => id.HasValue ? ratings.Rate(mode, champion, id.Value)?.ToString() ?? "Sin tier" : null).ToArray();
+        var labels = CardComparison.ForOffer(ratings, new GameContext(mode, champion), cards, new bool[cards.Length], snapshot);
         CaptureRows(date, mode, champion, "", null, cards, labels, $"Captura · tier recalculado · {reference}", remember: false);
     }
 
     private void CaptureRows(DateTimeOffset date, Mode mode, string champion, string game, int? round,
-        int?[] cards, string?[] labels, string origin, bool remember)
+        int?[] cards, CardComparison?[] labels, string origin, bool remember)
     {
         for (int slot = 0; slot < cards.Length; slot++)
         {
-            if (cards[slot] is not { } id || labels[slot] is not { } tier || !names.TryGetValue((mode, id), out var name))
+            if (cards[slot] is not { } id || labels[slot] is not { } comparison || !names.TryGetValue((mode, id), out var name))
                 continue;
             if (remember)
             {
-                if (slots[slot] == (id, tier))
+                if (slots[slot] == (id, comparison))
                     continue;
-                slots[slot] = (id, tier);
+                slots[slot] = (id, comparison);
             }
             pending.Add(string.Join(",", new[]
             {
                 date.ToString("o", CultureInfo.InvariantCulture),
                 mode == Mode.Caos ? "ARAM Caos" : "Arena", champion, ratings.Catalog.Patch, game,
                 round?.ToString(CultureInfo.InvariantCulture) ?? "", (slot + 1).ToString(CultureInfo.InvariantCulture),
-                id.ToString(CultureInfo.InvariantCulture), name, tier, origin
+                id.ToString(CultureInfo.InvariantCulture), name, comparison.Local, origin, comparison.ExternalText
             }.Select(CsvField)));
         }
     }
@@ -95,6 +99,11 @@ internal sealed class CardHistory
         if (pending.Count == 0 && !createWhenEmpty)
             return;
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        if (!checkedHeader)
+        {
+            UpgradeHeader();
+            checkedHeader = true;
+        }
         using var stream = new FileStream(FilePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
         long originalLength = stream.Length;
         if (originalLength > 0 && pending.Count == 0)
@@ -118,4 +127,33 @@ internal sealed class CardHistory
     }
 
     private static string CsvField(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+
+    private void UpgradeHeader()
+    {
+        if (!File.Exists(FilePath)) return;
+        var temp = $"{FilePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            using (var original = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                if (original.Length == 0) return;
+                using var reader = new TextFieldParser(original, Encoding.UTF8, true, leaveOpen: true) { TrimWhiteSpace = false };
+                reader.SetDelimiters(",");
+                var header = string.Join(",", reader.ReadFields() ?? []);
+                if (header == Header) return;
+                if (header != OriginalHeader) throw new IOException("Columnas de historial desconocidas.");
+                using var writer = new StreamWriter(temp, false, new UTF8Encoding(true));
+                writer.WriteLine(Header);
+                while (!reader.EndOfData)
+                {
+                    var fields = reader.ReadFields();
+                    if (fields?.Length != 11) throw new IOException("Fila incompleta en el historial.");
+                    writer.WriteLine(string.Join(",", fields.Select(CsvField)) + ",");
+                }
+            }
+            File.Move(temp, FilePath, overwrite: true);
+        }
+        catch (MalformedLineException error) { throw new IOException("Fila ilegible en el historial.", error); }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
 }

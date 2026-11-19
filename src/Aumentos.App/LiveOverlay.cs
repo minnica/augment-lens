@@ -16,24 +16,26 @@ using System.Windows.Threading;
 namespace Aumentos;
 
 internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
-    string?[]? Labels = null, nint Target = 0);
+    CardComparison?[]? Labels = null, nint Target = 0);
 
 internal sealed class LiveOverlay
 {
     private readonly Ratings ratings;
     private readonly LayoutStore layouts;
     private readonly CardHistory history;
+    private readonly OpGgRatings opgg;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private int paused;
 
-    public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, string assets,
+    public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update)
     {
         this.ratings = ratings;
         this.layouts = layouts;
         this.history = history;
+        this.opgg = opgg;
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
@@ -122,7 +124,8 @@ internal sealed class LiveOverlay
             var label = current.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
             var name = ratings.Catalog.Champions.FirstOrDefault(item =>
                 string.Equals(item.Key, current.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? current.Champion;
-            idle = $"{label} · {name} · Esperando cartas…";
+            var source = opgg.Current(current, cancellation);
+            idle = $"{label} · {name} · Esperando cartas… · {source.Status}";
             var candidates = layouts.Find(current.Mode, window.Bounds.Width, window.Bounds.Height);
             if (candidates.Length == 0)
             {
@@ -146,14 +149,15 @@ internal sealed class LiveOverlay
                     if (result.CanShow(candidate == previous))
                     {
                         previous = candidate;
-                        var badges = result.Cards.Select((id, slot) => result.Items[slot] ? null : id is null ? "?" :
-                            ratings.Rate(current.Mode, current.Champion, id.Value)?.ToString() ?? "Sin tier").ToArray();
+                        var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items, source.Data, source.Loading);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
-                        return new OverlayUpdate($"{label} · {name} · Tiers {string.Join(" / ", badges)}", window.Bounds, candidate, badges,
-                            window.Handle);
+                        var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
+                            badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.Local}"));
+                        return new OverlayUpdate($"{label} · {name} · {source.Status} · OP.GG / local · {displayed}",
+                            window.Bounds, candidate, badges, window.Handle);
                     }
                     status = result.Items.Any(item => item)
                         ? $"{label} · Panel de objetos"
@@ -197,7 +201,7 @@ internal sealed class Overlay
         for (int index = 0; index < badges.Length; index++)
         {
             var badge = badges[index];
-            string? label = index < labels.Length ? labels[index] : null;
+            var label = index < labels.Length ? labels[index] : null;
             if (label is null)
             {
                 badge.HideBadge();
@@ -218,8 +222,10 @@ internal sealed class Overlay
 
     private sealed class BadgeWindow : Window
     {
-        private readonly TextBlock title = new() { FontWeight = FontWeights.Bold, FontSize = 18 };
+        private readonly TextBlock source = new() { FontWeight = FontWeights.Bold, FontSize = 16 };
+        private readonly TextBlock local = new() { FontSize = 13, Foreground = Brushes.WhiteSmoke };
         private readonly Border badge;
+        private CardComparison? displayed;
         private nint handle;
         private Int32Rect placement;
         internal bool NativeVisible => handle != 0 && Native.IsWindowVisible(handle);
@@ -235,10 +241,13 @@ internal sealed class Overlay
             Topmost = true;
             Background = Brushes.Transparent;
             IsHitTestVisible = false;
+            var panel = new StackPanel();
+            panel.Children.Add(source);
+            panel.Children.Add(local);
             badge = new Border
             {
                 Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(6),
-                Background = Paint("#F0172436"), BorderThickness = new Thickness(1), Child = title
+                Background = Paint("#F0172436"), BorderThickness = new Thickness(1), Child = panel
             };
             Content = badge;
             SourceInitialized += (_, _) =>
@@ -255,12 +264,16 @@ internal sealed class Overlay
                 Hide();
         }
 
-        internal void Display(string value, double center, double titleY, double dpiScale)
+        internal void Display(CardComparison value, double center, double titleY, double dpiScale)
         {
-            if (title.Text != value)
+            if (displayed != value)
             {
-                title.Text = value;
-                badge.BorderBrush = title.Foreground = value switch
+                displayed = value;
+                bool unread = value == CardComparison.Unread;
+                source.Text = unread ? "?" : $"OP.GG   {value.ExternalText}";
+                local.Text = $"Estimación local   {value.Local}";
+                local.Visibility = unread ? Visibility.Collapsed : Visibility.Visible;
+                badge.BorderBrush = source.Foreground = value.External?.Tier switch
                 {
                     "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")
                 };

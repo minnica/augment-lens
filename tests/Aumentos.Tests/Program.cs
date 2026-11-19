@@ -18,6 +18,7 @@ internal static class Program
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
         var ratings = new Ratings(assets);
         CheckHistory(ratings);
+        ComparisonTests.Run(ratings).GetAwaiter().GetResult();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
@@ -46,11 +47,7 @@ internal static class Program
         var cards = ratings.Catalog.Augments.Where(card => card.Mode == "Arena").ToArray();
         Check(cards.GroupBy(card => ratings.Rate(Mode.Arena, "Jinx", card.Id)).Any(group => group.Count() >= 3),
             "empates permitidos");
-        var deterministicCards = ratings.Catalog.Augments.Where(card => card.Mode != "Arena" ||
-            card.Key is not ("ReplaceAugment" or "UnstableTransmutation") && !card.Key.StartsWith("Transmute", StringComparison.Ordinal)).ToArray();
-        foreach (var champion in ratings.Catalog.Champions)
-            Check(deterministicCards.All(card =>
-                ratings.Rate(Enum.Parse<Mode>(card.Mode), champion.Key, card.Id).HasValue), "cobertura del catálogo");
+        Check(ratings.Rate(Mode.Caos, "Lux", 1211) is null, "carta sin regla queda sin valorar");
 
         var offer = new OfferState();
         offer.Set(0, 2, null);
@@ -133,7 +130,7 @@ internal static class Program
             Check(read is { Layout.Titles.Length: 4 } && read.Value.Result.Cards.SequenceEqual(new int?[] { 2098, 1088, 2087, 2062 }),
                 "cuatro cartas con la señal del botón ausente");
             var tiers = read!.Value.Result.Cards.Select(id => ratings.Rate(Mode.Caos, "Lux", id!.Value)).ToArray();
-            Check(tiers.SequenceEqual(new Tier?[] { Tier.B, Tier.B, Tier.A, Tier.S }), "tiers de Lux");
+            Check(tiers.SequenceEqual(new Tier?[] { null, null, Tier.A, Tier.S }), "tiers de Lux");
             Console.WriteLine($"Cuatro cartas de Lux sin depender del botón: {string.Join(" / ", tiers)}");
         }
         if (Option("--arena") is { } arenaPath)
@@ -166,9 +163,10 @@ internal static class Program
             for (int i = 0; i < result.Texts.Length; i++)
                 Console.WriteLine($"Mejora de Arena: {result.Texts[i]} · {result.Cards[i]}");
             Check(result.CanShow(false) && result.Cards.SequenceEqual(new int?[] { 364, 1034, 180 }), "lectura del panel de mejora");
-            Check(ratings.Rate(Mode.Arena, "Elise", 364) is null &&
-                ratings.Rate(Mode.Arena, "Elise", 1034).HasValue &&
-                ratings.Rate(Mode.Arena, "Elise", 180).HasValue, "tiers de mejoras y opción aleatoria sin tier");
+            var options = CardComparison.ForOffer(ratings, new GameContext(Mode.Arena, "Elise"),
+                result.Cards, result.Items, null);
+            Check(options.Select(item => item?.Local).SequenceEqual(["Variable", "Sin dato", "Sin dato"]),
+                "se distinguen reemplazo y mejoras sin valoración");
         }
         if (Option("--items") is { } itemsPath)
         {
@@ -199,21 +197,30 @@ internal static class Program
         var history = new CardHistory(folder, ratings);
         try
         {
-            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], ["B", "B", "?", "S"], 0);
-            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], ["B", "B", "?", "S"], 300);
-            history.Observe(4, Mode.Caos, "Lux", [null, 1088, null, 2062], ["?", "B", "?", "S"], 500);
-            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], ["B", "A", "?", "S"], 1000);
+            Directory.CreateDirectory(folder);
+            File.WriteAllLines(history.FilePath, [
+                "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen",
+                "2026-11-18,Arena,Elise,16.22,,1,2,57,\"Texto, con coma\",B,Partida"
+            ]);
+            CardComparison?[] original = [new("B"), new("B"), CardComparison.Unread, new("S")];
+            CardComparison?[] reroll = [new("B"), new("A", new OpGgCard("S")), CardComparison.Unread, new("S")];
+            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], original, 0);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], original, 300);
+            history.Observe(4, Mode.Caos, "Lux", [null, 1088, null, 2062], original, 500);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], reroll, 1000);
             history.ObserveClosed(4, 2000);
-            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], ["B", "A", "?", "S"], 3400);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], reroll, 3400);
             history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180]);
             history.Flush();
             history.Flush();
             var lines = File.ReadAllLines(history.FilePath);
-            Check(lines.Length == 11, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
-            Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\"")).Contains("\"Archimago\",\"A\",\"Partida\""),
-                "se guarda exactamente el tier de la carta cambiada");
+            Check(lines[0].EndsWith(",opgg") && lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\","),
+                "la columna nueva conserva los valores del historial anterior");
+            Check(lines.Length == 12, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
+            Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\"")).EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\""),
+                "se guardan por separado las dos valoraciones de la carta cambiada");
             Check(lines.Any(row => row.Contains("\"2\",\"1\",\"2098\"")) &&
-                lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Sin tier\",\"Captura · tier recalculado · image4.png\"")),
+                lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Variable\",\"Captura · tier recalculado · image4.png\"")),
                 "selecciones nuevas y origen de captura");
             Console.WriteLine("Historial de cartas verificado.");
         }
@@ -385,7 +392,8 @@ internal static class Program
             var marker = new Region(.1, .1, .1, .1);
             var titles = new[] { new Region(.1, .5, .15, .1), new Region(.4, .5, .15, .1), new Region(.7, .5, .15, .1) };
             var layout = new Calibration(bounds.Width, bounds.Height, marker, titles, new byte[720]);
-            overlay.Render(new OverlayUpdate("Prueba", bounds, layout, ["S", "A", "?"]));
+            overlay.Render(new OverlayUpdate("Prueba", bounds, layout,
+                [new("A", new OpGgCard("S")), new("B"), CardComparison.Unread]));
             var first = overlay.Windows[0];
             var handle = new WindowInteropHelper(first).Handle;
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -405,6 +413,14 @@ internal static class Program
             var pixel = new byte[4];
             rendered.CopyPixels(new Int32Rect(6, 8, 1, 1), pixel, 4, 0);
             Check(pixel[3] > 100, "píxeles visibles del badge");
+            static string[] VisibleLines(Window window) => ((Panel)((Border)window.Content).Child).Children
+                .OfType<TextBlock>().Where(text => text.Visibility == Visibility.Visible).Select(text => text.Text).ToArray();
+            Check(VisibleLines(first).SequenceEqual(["OP.GG   S", "Estimación local   A"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["?"]), "Abejas muestra sus dos fuentes y el OCR dudoso muestra ?");
+            overlay.Render(new OverlayUpdate("Reroll", bounds, layout, [new("Sin dato", new OpGgCard("B")), null, new("A")]));
+            Check(VisibleLines(first).SequenceEqual(["OP.GG   B", "Estimación local   Sin dato"]) &&
+                !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A"]),
+                "las dos líneas se actualizan al cambiar cartas y desaparecen sobre objetos");
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
             Console.WriteLine("Overlay de WPF verificado.");

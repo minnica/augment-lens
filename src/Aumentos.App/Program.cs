@@ -17,6 +17,8 @@ internal static class Program
     {
         Native.SetProcessDpiAwarenessContext(-4);
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
+        var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AumentosLoL");
+        using var http = OpGgRatings.CreateClient();
         if (Array.IndexOf(args, "--verificar") >= 0)
         {
             try
@@ -24,7 +26,7 @@ internal static class Program
                 var ratings = new Ratings(assets);
                 using var detection = new Detection(ratings, Path.Combine(assets, "tessdata"));
                 using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
-                if (args.Length == 3 && Enum.TryParse<Mode>(args[1], true, out var mode))
+                if (args.Length is 3 or 4 && Enum.TryParse<Mode>(args[1], true, out var mode))
                 {
                     var image = Diagnostics.OpenBitmap(args[2]);
                     var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
@@ -35,11 +37,25 @@ internal static class Program
                         options, mode, previous: null);
                     if (read is not { Result: var result })
                         return 3;
+                    CardComparison?[]? comparisons = null;
+                    if (args.Length == 4)
+                    {
+                        var champion = ratings.Catalog.Champions.Single(item =>
+                            string.Equals(item.Key, args[3], StringComparison.OrdinalIgnoreCase));
+                        var game = new GameContext(mode, champion.Key);
+                        var source = new OpGgRatings(ratings.Catalog, settings, http)
+                            .ForCaptureAsync(game, CancellationToken.None).GetAwaiter().GetResult();
+                        comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data);
+                        Console.WriteLine(source.Status);
+                    }
                     for (int index = 0; index < result.Cards.Length; index++)
                     {
                         var card = ratings.Catalog.Augments.FirstOrDefault(augment =>
                             augment.Mode == mode.ToString() && augment.Id == result.Cards[index]);
-                        Console.WriteLine(result.Items[index] ? $"Objeto: {result.Texts[index]}" : card?.Name ?? $"? {result.Texts[index]}");
+                        var label = result.Items[index] ? $"Objeto: {result.Texts[index]}" : card?.Name ?? $"? {result.Texts[index]}";
+                        if (card is not null && comparisons?[index] is { } comparison)
+                            label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
+                        Console.WriteLine(label);
                     }
                     Console.WriteLine(result.CanShow(false) ? "Overlay visible" : "Overlay oculto");
                     return result.Cards.Select((card, slot) => card.HasValue || result.Items[slot]).All(valid => valid) ? 0 : 4;
@@ -57,12 +73,12 @@ internal static class Program
             return 0;
         try
         {
-            var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AumentosLoL");
             var ratings = new Ratings(assets);
             var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), Path.Combine(settings, "layouts.json"));
             var history = new CardHistory(settings, ratings);
+            var opgg = new OpGgRatings(ratings.Catalog, settings, http);
             if (args.FirstOrDefault() == "--registrar-capturas")
-                return ImportCaptures(args, assets, ratings, layouts, history);
+                return ImportCaptures(args, assets, ratings, layouts, history, opgg);
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var diagnostics = new Diagnostics(ratings, layouts, assets);
             var closing = false;
@@ -77,7 +93,7 @@ internal static class Program
             var overlay = new Overlay();
             using var stop = new CancellationTokenSource();
             string previous = "";
-            var worker = new LiveOverlay(ratings, layouts, history, assets, app.Dispatcher, state =>
+            var worker = new LiveOverlay(ratings, layouts, history, opgg, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
@@ -174,7 +190,8 @@ internal static class Program
         }
     }
 
-    private static int ImportCaptures(string[] args, string assets, Ratings ratings, LayoutStore layouts, CardHistory history)
+    private static int ImportCaptures(string[] args, string assets, Ratings ratings, LayoutStore layouts, CardHistory history,
+        OpGgRatings opgg)
     {
         try
         {
@@ -194,7 +211,8 @@ internal static class Program
                 var read = detector.ReadPanel(image, bounds, options, mode, null);
                 if (read is not { Result: var result } || !result.CanShow(false))
                     throw new InvalidDataException($"No se pudieron verificar los aumentos de {Path.GetFileName(file)}.");
-                history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards);
+                var source = opgg.ForCaptureAsync(new GameContext(mode, champion.Key), CancellationToken.None).GetAwaiter().GetResult();
+                history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards, source.Data);
                 Console.WriteLine($"{champion.Name} · {Path.GetFileName(file)} · {result.Cards.Count(card => card.HasValue)} cartas");
             }
             history.Flush();

@@ -93,7 +93,7 @@ public sealed class Ratings
             if (cards.Length == 0)
                 throw new InvalidDataException($"Aumento desconocido en reglas: {rule.Augment}.");
             foreach (var card in cards)
-                overrides.Add((Enum.Parse<Mode>(card.Mode), rule.Champion, card.Id), Enum.Parse<Tier>(rule.Tier));
+                overrides.Add((Enum.Parse<Mode>(card.Mode), rule.Champion.ToLowerInvariant(), card.Id), Enum.Parse<Tier>(rule.Tier));
         }
     }
 
@@ -126,15 +126,17 @@ public sealed class Ratings
 
     public bool IsArenaItem(string title) => arenaItems.Contains(Normalize(title));
 
+    internal bool IsVariable(Mode mode, int augment) => variableChoices.Contains((mode, augment));
+
     public Tier? Rate(Mode mode, string champion, int augment)
     {
         if (variableChoices.Contains((mode, augment)) || !profiles.TryGetValue(champion, out var profile)
             || !affinities.TryGetValue((mode, augment), out var tags))
             return null;
-        if (overrides.TryGetValue((mode, champion, augment), out var tier))
+        if (overrides.TryGetValue((mode, champion.ToLowerInvariant(), augment), out var tier))
             return tier;
         if (tags.Length == 0)
-            return Tier.B;
+            return null;
         return tags.Any(profile.Contains) ? Tier.A : Tier.C;
     }
 
