@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -25,6 +26,16 @@ internal static class Program
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
         var defaultLayouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
+        var anvilOptions = ratings.FindTitle(Mode.Caos, "¡Estadilcas sobre Estadísticas!");
+        Check(anvilOptions.Length == 2 && ratings.Recognize(Mode.Caos, "¡Estadísticas sobre Estadísticas!") is null,
+            "el título compartido conserva las dos variantes posibles");
+        Check(Detection.ChooseByAnvils(anvilOptions, "¡Obtienes 3 Yunques de Estadísticas!")?.Id == 1403 &&
+            Detection.ChooseByAnvils(anvilOptions, "¡Obtienes 4 Yunques de Estadísticas!")?.Id == 1402 &&
+            Detection.ChooseByAnvils(anvilOptions, "Yunques de Estadísticas") is null &&
+            Detection.ChooseByAnvils(anvilOptions, "3 Yunques de Estadísticas y 4 Yunques de Estadísticas") is null,
+            "la cantidad de yunques distingue las variantes y una lectura incierta sigue sin asignación");
+        if (Option("--caos-anvil-shot") is { } anvilShot)
+            CheckAnvilScreenshot(anvilShot, assets, ratings, defaultLayouts);
         var fullScreen = defaultLayouts.Find(Mode.Arena, 2560, 1440).Single();
         Check(fullScreen.Titles.Length == 3 && fullScreen.Titles[1].Pixels(2560, 1440).Y is >= 530 and <= 570,
             "calibración adaptada a 2560 × 1440");
@@ -191,6 +202,34 @@ internal static class Program
             int index = Array.IndexOf(args, key);
             return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
         }
+    }
+
+    private static void CheckAnvilScreenshot(string file, string assets, Ratings ratings, LayoutStore layouts)
+    {
+        var image = Diagnostics.OpenBitmap(file);
+        var bounds = new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight);
+        var layout = layouts.Find(Mode.Caos, bounds.Width, bounds.Height).Single(item => item.Titles.Length == 3);
+        using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        var original = detector.Scan(image, bounds, layout, Mode.Caos, panelConfirmed: true);
+        Check(original.Cards[0] == 1403 && original.Cards.All(card => card.HasValue), "variante dorada en la captura original");
+
+        var title = layout.Titles[0].Pixels(bounds.Width, bounds.Height);
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawImage(image, new Rect(0, 0, bounds.Width, bounds.Height));
+            var description = new Rect(title.X, title.Y + 2 * title.Height, title.Width, 2 * title.Height);
+            drawing.DrawRectangle(Brushes.Black, null, description);
+            var text = new FormattedText("4 Yunques de Estadísticas", CultureInfo.GetCultureInfo("es-MX"),
+                FlowDirection.LeftToRight, new Typeface("Georgia"), title.Height / 3.0, Brushes.White, 1);
+            drawing.DrawText(text, new Point(description.X + (description.Width - text.Width) / 2, description.Y + 6));
+        }
+        var rerolled = new RenderTargetBitmap(bounds.Width, bounds.Height, 96, 96, PixelFormats.Pbgra32);
+        rerolled.Render(visual);
+        var changed = detector.Scan(rerolled, bounds, layout, Mode.Caos, panelConfirmed: true);
+        Check(changed.Cards[0] == 1402 && changed.Cards.Skip(1).SequenceEqual(original.Cards.Skip(1)),
+            "un reroll con el mismo título cambia solo la carta cuya descripción cambió");
+        Console.WriteLine("Captura de Estadísticas sobre Estadísticas y reroll verificados.");
     }
 
     private static void CheckHistory(Ratings ratings, int legacyColumns)

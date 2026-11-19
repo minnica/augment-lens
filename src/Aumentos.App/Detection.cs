@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -37,14 +39,16 @@ public sealed class OfferState
 {
     private readonly int?[] ids = new int?[4];
     internal readonly byte[]?[] Samples = new byte[4][];
+    internal readonly byte[]?[] Descriptions = new byte[4][];
     internal readonly string[] Texts = new string[4];
     internal readonly bool[] ItemSlots = new bool[4];
 
     public int? this[int slot] => ids[slot];
-    internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false)
+    internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null)
     {
         ids[slot] = id;
         Samples[slot] = sample;
+        Descriptions[slot] = description;
         Texts[slot] = text;
         ItemSlots[slot] = item;
     }
@@ -53,6 +57,7 @@ public sealed class OfferState
     {
         Array.Clear(ids);
         Array.Clear(Samples);
+        Array.Clear(Descriptions);
         Array.Fill(Texts, "");
         Array.Clear(ItemSlots);
     }
@@ -137,13 +142,17 @@ internal sealed class Detection : IDisposable
         {
             var rect = Relative(calibration.Titles[index], scan, calibration);
             var current = Signature(image, rect);
-            if (state.Samples[index] is not { } previous || Difference(previous, current) >= 2.2)
+            var descriptions = DescriptionArea(image, rect);
+            var previousDescription = state.Descriptions[index];
+            var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
+            if (state.Samples[index] is not { } previous || Difference(previous, current) >= 2.2 ||
+                (description is not null && Difference(previousDescription!, description) >= 0.5))
             {
                 state.Set(index, null, null);
                 var text = ReadTitle(image, rect, PageSegMode.SingleLine);
                 var item = mode == Mode.Arena && ratings.IsArenaItem(text);
-                var card = item ? null : ratings.Recognize(mode, text);
-                if (card is null && !item)
+                var candidates = item ? [] : ratings.FindTitle(mode, text);
+                if (candidates.Length != 1 && !item)
                 {
                     var extra = Math.Min(rect.Y, rect.Height * 3 / 4);
                     var trim = rect.Width / 24;
@@ -151,18 +160,45 @@ internal sealed class Detection : IDisposable
                         rect.Width - trim * 2, rect.Height + extra - rect.Height / 6);
                     var fallback = ReadTitle(image, widerTitle, PageSegMode.SingleBlock);
                     item = mode == Mode.Arena && ratings.IsArenaItem(fallback);
-                    var alternate = item ? null : ratings.Recognize(mode, fallback);
-                    if (fallback.Length != 0)
-                        text = fallback;
-                    card = alternate;
+                    var alternate = item ? [] : ratings.FindTitle(mode, fallback);
+                    if (item || alternate.Length > 0 || candidates.Length == 0)
+                    {
+                        if (fallback.Length != 0)
+                            text = fallback;
+                        candidates = alternate;
+                    }
                 }
-                state.Set(index, card?.Id, current, text, item);
+                var card = candidates is [var unique] ? unique : null;
+                byte[]? detail = null;
+                if (mode == Mode.Caos && candidates.Length > 1 && descriptions is { } crop &&
+                    candidates.All(candidate => candidate.AnvilCount.HasValue) &&
+                    candidates.Select(candidate => candidate.AnvilCount).Distinct().Count() == candidates.Length)
+                {
+                    detail = description ?? Signature(image, crop);
+                    card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
+                }
+                state.Set(index, card?.Id, current, text, item, detail);
             }
             ids[index] = state[index];
             texts[index] = state.Texts[index];
             items[index] = state.ItemSlots[index];
         }
         return new DetectionResult(true, ids, texts, items);
+    }
+
+    private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)
+    {
+        int top = title.Y + title.Height * 8 / 5;
+        int bottom = Math.Min(image.PixelHeight, title.Y + title.Height * 4);
+        return top < bottom ? new Int32Rect(title.X, top, title.Width, bottom - top) : null;
+    }
+
+    internal static Augment? ChooseByAnvils(Augment[] candidates, string description)
+    {
+        var count = Regex.Matches(Ratings.Normalize(description), @"\b(\d+) yunques de\b");
+        if (count.Count != 1 || !int.TryParse(count[0].Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int value))
+            return null;
+        return candidates.Where(candidate => candidate.AnvilCount == value).Take(2).ToArray() is [var match] ? match : null;
     }
 
     private static bool BlueButtonVisible(BitmapSource image, Int32Rect marker)
@@ -188,10 +224,10 @@ internal sealed class Detection : IDisposable
         return samples > 0 && blue >= samples * 0.65;
     }
 
-    internal string ReadTitle(BitmapSource image, Int32Rect rect, PageSegMode segmentation)
+    internal string ReadTitle(BitmapSource image, Int32Rect rect, PageSegMode segmentation, int minimumScale = 1)
     {
         var gray = GrayCrop(image, rect);
-        int scale = Math.Clamp(64 / gray.PixelHeight, 1, 4);
+        int scale = Math.Clamp(64 / gray.PixelHeight, minimumScale, 4);
         var scaled = new TransformedBitmap(gray, new ScaleTransform(scale, scale));
         var width = scaled.PixelWidth;
         var height = scaled.PixelHeight;

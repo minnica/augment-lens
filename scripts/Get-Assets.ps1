@@ -58,6 +58,26 @@ if (!$arena.Count -or !$kiwi[0].augmentList.Count) { throw 'El catálogo de un m
 $duplicates = $cards | Group-Object { "$($_.mode)/$($_.id)" } | Where-Object Count -gt 1
 if ($duplicates) { throw "IDs duplicados: $($duplicates.Name -join ', ')." }
 
+$sharedTitles = @($cards | Where-Object mode -eq 'Caos' | Group-Object name | Where-Object Count -gt 1)
+if ($sharedTitles.Count) {
+    try {
+        $mechanics = Get-Json "$cdn/game/maps/modespecificdata/kiwi.bin.json"
+        foreach ($card in $sharedTitles.Group) {
+            $augment = $mechanics.("Maps/ModeSpecificData/Augments/" + $card.key)
+            if ($augment.AugmentPlatformId -ne $card.id -or !$augment.RootSpell) { continue }
+            $spell = $mechanics.($augment.RootSpell)
+            $counts = @($spell.mSpell.DataValues | Where-Object name -eq 'AmountOfStatAnvils' |
+                ForEach-Object { $_.values } | Sort-Object -Unique)
+            if ($counts.Count -eq 1 -and $counts[0] -gt 0 -and $counts[0] -eq [Math]::Floor($counts[0])) {
+                $card['anvilCount'] = [int]$counts[0]
+            }
+        }
+    }
+    catch {
+        Write-Warning "No se pudieron cargar los datos para distinguir aumentos con el mismo título. $($_.Exception.Message)"
+    }
+}
+
 $champions = (Get-Json "https://ddragon.leagueoflegends.com/cdn/$ChampionVersion/data/es_MX/champion.json").data.PSObject.Properties.Value
 $allItems = Get-Json "$localized/items.json"
 $arenaItems = @($allItems | Where-Object {

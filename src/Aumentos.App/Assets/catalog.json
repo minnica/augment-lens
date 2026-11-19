@@ -4639,6 +4639,7 @@
                          "id":  1402,
                          "key":  "ARAM_StatsOnStatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
+                         "anvilCount":  4,
                          "aliases":  [
 
                                      ]
@@ -4648,6 +4649,7 @@
                          "id":  1403,
                          "key":  "ARAM_StatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
+                         "anvilCount":  3,
                          "aliases":  [
 
                                      ]

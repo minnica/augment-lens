@@ -12,7 +12,7 @@ namespace Aumentos;
 public enum Mode { Caos, Arena }
 public enum Tier { S, A, B, C }
 public record Champion(string Key, string Name, string[] Roles);
-public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases);
+public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases, int? AnvilCount = null);
 public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
 public record ExceptionRating(string Mode, string Champion, string Augment, string Tier);
@@ -101,27 +101,33 @@ public sealed class Ratings
         JsonSerializer.Deserialize<T>(File.ReadAllText(path), JsonOptions)
         ?? throw new InvalidDataException(path);
 
-    public Augment? Recognize(Mode mode, string text)
+    public Augment? Recognize(Mode mode, string text) =>
+        FindTitle(mode, text) is [var only] ? only : null;
+
+    internal Augment[] FindTitle(Mode mode, string text)
     {
         var query = Normalize(text);
         if (mode == Mode.Arena && arenaItems.Contains(query))
-            return null;
+            return [];
         if (query.Length < 2 || !names.TryGetValue(mode, out var choices))
-            return null;
+            return [];
         var exact = choices.Where(candidate => candidate.Name == query).Select(candidate => candidate.Card).Distinct().ToArray();
         if (exact.Length != 0)
-            return exact.Length == 1 ? exact[0] : null;
+            return exact;
         if (query.Length < 5)
-            return null;
+            return [];
 
         var ranked = choices.Where(choice => Math.Abs(query.Length - choice.Name.Length) <= 4)
-            .Select(choice => (choice.Card, Score: 1.0 - Distance(query, choice.Name) /
+            .Select(choice => (choice.Card, choice.Name, Score: 1.0 - Distance(query, choice.Name) /
                 (double)Math.Max(query.Length, choice.Name.Length)))
             .GroupBy(choice => choice.Card.Id)
             .Select(group => group.MaxBy(choice => choice.Score))
-            .OrderByDescending(choice => choice.Score).Take(2).ToArray();
-        return ranked.Length > 0 && ranked[0].Score >= 0.82
-            && (ranked.Length == 1 || ranked[0].Score - ranked[1].Score >= 0.10) ? ranked[0].Card : null;
+            .OrderByDescending(choice => choice.Score).ToArray();
+        if (ranked.Length == 0 || ranked[0].Score < 0.82)
+            return [];
+        var best = ranked[0];
+        var close = ranked.TakeWhile(choice => best.Score - choice.Score < 0.10).ToArray();
+        return close.All(choice => choice.Name == best.Name) ? close.Select(choice => choice.Card).ToArray() : [];
     }
 
     public bool IsArenaItem(string title) => arenaItems.Contains(Normalize(title));
