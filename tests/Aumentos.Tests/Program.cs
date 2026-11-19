@@ -17,7 +17,8 @@ internal static class Program
         Native.SetProcessDpiAwarenessContext(-4);
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
         var ratings = new Ratings(assets);
-        CheckHistory(ratings);
+        CheckHistory(ratings, withOpGg: false);
+        CheckHistory(ratings, withOpGg: true);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
@@ -191,7 +192,7 @@ internal static class Program
         }
     }
 
-    private static void CheckHistory(Ratings ratings)
+    private static void CheckHistory(Ratings ratings, bool withOpGg)
     {
         var folder = Path.Combine(Path.GetTempPath(), $"AumentosHistory-{Guid.NewGuid():N}");
         var history = new CardHistory(folder, ratings);
@@ -199,11 +200,12 @@ internal static class Program
         {
             Directory.CreateDirectory(folder);
             File.WriteAllLines(history.FilePath, [
-                "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen",
-                "2026-11-18,Arena,Elise,16.22,,1,2,57,\"Texto, con coma\",B,Partida"
+                "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen" + (withOpGg ? ",opgg" : ""),
+                "2026-11-18,Arena,Elise,16.22,,1,2,57,\"Texto, con coma\",B,Partida" + (withOpGg ? ",A" : "")
             ]);
             CardComparison?[] original = [new("B"), new("B"), CardComparison.Unread, new("S")];
-            CardComparison?[] reroll = [new("B"), new("A", new OpGgCard("S")), CardComparison.Unread, new("S")];
+            CardComparison?[] reroll = [new("B"), new("A", new OpGgCard("S"), Mayhem: new(12.5m, "26.22", true)),
+                CardComparison.Unread, new("S")];
             history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], original, 0);
             history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], original, 300);
             history.Observe(4, Mode.Caos, "Lux", [null, 1088, null, 2062], original, 500);
@@ -214,11 +216,13 @@ internal static class Program
             history.Flush();
             history.Flush();
             var lines = File.ReadAllLines(history.FilePath);
-            Check(lines[0].EndsWith(",opgg") && lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\","),
+            Check(lines[0].EndsWith(",opgg,arammayhem_popularidad_global_pct,arammayhem_parche") &&
+                lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\"," + (withOpGg ? "\"A\",," : ",,")),
                 "la columna nueva conserva los valores del historial anterior");
             Check(lines.Length == 12, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
-            Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\"")).EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\""),
-                "se guardan por separado las dos valoraciones de la carta cambiada");
+            Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\""))
+                .EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\",\"12.5\",\"26.22\""),
+                "se guardan las valoraciones y el parche de la popularidad global");
             Check(lines.Any(row => row.Contains("\"2\",\"1\",\"2098\"")) &&
                 lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Variable\",\"Captura · tier recalculado · image4.png\"")),
                 "selecciones nuevas y origen de captura");
@@ -417,10 +421,16 @@ internal static class Program
                 .OfType<TextBlock>().Where(text => text.Visibility == Visibility.Visible).Select(text => text.Text).ToArray();
             Check(VisibleLines(first).SequenceEqual(["OP.GG   S", "Estimación local   A"]) &&
                 VisibleLines(overlay.Windows[2]).SequenceEqual(["?"]), "Abejas muestra sus dos fuentes y el OCR dudoso muestra ?");
-            overlay.Render(new OverlayUpdate("Reroll", bounds, layout, [new("Sin dato", new OpGgCard("B")), null, new("A")]));
-            Check(VisibleLines(first).SequenceEqual(["OP.GG   B", "Estimación local   Sin dato"]) &&
+            overlay.Render(new OverlayUpdate("Reroll", bounds, layout,
+                [new("Sin dato", new OpGgCard("B"), Mayhem: new(18.81m, "26.22", true)), null, new("A")]));
+            Check(VisibleLines(first).SequenceEqual(
+                ["OP.GG   B", "Estimación local   Sin dato", "ARAMMayhem.com   18.81 % global", "Parche anterior 26.22"]) &&
                 !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A"]),
                 "las dos líneas se actualizan al cambiar cartas y desaparecen sobre objetos");
+            overlay.Render(new OverlayUpdate("Parche vigente", bounds, layout,
+                [new("A", Mayhem: new(18.81m, "26.23", false))]));
+            Check(VisibleLines(first).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A", "ARAMMayhem.com   18.81 % global"]),
+                "la anotación del parche anterior desaparece al llegar los datos vigentes");
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
             Console.WriteLine("Overlay de WPF verificado.");

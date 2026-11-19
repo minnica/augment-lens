@@ -24,18 +24,21 @@ internal sealed class LiveOverlay
     private readonly LayoutStore layouts;
     private readonly CardHistory history;
     private readonly OpGgRatings opgg;
+    private readonly AramMayhemRatings aramMayhem;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private int paused;
 
-    public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg, string assets,
+    public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
+        AramMayhemRatings aramMayhem, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update)
     {
         this.ratings = ratings;
         this.layouts = layouts;
         this.history = history;
         this.opgg = opgg;
+        this.aramMayhem = aramMayhem;
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
@@ -125,7 +128,9 @@ internal sealed class LiveOverlay
             var name = ratings.Catalog.Champions.FirstOrDefault(item =>
                 string.Equals(item.Key, current.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? current.Champion;
             var source = opgg.Current(current, cancellation);
-            idle = $"{label} · {name} · Esperando cartas… · {source.Status}";
+            var mayhem = aramMayhem.Current(current.Mode, cancellation);
+            var sources = mayhem is null ? source.Status : $"{source.Status} · {mayhem.Status}";
+            idle = $"{label} · {name} · Esperando cartas… · {sources}";
             var candidates = layouts.Find(current.Mode, window.Bounds.Width, window.Bounds.Height);
             if (candidates.Length == 0)
             {
@@ -149,14 +154,15 @@ internal sealed class LiveOverlay
                     if (result.CanShow(candidate == previous))
                     {
                         previous = candidate;
-                        var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items, source.Data, source.Loading);
+                        var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
+                            source.Data, source.Loading, mayhem?.Data);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
                         var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
                             badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.Local}"));
-                        return new OverlayUpdate($"{label} · {name} · {source.Status} · OP.GG / local · {displayed}",
+                        return new OverlayUpdate($"{label} · {name} · {sources} · OP.GG / local · {displayed}",
                             window.Bounds, candidate, badges, window.Handle);
                     }
                     status = result.Items.Any(item => item)
@@ -224,6 +230,8 @@ internal sealed class Overlay
     {
         private readonly TextBlock source = new() { FontWeight = FontWeights.Bold, FontSize = 16 };
         private readonly TextBlock local = new() { FontSize = 13, Foreground = Brushes.WhiteSmoke };
+        private readonly TextBlock popularity = new() { FontSize = 12, Foreground = Brushes.WhiteSmoke };
+        private readonly TextBlock previousPatch = new() { FontSize = 11, Foreground = Paint("#FFD76D") };
         private readonly Border badge;
         private CardComparison? displayed;
         private nint handle;
@@ -244,6 +252,8 @@ internal sealed class Overlay
             var panel = new StackPanel();
             panel.Children.Add(source);
             panel.Children.Add(local);
+            panel.Children.Add(popularity);
+            panel.Children.Add(previousPatch);
             badge = new Border
             {
                 Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(6),
@@ -273,6 +283,10 @@ internal sealed class Overlay
                 source.Text = unread ? "?" : $"OP.GG   {value.ExternalText}";
                 local.Text = $"Estimación local   {value.Local}";
                 local.Visibility = unread ? Visibility.Collapsed : Visibility.Visible;
+                popularity.Text = value.Mayhem?.Text ?? "";
+                popularity.Visibility = value.Mayhem is null ? Visibility.Collapsed : Visibility.Visible;
+                previousPatch.Text = value.Mayhem is { IsPrevious: true } old ? $"Parche anterior {old.Patch}" : "";
+                previousPatch.Visibility = previousPatch.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 badge.BorderBrush = source.Foreground = value.External?.Tier switch
                 {
                     "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")

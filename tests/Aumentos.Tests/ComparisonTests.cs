@@ -67,6 +67,76 @@ internal static class ComparisonTests
         Check((await new OpGgRatings(ratings.Catalog, folder.Path, failedHttp).ForCaptureAsync(lux, default)).Data is null,
             "un archivo de otro parche tampoco sirve como respaldo");
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
+        await CheckAramMayhem(ratings, lux, elise);
+    }
+
+    private static async Task CheckAramMayhem(Ratings ratings, GameContext lux, GameContext elise)
+    {
+        var current = AramMayhemRatings.SitePatch(ratings.Catalog.Patch);
+        var version = Version.Parse(current);
+        var prior = $"{version.Major}.{version.Minor - 1}";
+        var older = $"{version.Major}.{version.Minor - 2}";
+        using var folder = new TemporaryFolder();
+        var historical = new PageHandler((request, _) => Task.FromResult(Ok(
+            request.RequestUri!.AbsolutePath.EndsWith("/index.json") ? Index(prior, prior) : Export(prior, 18.81m))));
+        using var http = new HttpClient(historical);
+        var source = new AramMayhemRatings(ratings.Catalog, folder.Path, http);
+        Check(source.Current(Mode.Arena, default) is null && await source.ForCaptureAsync(Mode.Arena, default) is null &&
+            historical.Requests == 0, "Arena no consulta el archivo de Caos");
+        var work = source.ForCaptureAsync(Mode.Caos, default);
+        var second = source.ForCaptureAsync(Mode.Caos, default);
+        var published = await work;
+        var previous = published?.Data;
+        Check(previous is { IsPrevious: true } && (await second)?.Data == previous && historical.Requests == 2,
+            "el parche anterior se carga una vez y se identifica");
+        Check(previous is not null && previous.Picks[3086] == 0 && previous.Picks[3004] == 18.81m &&
+            previous.Picks[1152] == 43.5m && previous.Picks[1402] != previous.Picks[1403] &&
+            !previous.Picks.ContainsKey(2135) && !previous.Picks.ContainsKey(2139),
+            "popularidad cero, claves localizadas, variantes y nombres en conflicto");
+        var labels = CardComparison.ForOffer(ratings, lux, [3004, 3086], new bool[2], null, mayhem: previous);
+        var reroll = CardComparison.ForOffer(ratings, lux, [3086, 3086], new bool[2], null, mayhem: previous);
+        Check(labels[0]?.Mayhem == new MayhemPopularity(18.81m, prior, true) &&
+            reroll[0] == labels[1] && reroll[1] == labels[1] &&
+            CardComparison.ForOffer(ratings, elise, [3004], [false], null, mayhem: previous)[0]?.Mayhem is null,
+            "reroll con datos globales y aislamiento de Arena");
+
+        var upgradeServer = new PageHandler((request, _) => Task.FromResult(Ok(
+            request.RequestUri!.AbsolutePath.EndsWith("/index.json") ? Index(current, current, prior) : Export(current, 20m))));
+        using var upgradeHttp = new HttpClient(upgradeServer);
+        var restarted = new AramMayhemRatings(ratings.Catalog, folder.Path, upgradeHttp);
+        Check((await restarted.ForCaptureAsync(Mode.Caos, default))?.Data is { IsPrevious: true } &&
+            upgradeServer.Requests == 0, "lectura de la copia válida al reiniciar");
+        var cacheFile = Directory.GetFiles(folder.Path, "*.json", SearchOption.AllDirectories).Single();
+        File.WriteAllText(cacheFile, JsonSerializer.Serialize(previous! with { FetchedAt = DateTimeOffset.UtcNow.AddHours(-1) }));
+        var upgraded = await new AramMayhemRatings(ratings.Catalog, folder.Path, upgradeHttp).ForCaptureAsync(Mode.Caos, default);
+        Check(upgraded?.Data is { IsPrevious: false } currentData && currentData.Picks[3004] == 20m &&
+            upgradeServer.Requests == 2, "el parche vigente sustituye la copia anterior tras la actualización");
+
+        using var emptyFolder = new TemporaryFolder();
+        var outdated = new PageHandler((_, _) => Task.FromResult(Ok(Index(older, older))));
+        using var outdatedHttp = new HttpClient(outdated);
+        var rejected = await new AramMayhemRatings(ratings.Catalog, emptyFolder.Path, outdatedHttp)
+            .ForCaptureAsync(Mode.Caos, default);
+        Check(rejected is { Data: null } && outdated.Requests == 1, "una diferencia mayor a un parche queda sin datos");
+        Console.WriteLine("ARAMMayhem.com verificado con porcentaje global, caché y transición al parche vigente.");
+
+        static string Index(string latest, params string[] patches) => JsonSerializer.Serialize(
+            new { schemaVersion = 1, latestPatch = latest, patches = patches.Select(patch => new { patch }) });
+        static string Export(string patch, decimal jinx) => JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            meta = new { patch, statsDate = "2026-11-17" },
+            rows = new[]
+            {
+                Row("bees", "¡¡¡ABEJAS!!!", 0), Row("get_jinxed", "Jinxéate", jinx),
+                Row("quest_steel_your_heart", "Misión: Endurece tu corazón", 43.5m),
+                Row("stats_on_stats!", "¡Estadísticas sobre Estadísticas!", 11),
+                Row("stats_on_stats_on_stats!", "¡Estadísticas sobre Estadísticas!", 8),
+                Row("pin_cushion", "Alfiletero", 17), Row("double_time", "Paso Redoblado", 101)
+            }
+        });
+        static object Row(string augmentId, string name, decimal pickRate) =>
+            new { augmentId, name = new Dictionary<string, string> { ["es-MX"] = name }, pickRate };
     }
 
     private static string Page(GameContext game, string patch, string props)

@@ -114,7 +114,7 @@ internal sealed class OpGgRatings
                 response.EnsureSuccessStatusCode();
                 var html = await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);
                 data = OpGgPage.Read(html, game, patch, cards[game.Mode]);
-                WriteCache(path, data);
+                StatsCache.Write(path, data);
             }
             status = $"OP.GG · Parche {patch} · Actualizado {data.FetchedAt.ToLocalTime():dd/MM HH:mm}";
             nextCheck = data.FetchedAt + FreshFor;
@@ -160,23 +160,4 @@ internal sealed class OpGgRatings
         }
     }
 
-    private static void WriteCache(string path, OpGgSnapshot data)
-    {
-        var temp = $"{path}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(temp, JsonSerializer.Serialize(data));
-            File.Move(temp, path, overwrite: true);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        {
-            // Keep the verified result in memory when the cache is read-only.
-        }
-        finally
-        {
-            try { File.Delete(temp); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
-        }
-    }
 }

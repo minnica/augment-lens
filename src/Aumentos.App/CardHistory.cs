@@ -11,7 +11,8 @@ namespace Aumentos;
 internal sealed class CardHistory
 {
     private const string OriginalHeader = "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen";
-    private const string Header = OriginalHeader + ",opgg";
+    private const string HeaderWithOpGg = OriginalHeader + ",opgg";
+    private const string Header = HeaderWithOpGg + ",arammayhem_popularidad_global_pct,arammayhem_parche";
     private readonly Ratings ratings;
     private readonly Dictionary<(Mode, int), string> names;
     private readonly List<string> pending = [];
@@ -56,9 +57,10 @@ internal sealed class CardHistory
     }
 
     internal void Import(DateTimeOffset date, Mode mode, string champion, string reference, int?[] cards,
-        OpGgSnapshot? snapshot = null)
+        OpGgSnapshot? snapshot = null, AramMayhemSnapshot? mayhem = null)
     {
-        var labels = CardComparison.ForOffer(ratings, new GameContext(mode, champion), cards, new bool[cards.Length], snapshot);
+        var labels = CardComparison.ForOffer(ratings, new GameContext(mode, champion), cards, new bool[cards.Length],
+            snapshot, mayhem: mayhem);
         CaptureRows(date, mode, champion, "", null, cards, labels, $"Captura · tier recalculado · {reference}", remember: false);
     }
 
@@ -80,7 +82,8 @@ internal sealed class CardHistory
                 date.ToString("o", CultureInfo.InvariantCulture),
                 mode == Mode.Caos ? "ARAM Caos" : "Arena", champion, ratings.Catalog.Patch, game,
                 round?.ToString(CultureInfo.InvariantCulture) ?? "", (slot + 1).ToString(CultureInfo.InvariantCulture),
-                id.ToString(CultureInfo.InvariantCulture), name, comparison.Local, origin, comparison.ExternalText
+                id.ToString(CultureInfo.InvariantCulture), name, comparison.Local, origin, comparison.ExternalText,
+                comparison.Mayhem?.Percent.ToString(CultureInfo.InvariantCulture) ?? "", comparison.Mayhem?.Patch ?? ""
             }.Select(CsvField)));
         }
     }
@@ -141,14 +144,20 @@ internal sealed class CardHistory
                 reader.SetDelimiters(",");
                 var header = string.Join(",", reader.ReadFields() ?? []);
                 if (header == Header) return;
-                if (header != OriginalHeader) throw new IOException("Columnas de historial desconocidas.");
+                var oldColumns = header switch
+                {
+                    OriginalHeader => 11,
+                    HeaderWithOpGg => 12,
+                    _ => throw new IOException("Columnas de historial desconocidas.")
+                };
+                var extraColumns = new string(',', oldColumns == 11 ? 3 : 2);
                 using var writer = new StreamWriter(temp, false, new UTF8Encoding(true));
                 writer.WriteLine(Header);
                 while (!reader.EndOfData)
                 {
                     var fields = reader.ReadFields();
-                    if (fields?.Length != 11) throw new IOException("Fila incompleta en el historial.");
-                    writer.WriteLine(string.Join(",", fields.Select(CsvField)) + ",");
+                    if (fields?.Length != oldColumns) throw new IOException("Fila incompleta en el historial.");
+                    writer.WriteLine(string.Join(",", fields.Select(CsvField)) + extraColumns);
                 }
             }
             File.Move(temp, FilePath, overwrite: true);
