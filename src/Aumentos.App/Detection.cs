@@ -40,13 +40,15 @@ public sealed class OfferState
     private readonly int?[] ids = new int?[4];
     internal readonly byte[]?[] Samples = new byte[4][];
     internal readonly byte[]?[] Descriptions = new byte[4][];
+    internal readonly long[] RetryTitleAt = new long[4];
+    internal readonly int?[] UpgradeLevels = new int?[4];
     internal readonly string[] Texts = new string[4];
     internal readonly bool[] ItemSlots = new bool[4];
     internal readonly ArenaShard?[] ShardSlots = new ArenaShard?[4];
 
     public int? this[int slot] => ids[slot];
     internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null,
-        ArenaShard? shard = null)
+        ArenaShard? shard = null, int? upgradeLevel = null)
     {
         ids[slot] = id;
         Samples[slot] = sample;
@@ -54,6 +56,7 @@ public sealed class OfferState
         Texts[slot] = text;
         ItemSlots[slot] = item;
         ShardSlots[slot] = shard;
+        UpgradeLevels[slot] = upgradeLevel;
     }
 
     public void Clear()
@@ -61,6 +64,8 @@ public sealed class OfferState
         Array.Clear(ids);
         Array.Clear(Samples);
         Array.Clear(Descriptions);
+        Array.Clear(RetryTitleAt);
+        Array.Clear(UpgradeLevels);
         Array.Fill(Texts, "");
         Array.Clear(ItemSlots);
         Array.Clear(ShardSlots);
@@ -143,14 +148,17 @@ internal sealed class Detection : IDisposable
         var ids = new int?[calibration.Titles.Length];
         var items = new bool[calibration.Titles.Length];
         var shards = mode == Mode.Arena ? new ArenaShard?[calibration.Titles.Length] : null;
+        var upgrades = mode == Mode.Arena ? new int?[calibration.Titles.Length] : null;
+        long now = Environment.TickCount64;
         for (int index = 0; index < ids.Length; index++)
         {
             var rect = Relative(calibration.Titles[index], scan, calibration);
             var current = Signature(image, rect);
-            var descriptions = DescriptionArea(image, rect);
+            var descriptions = mode == Mode.Arena ? UpgradeLevelArea(image, rect) : DescriptionArea(image, rect);
             var previousDescription = state.Descriptions[index];
             var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
             if (state.Samples[index] is not { } previous || Difference(previous, current) >= 2.2 ||
+                (mode == Mode.Arena && state.RetryTitleAt[index] != 0 && now >= state.RetryTitleAt[index]) ||
                 (description is not null && Difference(previousDescription!, description) >= 0.5))
             {
                 state.Set(index, null, null);
@@ -175,8 +183,25 @@ internal sealed class Detection : IDisposable
                         candidates = alternate;
                     }
                 }
+                if (mode == Mode.Arena && candidates.Length == 0 && !item && !shard.HasValue)
+                {
+                    int trimTop = rect.Height / 5;
+                    var singleLine = new Int32Rect(rect.X, rect.Y + trimTop, rect.Width, rect.Height - trimTop);
+                    var alternative = ReadTitle(image, singleLine, PageSegMode.SingleLine, minimumScale: 2);
+                    if (ratings.IsArenaItem(alternative))
+                    {
+                        item = true;
+                        text = alternative;
+                    }
+                    else if (ratings.FindTitle(mode, alternative) is [var recovered])
+                    {
+                        candidates = [recovered];
+                        text = alternative;
+                    }
+                }
                 var card = candidates is [var unique] ? unique : null;
                 byte[]? detail = null;
+                int? upgradeLevel = null;
                 if (mode == Mode.Caos && candidates.Length > 1 && descriptions is { } crop &&
                     candidates.All(candidate => candidate.AnvilCount.HasValue) &&
                     candidates.Select(candidate => candidate.AnvilCount).Distinct().Count() == candidates.Length)
@@ -184,15 +209,35 @@ internal sealed class Detection : IDisposable
                     detail = description ?? Signature(image, crop);
                     card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
                 }
-                state.Set(index, card?.Id, current, text, item, detail, shard);
+                if (mode == Mode.Arena && card is not null && ArenaUpgradeRatings.Supports(card.Id) &&
+                    descriptions is { } levelArea)
+                {
+                    detail = description ?? Signature(image, levelArea);
+                    var level = Regex.Match(Ratings.Normalize(ReadTitle(image, levelArea, PageSegMode.SparseText,
+                        minimumScale: 2)), @"\bnv\s*([23])\b");
+                    if (level.Success)
+                        upgradeLevel = level.Groups[1].Value[0] - '0';
+                }
+                state.RetryTitleAt[index] = mode == Mode.Arena && card is null && !item && !shard.HasValue ? now + 350 : 0;
+                state.Set(index, card?.Id, current, text, item, detail, shard, upgradeLevel);
             }
             ids[index] = state[index];
             texts[index] = state.Texts[index];
             items[index] = state.ItemSlots[index];
             if (shards is not null)
                 shards[index] = state.ShardSlots[index];
+            if (upgrades is not null)
+                upgrades[index] = state.UpgradeLevels[index];
         }
-        return new DetectionResult(true, ids, texts, items, shards);
+        return new DetectionResult(true, ids, texts, items, shards, upgrades);
+    }
+
+    private static Int32Rect? UpgradeLevelArea(BitmapSource image, Int32Rect title)
+    {
+        int top = title.Y + title.Height * 8 / 5;
+        int bottom = Math.Min(image.PixelHeight, title.Y + title.Height * 3);
+        int inset = title.Width / 4;
+        return top < bottom ? new Int32Rect(title.X + inset, top, title.Width - 2 * inset, bottom - top) : null;
     }
 
     private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)
@@ -330,7 +375,8 @@ internal sealed class Detection : IDisposable
     public void Dispose() => engine.Dispose();
 }
 
-internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items, ArenaShard?[]? Shards = null)
+internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items, ArenaShard?[]? Shards = null,
+    int?[]? UpgradeLevels = null)
 {
     internal int Matched => Cards.Count(id => id.HasValue) + Items.Count(item => item) + (Shards?.Count(shard => shard.HasValue) ?? 0);
     internal bool CanShow(bool continuing) => Cards.Count(id => id.HasValue) >= (continuing ? 1 : 2);

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
 namespace Aumentos;
@@ -17,11 +18,14 @@ public record Catalog(string Patch, string Locale, Champion[] Champions, Augment
     ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
 public record ExceptionRating(string Mode, string Champion, string Augment, string Tier);
+public record ArenaDefaultRating(string Augment, [property: JsonConverter(typeof(JsonStringEnumConverter<Tier>))] Tier Tier,
+    string Reason);
 public record EditorialRules(
     Dictionary<string, string[]> Profiles,
     Dictionary<string, string> Traits,
     Affinity[] Affinities,
-    ExceptionRating[] Exceptions);
+    ExceptionRating[] Exceptions,
+    ArenaDefaultRating[]? ArenaDefaults = null);
 
 public sealed class Ratings
 {
@@ -36,6 +40,7 @@ public sealed class Ratings
     private readonly Dictionary<(Mode, string, int), Tier> overrides;
     private readonly HashSet<string> arenaItems;
     private readonly Dictionary<int, string> arenaVariableChoices;
+    private readonly Dictionary<int, ArenaDefaultRating> arenaDefaults;
     public Catalog Catalog { get; }
     internal ArenaPrismaticRatings Prismatics { get; }
     internal ArenaLegendaryRatings Legendaries { get; }
@@ -49,6 +54,10 @@ public sealed class Ratings
         arenaVariableChoices = Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena))
             .Select(card => (card.Id, Reason: ArenaVariableReason(card.Key)))
             .Where(choice => choice.Reason is not null).ToDictionary(choice => choice.Id, choice => choice.Reason!);
+        arenaDefaults = Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena))
+            .Join(rules.ArenaDefaults ?? [], card => MechanicKey(card.Key), rule => MechanicKey(rule.Augment),
+                (card, rule) => (card.Id, Rule: rule))
+            .ToDictionary(choice => choice.Id, choice => choice.Rule);
         var groups = Catalog.Augments.GroupBy(card => Enum.Parse<Mode>(card.Mode)).ToArray();
         foreach (var group in groups)
         {
@@ -121,6 +130,9 @@ public sealed class Ratings
         var exact = Exact(query);
         if (exact.Length != 0)
             return exact;
+        const string missingTierBadge = "estimacion local sin dato ";
+        if (mode == Mode.Arena && query.StartsWith(missingTierBadge, StringComparison.Ordinal))
+            return Exact(query[missingTierBadge.Length..]);
         if (mode == Mode.Arena && Regex.Match(text, @"^\s*\(\d+\)\s+(.+)$") is { Success: true } prefix)
         {
             var title = Normalize(prefix.Groups[1].Value);
@@ -147,8 +159,14 @@ public sealed class Ratings
 
     public bool IsArenaItem(string title) => arenaItems.Contains(Normalize(title));
 
+    internal bool HasTrait(string champion, string trait) =>
+        profiles.TryGetValue(champion, out var profile) && profile.Contains(trait);
+
     internal string? VariableReason(Mode mode, int augment) =>
         mode == Mode.Arena ? arenaVariableChoices.GetValueOrDefault(augment) : null;
+
+    internal string? DefaultReason(Mode mode, int augment) =>
+        mode == Mode.Arena ? arenaDefaults.GetValueOrDefault(augment)?.Reason : null;
 
     public Tier? Rate(Mode mode, string champion, int augment)
     {
@@ -157,6 +175,8 @@ public sealed class Ratings
             return null;
         if (overrides.TryGetValue((mode, champion.ToLowerInvariant(), augment), out var tier))
             return tier;
+        if (mode == Mode.Arena && arenaDefaults.TryGetValue(augment, out var common))
+            return common.Tier;
         if (tags.Length == 0)
             return null;
         return tags.Any(profile.Contains) ? Tier.A : Tier.C;

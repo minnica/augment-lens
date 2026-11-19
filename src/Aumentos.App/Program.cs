@@ -41,20 +41,22 @@ internal static class Program
                         return 3;
                     CardComparison?[]? comparisons = null;
                     CardComparison?[]? itemChoices = null;
+                    ArenaPrismaticOffer? prismatics = null;
                     var shards = mode == Mode.Arena ? ArenaShardRatings.Identify(result) : null;
                     if (args.Length == 4)
                     {
                         var champion = ratings.Catalog.Champions.Single(item =>
                             string.Equals(item.Key, args[3], StringComparison.OrdinalIgnoreCase));
                         var game = new GameContext(mode, champion.Key);
-                        itemChoices = ratings.Shards.ForOffer(game, result) ?? ratings.Prismatics.ForOffer(game, result) ??
-                            ratings.Legendaries.ForOffer(game, result);
+                        var shardChoices = ratings.Shards.ForOffer(game, result);
+                        prismatics = shardChoices is null ? ratings.Prismatics.ForOffer(game, result) : null;
+                        itemChoices = shardChoices ?? prismatics?.Badges ?? ratings.Legendaries.ForOffer(game, result);
                         if (itemChoices is null)
                         {
                             var (source, mayhem, arena) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
                                 new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http));
                             comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
-                                mayhem: mayhem?.Data, ggez: arena?.Data);
+                                mayhem: mayhem?.Data, ggez: arena?.Data, upgradeLevels: result.UpgradeLevels);
                             Console.WriteLine(source.Status);
                             if (mayhem is not null)
                                 Console.WriteLine(mayhem.Status);
@@ -76,8 +78,12 @@ internal static class Program
                         {
                             if (comparison.IsArenaAugment && comparison.Local != CardComparison.Missing)
                             {
-                                label += comparison.LocalReason is { } reason ? $" · Valoración variable · {reason}" :
+                                label += comparison.Local == "Variable" ? " · Valoración variable" :
                                     $" · Tier local {comparison.LocalText}";
+                                if (comparison.RecommendedUpgrade)
+                                    label += " · Mejora recomendada";
+                                if (comparison.LocalReason is { } reason)
+                                    label += $" · {reason}";
                                 if (comparison.External is not null)
                                     label += $" · OP.GG {comparison.ExternalText}";
                             }
@@ -89,6 +95,13 @@ internal static class Program
                                 label += $" · {arenaPopularity.Text} · {arenaPopularity.Details}";
                         }
                         Console.WriteLine(label);
+                    }
+                    if (prismatics is { Top: var top })
+                    {
+                        Console.WriteLine("Top 5 prismáticos");
+                        foreach (var (entry, index) in top.Entries.Select((entry, index) => (entry, index)))
+                            Console.WriteLine($"{index + 1}. {entry.Rating.Name} · {entry.Rating.TierText} · {entry.Rating.Reason}" +
+                                (top.IsOffered(index) ? " · En oferta" : ""));
                     }
                     Console.WriteLine(result.CanShow(false) || itemChoices is not null ? "Overlay visible" : "Overlay oculto");
                     return result.Matched == result.Cards.Length ? 0 : 4;

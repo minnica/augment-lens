@@ -3,22 +3,54 @@ using System.Linq;
 
 namespace Aumentos;
 
+internal sealed record RankedPrismatic(int Id, ArenaChoiceRating Rating, int Matches);
+internal sealed record ArenaPrismaticTop(RankedPrismatic[] Entries, int OfferedMask)
+{
+    internal bool IsOffered(int index) => (OfferedMask & (1 << index)) != 0;
+}
+internal sealed record ArenaPrismaticOffer(CardComparison?[] Badges, ArenaPrismaticTop Top);
+
 internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string, HashSet<string>> profiles)
 {
     private readonly ArenaItemTitles titles = new(items);
+    private readonly Dictionary<string, ChampionRanking> rankings = profiles.ToDictionary(
+        profile => profile.Key, profile => Rank(items, profile.Value), profiles.Comparer);
+
 
     internal ArenaItem?[]? Identify(DetectionResult offer) => titles.Identify(offer);
 
-    internal CardComparison?[]? ForOffer(GameContext game, DetectionResult offer)
+    internal ArenaPrismaticOffer? ForOffer(GameContext game, DetectionResult offer)
     {
-        if (game.Mode != Mode.Arena || !profiles.TryGetValue(game.Champion, out var profile) ||
+        if (game.Mode != Mode.Arena || !rankings.TryGetValue(game.Champion, out var ranking) ||
             Identify(offer) is not { } recognized)
             return null;
 
-        return ArenaChoiceRating.Badges(recognized.Select(item => item is null ? null : Rate(item, profile)).ToArray());
+        var choices = recognized.Select(item => item is null ? null : ranking.ById.GetValueOrDefault(item.Id)).ToArray();
+        var ordered = choices.OfType<RankedPrismatic>().OrderBy(choice => choice.Rating.Tier)
+            .ThenByDescending(choice => choice.Matches).ToArray();
+        if (ordered.Length == 0)
+            return null;
+        var best = ordered[0];
+        bool distinctBest = ordered.Length == choices.Length && ordered.Length > 1 &&
+            (best.Rating.Tier != ordered[1].Rating.Tier || best.Matches != ordered[1].Matches);
+        var badges = choices.Select(choice => choice is null ? null : new CardComparison(choice.Rating.Tier.ToString(),
+            ArenaChoice: choice.Rating with { Recommended = distinctBest && choice.Id == best.Id })).ToArray();
+
+        int offeredMask = 0;
+        for (int index = 0; index < ranking.Top.Length; index++)
+            if (recognized.Any(item => item?.Id == ranking.Top[index].Id))
+                offeredMask |= 1 << index;
+        return new(badges, new(ranking.Top, offeredMask));
     }
 
-    private static ArenaChoiceRating? Rate(ArenaItem item, HashSet<string> profile)
+    private static ChampionRanking Rank(ArenaItem[] items, HashSet<string> profile)
+    {
+        var ranked = items.Select(item => Rate(item, profile)).OfType<RankedPrismatic>().ToArray();
+        return new(ranked.ToDictionary(item => item.Id), ranked.OrderBy(item => item.Rating.Tier)
+            .ThenByDescending(item => item.Matches).ThenBy(item => item.Id).Take(5).ToArray());
+    }
+
+    private static RankedPrismatic? Rate(ArenaItem item, HashSet<string> profile)
     {
         var fit = item.Id switch
         {
@@ -35,7 +67,7 @@ internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string
             443079 => new Fit("Protección contra inmovilización", "durability sustain", "mobility"),
             443081 => new Fit("Aplica efectos al impacto", "attacks"),
             443083 => new Fit("Vida y regeneración", "durability", "sustain"),
-            443090 => new Fit("Ataques consecutivos", "attacks"),
+            443090 => new Fit("Velocidad de ataque y daño al impacto", "attacks", Strong: "attackspeed"),
             443193 => new Fit("Resistencias y escudo", "durability", Strong: "resistheals"),
             444636 => new Fit("Daño mágico y movilidad", "ap", "casting"),
             444637 => new Fit("Vida y poder de habilidad", "ap", "durability", "sustain"),
@@ -71,16 +103,17 @@ internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string
         if (fit is null)
             return null;
         if (fit.Primary.Length == 0)
-            return new(item.Name, Tier.B, fit.Reason);
+            return new(item.Id, new(item.Name, Tier.B, fit.Reason), 0);
 
-        bool primary = Matches(fit.Primary);
-        var tier = primary && Matches(fit.Strong) ? Tier.S : primary ? Tier.A :
-            Matches(fit.Secondary) ? Tier.B : Tier.C;
-        return new(item.Name, tier, fit.Reason);
+        int primary = Matches(fit.Primary), secondary = Matches(fit.Secondary), strong = Matches(fit.Strong);
+        var tier = primary > 0 && strong > 0 ? Tier.S : primary > 0 ? Tier.A :
+            secondary > 0 ? Tier.B : Tier.C;
+        return new(item.Id, new(item.Name, tier, fit.Reason), primary + secondary + strong);
 
-        bool Matches(string tags) => tags.Split(' ', System.StringSplitOptions.RemoveEmptyEntries).Any(tag =>
+        int Matches(string tags) => tags.Split(' ', System.StringSplitOptions.RemoveEmptyEntries).Count(tag =>
             tag == "physicalburst" ? profile.Contains("burst") && !profile.Contains("ap") : profile.Contains(tag));
     }
 
+    private sealed record ChampionRanking(Dictionary<int, RankedPrismatic> ById, RankedPrismatic[] Top);
     private sealed record Fit(string Reason, string Primary, string Secondary = "", string Strong = "");
 }

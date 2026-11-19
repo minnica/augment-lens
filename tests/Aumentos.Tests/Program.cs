@@ -22,7 +22,7 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
-        ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"));
+        ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"));
         ArenaShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
@@ -106,6 +106,8 @@ internal static class Program
             BuildOverlaySmoke();
             ChampionSelectTests.Smoke();
         }
+        if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
+            PrismaticOverlaySmoke(ratings, assets);
         var samples = new List<SavedLayout>();
         if (Option("--caos") is { } caosPath)
             samples.Add(CheckScreenshot(caosPath, Mode.Caos, assets, ratings));
@@ -359,7 +361,7 @@ internal static class Program
             Console.WriteLine($"Panel de objetos: {title} · {(result.Items[index] ? "objeto" : "sin coincidencia")}");
         Check(result.Items.All(item => item), "identificación de las tres cartas de objetos");
         Check(!result.CanShow(false) && !result.CanShow(true) &&
-            ratings.Prismatics.ForOffer(new GameContext(Mode.Arena, "Elise"), result)?.All(badge => badge?.ArenaChoice is not null) == true,
+            ratings.Prismatics.ForOffer(new GameContext(Mode.Arena, "Elise"), result)?.Badges.All(badge => badge?.ArenaChoice is not null) == true,
             "las cartas de objetos reciben tiers prismáticos separados del overlay de aumentos");
     }
 
@@ -502,6 +504,40 @@ internal static class Program
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
+        }
+        finally { overlay.Close(); }
+    }
+
+    private static void PrismaticOverlaySmoke(Ratings ratings, string assets)
+    {
+        var overlay = new BuildOverlay { Left = -30000, Top = -30000, ShowInTaskbar = false };
+        try
+        {
+            var bounds = new Int32Rect(-30000, -30000, 1280, 720);
+            var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "")
+                .Find(Mode.Arena, bounds.Width, bounds.Height)[0];
+            var offer = new DetectionResult(true, new int?[3],
+                ["Cuota del Segador", "Escultor de Runas", "Decapitador"], [true, true, true]);
+            var top = ratings.Prismatics.ForOffer(new(Mode.Arena, "Tristana"), offer)!.Top;
+            var view = new BuildDisplay(bounds, 0, "Tristana", Mode.Arena, null,
+                Prismatics: new(top, layout, ratings.Catalog.Patch));
+            overlay.Render(view);
+            var handle = new WindowInteropHelper(overlay).Handle;
+            var placement = Native.Bounds(handle);
+            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            var rows = panel.Children.OfType<DockPanel>().ToArray();
+            Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X &&
+                placement.X + placement.Width < bounds.X + layout.Titles[0].Pixels(bounds.Width, bounds.Height).X &&
+                rows.Length == 5 && rows[0].Children.OfType<StackPanel>().Single().Children.OfType<TextBlock>()
+                    .Select(text => text.Text).SequenceEqual(["Cuota del Segador · S+", "Velocidad de ataque y daño al impacto", "En oferta"]),
+                "panel prismático de cinco filas a un lado de las cartas, con tier y disponibilidad");
+
+            overlay.Render(view with { Prismatics = view.Prismatics! with { Top = top with { OfferedMask = 0 } } });
+            Check(panel.Children.OfType<DockPanel>().First().Children.OfType<StackPanel>().Single().Children.Count == 2,
+                "la marca de oferta se actualiza al cambiar las cartas");
+            overlay.Render(null);
+            Check(!Native.IsWindowVisible(handle), "el Top 5 se oculta al cerrar la selección");
+            Console.WriteLine("Panel lateral de prismáticos verificado en WPF.");
         }
         finally { overlay.Close(); }
     }

@@ -5,15 +5,16 @@ using Aumentos;
 internal static class ArenaPrismaticTests
 {
     private static readonly string[] RellOffer = ["Cuota del Segador", "Armadura Pétrea", "Fulminación"];
+    private static readonly string[] TristanaOffer = ["Cuota del Segador", "Escultor de Runas", "Decapitador"];
 
-    internal static void Run(Ratings ratings, string assets, string? screenshot)
+    internal static void Run(Ratings ratings, string assets, string? screenshot, string? tristanaScreenshot)
     {
         var rell = new GameContext(Mode.Arena, "Rell");
         var offer = new DetectionResult(true, new int?[3], RellOffer, [true, true, true]);
         CheckRellOffer(ratings, rell, offer);
 
-        var jinx = ratings.Prismatics.ForOffer(rell with { Champion = "Jinx" }, offer);
-        Check(jinx?[0]?.Local == "A" && jinx[1]?.Local == "C" && jinx[2]?.Local == "A",
+        var jinx = ratings.Prismatics.ForOffer(rell with { Champion = "Jinx" }, offer)?.Badges;
+        Check(jinx?[0]?.LocalText == "S+" && jinx[1]?.Local == "C" && jinx[2]?.Local == "A",
             "el tier baja para un tanque si el campeón depende de los ataques básicos");
 
         var shared = offer with { Texts = ["Garra del Merodeador", "Desesperación Eterna", "Eco de Luden"] };
@@ -24,28 +25,65 @@ internal static class ArenaPrismaticTests
             "objetos normales, aumentos, otros modos y panel ausente conservan su flujo");
 
         var partial = ratings.Prismatics.ForOffer(rell,
-            offer with { Texts = ["Garra del Merodeador", "Armadura Pétrea", ""], Items = [true, true, false] });
+            offer with { Texts = ["Garra del Merodeador", "Armadura Pétrea", ""], Items = [true, true, false] })?.Badges;
         Check(partial?[1]?.ArenaChoice is { Tier: Tier.S, Recommended: false } && partial[2] is null,
             "un título exclusivo confirma al prismático ambiguo en un panel incompleto");
 
+        var tristana = new GameContext(Mode.Arena, "Tristana");
+        var tristanaOffer = offer with { Texts = TristanaOffer };
+        var top = CheckTristanaOffer(ratings, tristana, tristanaOffer);
+        var reroll = ratings.Prismatics.ForOffer(tristana, tristanaOffer with
+        {
+            Texts = ["Armadura Pétrea", "Escultor de Runas", "Decapitador"]
+        });
+        Check(reroll?.Top.Entries == top.Entries && !reroll.Top.IsOffered(0) &&
+            reroll.Badges[2]?.ArenaChoice?.Recommended == true,
+            "el reroll cambia la disponibilidad y la mejor opción de la oferta");
+
         if (screenshot is not null)
         {
-            var image = Diagnostics.OpenBitmap(screenshot);
-            var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "")
-                .Find(Mode.Arena, image.PixelWidth, image.PixelHeight);
-            using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
-            var result = detector.ReadPanel(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight),
-                layouts, Mode.Arena, null);
-            Check(result is not null, "panel prismático de la captura de Rell");
-            CheckRellOffer(ratings, rell, result!.Value.Result);
+            CheckRellOffer(ratings, rell, ReadScreenshot(ratings, assets, screenshot));
             Console.WriteLine("Captura de Rell: Cuota del Segador C · Armadura Pétrea S recomendada · Fulminación C.");
+        }
+        if (tristanaScreenshot is not null)
+        {
+            CheckTristanaOffer(ratings, tristana, ReadScreenshot(ratings, assets, tristanaScreenshot));
+            Console.WriteLine("Captura de Tristana: Top 5 y Cuota del Segador S+ recomendada.");
         }
         Console.WriteLine("Tiers de objetos prismáticos verificados por campeón, con aislamiento de otros paneles.");
     }
 
+    private static DetectionResult ReadScreenshot(Ratings ratings, string assets, string screenshot)
+    {
+        var image = Diagnostics.OpenBitmap(screenshot);
+        var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "")
+            .Find(Mode.Arena, image.PixelWidth, image.PixelHeight);
+        using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        var read = detector.ReadPanel(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight),
+            layouts, Mode.Arena, null);
+        return read?.Result ?? throw new InvalidOperationException("No se reconoció el panel prismático de la captura.");
+    }
+
+    private static ArenaPrismaticTop CheckTristanaOffer(Ratings ratings, GameContext tristana, DetectionResult offer)
+    {
+        var result = ratings.Prismatics.ForOffer(tristana, offer);
+        Check(result is { Badges: [
+                { ArenaChoice: { Tier: Tier.S, Recommended: true } },
+                { ArenaChoice: { Tier: Tier.C, Recommended: false } },
+                { ArenaChoice: { Tier: Tier.A, Recommended: false } } ] },
+            "Cuota del Segador es la mejor opción de la oferta de Tristana");
+        var top = result!.Top;
+        Check(top.Entries.Length == 5 && top.Entries[0].Id == 443090 && top.IsOffered(0) &&
+            top.Entries.Select(entry => entry.Id).Distinct().Count() == 5 &&
+            top.Entries.Select((entry, index) => top.IsOffered(index) == TristanaOffer.Contains(entry.Rating.Name)).All(match => match) &&
+            Enumerable.Range(0, 5).Any(index => !top.IsOffered(index)),
+            "el top de Tristana abarca todo el catálogo y distingue las opciones que salieron");
+        return top;
+    }
+
     private static void CheckRellOffer(Ratings ratings, GameContext rell, DetectionResult offer)
     {
-        var badges = ratings.Prismatics.ForOffer(rell, offer);
+        var badges = ratings.Prismatics.ForOffer(rell, offer)?.Badges;
         Check(badges is [
                 { ArenaChoice: { Tier: Tier.C, Recommended: false } },
                 { ArenaChoice: { Tier: Tier.S, Recommended: true } },

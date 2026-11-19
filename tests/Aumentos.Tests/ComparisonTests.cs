@@ -70,11 +70,78 @@ internal static class ComparisonTests
         await CheckRellArenaOffer(ratings, patch);
         CheckRellRoundTen(ratings, patch);
         CheckRellConditionalOffers(ratings, patch);
+        CheckTristanaFirstOffer(ratings, patch);
+        CheckTristanaAttackOffers(ratings, patch);
+        CheckTristanaUpgradeOffer(ratings);
+        CheckIvernOffer(ratings);
         CheckRellPrismaticAugments(ratings, patch);
         CheckRellSilverAugments(ratings, patch);
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
         await CheckGgezArena(ratings, lux, elise);
+    }
+
+    private static void CheckTristanaFirstOffer(Ratings ratings, string patch)
+    {
+        var tristana = new GameContext(Mode.Arena, "Tristana");
+        var ids = new[] { "Fuego Zorruno", "El Fruto de tu Labor", "Tanque o ¿Tan Qué?" }
+            .Select(name => ratings.Recognize(Mode.Arena, name)?.Id).ToArray();
+        var stats = new GgezArenaSnapshot("Tristana", patch, patch, DateTimeOffset.UtcNow, 1281,
+            new() { [80] = new(1.17m, 15) });
+        var offer = CardComparison.ForOffer(ratings, tristana, ids, new bool[3], null, ggez: stats);
+        Check(ids.SequenceEqual([308, 222, 80]) && offer.Select(card => card?.LocalText).SequenceEqual(["B", "B", "A"]) &&
+            offer[0]?.External is null && offer[1]?.External is null && offer[2]?.Arena?.GamesPicked == 15,
+            "Tristana prioriza su sinergia con críticos y conserva el porcentaje publicado de la tercera carta");
+    }
+
+    private static void CheckTristanaAttackOffers(Ratings ratings, string patch)
+    {
+        var tristana = new GameContext(Mode.Arena, "Tristana");
+        int?[] ids = [336, 52, 217, 22, 220, 58];
+        var source = new OpGgSnapshot(patch, Mode.Arena, "Tristana", DateTimeOffset.UtcNow,
+            new() { [336] = new(PickPercent: 3.55m), [217] = new(PickPercent: 3.34m),
+                [220] = new(PickPercent: 12.71m), [58] = new(PickPercent: 4.8m) });
+        var cards = CardComparison.ForOffer(ratings, tristana, ids, new bool[ids.Length], source);
+        Check(cards.All(card => card is { LocalText: "A" }) &&
+            cards.Where(card => card?.External is not null).Select(card => card!.External!.PickPercent)
+                .SequenceEqual([3.55m, 3.34m, 12.71m, 4.8m]),
+            "Tristana tiene letras en ambas ofertas y conserva las tasas de elección");
+        Check(ids.Where(id => id is 336 or 217 or 220 or 58)
+            .All(id => ratings.Rate(Mode.Arena, "Rell", id!.Value) == Tier.C),
+            "las afinidades de ataque y críticos dependen del campeón");
+        var upgrade = CardComparison.ForOffer(ratings, tristana, [220, 134, 1325], new bool[3], source);
+        Check(upgrade.Select(card => card?.LocalText).SequenceEqual(["A", "C", "C"]),
+            "la mejora de Pistolero mantiene su afinidad y Tristana pierde su alcance con Desenvaina tu Espada");
+    }
+
+    private static void CheckTristanaUpgradeOffer(Ratings ratings)
+    {
+        var game = new GameContext(Mode.Arena, "Tristana");
+        int?[] ids = [1328, 22, 52];
+        var cards = Compare([2, 2, 2]);
+        Check(cards.Select(card => card?.LocalText).SequenceEqual(["A", "A", "A"]) &&
+            cards.Select(card => card?.RecommendedUpgrade).SequenceEqual([false, false, true]) &&
+            cards[2]?.LocalReason == "Límite de ataques/s de 3.5 a 10",
+            "la mejora de Golpes Relampagueantes desempata por su efecto en la velocidad de ataque");
+        Check(Compare([3, 2, 2])[0]?.RecommendedUpgrade == true &&
+            Compare([2, null, 2]).All(badge => badge?.RecommendedUpgrade == false) &&
+            Compare(null).All(badge => badge is { RecommendedUpgrade: false, LocalReason: null }),
+            "la recomendación cambia con el nivel y exige una oferta de mejoras completa");
+
+        CardComparison?[] Compare(int?[]? levels) =>
+            CardComparison.ForOffer(ratings, game, ids, new bool[3], null, upgradeLevels: levels);
+    }
+
+    private static void CheckIvernOffer(Ratings ratings)
+    {
+        int?[] ids = [342, 340, 341];
+        foreach (string champion in new[] { "Tristana", "Rell" })
+        {
+            var cards = CardComparison.ForOffer(ratings, new(Mode.Arena, champion), ids, new bool[3], null);
+            Check(cards.Select(card => card?.LocalText).SequenceEqual(["B", "A", "C"]) &&
+                cards.All(card => card is { LocalReason.Length: > 0, External: null }),
+                "las recompensas de Ivern tienen letra y motivo sin estadísticas externas");
+        }
     }
 
     private static void CheckRellConditionalOffers(Ratings ratings, string patch)

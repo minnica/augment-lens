@@ -9,8 +9,9 @@ using System.Windows.Media;
 
 namespace Aumentos;
 
-internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView Source,
-    Int32Rect? Shop = null, MayhemBuildPlan? Plan = null);
+internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layout, string Patch);
+internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView? Source,
+    Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null);
 
 internal sealed class BuildVisibility
 {
@@ -72,7 +73,7 @@ internal sealed class BuildOverlay : Window
     internal BuildOverlay(BuildItemIcons? itemIcons = null)
     {
         this.itemIcons = itemIcons;
-        Title = "Aumentos LoL · Build de OP.GG";
+        Title = "Aumentos LoL · Recomendaciones de objetos";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         ShowActivated = false;
@@ -156,7 +157,7 @@ internal sealed class BuildOverlay : Window
         }
 
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
-            displayed.Source != view.Source || displayed.Plan != view.Plan)
+            displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics)
             RenderContent(view);
         displayed = view;
 
@@ -166,7 +167,18 @@ internal sealed class BuildOverlay : Window
         int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         int maxWidth = bounds.Width - 2 * margin, maxHeight = bounds.Height - 2 * margin;
         bool placeLeft = false;
-        if (view.Shop is { } shop)
+        if (view.Prismatics is { Layout: var layout })
+        {
+            var titles = layout.Titles.Select(region => region.Pixels(bounds.Width, bounds.Height)).ToArray();
+            // Los recortes del OCR cubren solo el texto. Deja espacio para los bordes y el resplandor.
+            int padding = bounds.Width / 24;
+            int leftSpace = titles.Min(title => title.X) - padding - 2 * margin;
+            int rightSpace = bounds.Width - titles.Max(title => title.X + title.Width) - padding - 2 * margin;
+            int desiredWidth = (int)Math.Ceiling(PanelWidth * dpi);
+            placeLeft = leftSpace >= desiredWidth || leftSpace >= rightSpace;
+            maxWidth = Math.Min(maxWidth, Math.Max(1, placeLeft ? leftSpace : rightSpace));
+        }
+        else if (view.Shop is { } shop)
         {
             int leftSpace = shop.X - shop.Width / 12 - 2 * margin;
             int rightSpace = bounds.Width - shop.X - shop.Width - 2 * margin;
@@ -198,17 +210,24 @@ internal sealed class BuildOverlay : Window
 
     private void RenderContent(BuildDisplay view)
     {
-        var build = view.Source.Data;
+        content.Children.Clear();
+        if (view.Prismatics is { } prismatics)
+        {
+            RenderPrismatics(view.Champion, prismatics);
+            return;
+        }
+
+        var build = view.Source?.Data;
         var mode = view.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
         var patch = build is null ? mode :
             $"{mode} · {(build.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(build.SourcePatch)}";
-        content.Children.Clear();
         AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 17, Brushes.WhiteSmoke, bold: true);
         AddLine(view.Plan is null ? patch : $"{patch} · Base OP.GG", 12, build?.IsPrevious == true ? PreviousPatch : Muted);
 
         if (build is null || build.Groups.Length == 0)
         {
-            AddLine(view.Source.Status, 13, Brushes.WhiteSmoke, top: 9);
+            if (view.Source is { } source)
+                AddLine(source.Status, 13, Brushes.WhiteSmoke, top: 9);
             return;
         }
 
@@ -240,6 +259,43 @@ internal sealed class BuildOverlay : Window
                     AddLine("Alternativa", 11, Muted, top: 4);
                 AddItems(choice, build.SourcePatch, ordered: group.Section == OpGgBuildSection.Core);
             }
+        }
+    }
+
+    private void RenderPrismatics(string champion, PrismaticDisplay view)
+    {
+        AddLine("Top 5 prismáticos", 17, Brushes.WhiteSmoke, bold: true);
+        AddLine($"Afinidad con {champion}", 12, Muted);
+        foreach (var (entry, index) in view.Top.Entries.Select((entry, index) => (entry, index)))
+        {
+            bool offered = view.Top.IsOffered(index);
+            var row = new DockPanel { Margin = new Thickness(0, 9, 0, 0) };
+            row.Children.Add(new TextBlock
+            {
+                Text = (index + 1).ToString(), Width = 20, FontSize = 13,
+                FontWeight = FontWeights.SemiBold, Foreground = Accent
+            });
+            var icon = new Image { Width = 26, Height = 26, Margin = new Thickness(0, 1, 8, 0),
+                VerticalAlignment = VerticalAlignment.Top };
+            row.Children.Add(icon);
+            DockPanel.SetDock(icon, Dock.Left);
+            if (itemIcons is not null)
+                _ = SetIcon(icon, itemIcons, view.Patch, entry.Id);
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock
+            {
+                Text = $"{entry.Rating.Name} · {entry.Rating.TierText}",
+                FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Brushes.WhiteSmoke,
+                TextWrapping = TextWrapping.Wrap
+            });
+            text.Children.Add(new TextBlock
+            {
+                Text = entry.Rating.Reason, FontSize = 11, Foreground = Muted, TextWrapping = TextWrapping.Wrap
+            });
+            if (offered)
+                text.Children.Add(new TextBlock { Text = "En oferta", FontSize = 11, Foreground = Accent });
+            row.Children.Add(text);
+            content.Children.Add(row);
         }
     }
 
