@@ -66,6 +66,20 @@ internal static class ArenaBuildTests
         Check(allOwned is { Steps.Length: 6 } && allOwned.Steps.All(step => step.Detail == "Comprado") &&
             planner.Recommend(cho with { Mode = Mode.Caos }, match, source) is null,
             "seis huecos llenos conservan el inventario y excluyen otros modos");
+        var completed = new ArenaMatch([..equipped, 223110],
+            [new("Brand", [226655, 223089]), new("Lux", [223089, 224645]), new("Veigar", [223135])]);
+        Check(planner.Recommend(cho, completed, source) is { Swap.Outgoing.Id: 223110, Swap.Incoming.Id: 222504 } &&
+            planner.Recommend(cho, completed with { Opponents = physical.Opponents }, source) is
+                { Swap.Outgoing.Id: 223110, Swap.Incoming.Id: 223143 },
+            "con seis objetos, el cambio conserva las botas, los prismáticos y el núcleo al pasar de daño mágico a críticos");
+        Check(planner.Recommend(cho, completed with { Opponents = [] }, source) is { Swap: null } &&
+            planner.Recommend(cho, completed with { InventoryKnown = false }, source) is { Swap: null },
+            "el cambio necesita inventario conocido y compras de rivales confirmados");
+
+        var armorAndHealing = new ArenaMatch([223006, 223032, 223031, 223072, 223036, 223046],
+            [new("Aatrox", [223074]), new("Ornn", [223110, 226665])]);
+        Check(planner.Recommend(jinx, armorAndHealing, null) is { Swap.Outgoing.Id: 223036, Swap.Incoming.Id: 223033 },
+            "un cambio de Último Suspiro añade heridas graves y conserva la penetración de armadura");
         Console.WriteLine("Ruta de Arena verificada con los cinco objetos de Cho'Gath, fuente anterior y counters por rival.");
     }
 

@@ -66,11 +66,13 @@ En **ARAM Caos**, la sección **Objetos iniciales** se oculta cuando el cliente 
 
 En **Arena**, **Equipados** cuenta las botas mejoradas, los legendarios y los prismáticos que llevas. Antes de confirmar un rival, la ruta usa tu inventario, el perfil de tu campeón y el núcleo de OP.GG cuando está disponible. Después, puede adaptarse a las compras y al perfil de hasta tres rivales de rondas jugadas. Los prismáticos publicados aparecen en **Referencias de OP.GG**. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
+Con seis objetos equipados, **Cambio sugerido** muestra qué objeto saldría, cuál entraría y el motivo. Por ejemplo, si los rivales acumulan resistencia mágica, la app puede sugerir **Báculo del Vacío**. La sugerencia se recalcula con las compras y conserva las botas, los prismáticos, el núcleo identificado y las respuestas que tu inventario aporta a otras amenazas activas. La comparación evalúa el encaje de los objetos con la partida.
+
 El panel muestra **Daño rival estimado** en ambos modos con una barra de daño **físico** en naranja y **mágico** en violeta. Estima la proporción a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero.
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
-Pulsa **Ctrl + Alt + T** o abre **Tamaño de las builds…** desde el icono de la bandeja. Mueve el control de **75 % a 150 %** para ver el cambio en la vista previa, o usa **Restablecer 100 %**. El tamaño se guarda automáticamente y se aplica a las builds de ARAM Caos y Arena. Al volver a League, el panel se ajusta al espacio disponible junto a la tienda.
+Con la build visible, haz clic en **Tamaño…** encima del panel. También puedes pulsar **Ctrl + Shift + 9** con el **9 de la fila superior** o elegir **Tamaño de las builds…** desde el icono de la bandeja. Mueve el control de **75 % a 150 %** para ver el cambio en la vista previa, o usa **Restablecer 100 %**. El tamaño se guarda automáticamente y se aplica a las builds de ARAM Caos y Arena. Al volver a League, el panel se ajusta al espacio disponible junto a la tienda.
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 

@@ -145,6 +145,7 @@ internal static class Program
             int buildSize = sizePreference.Load();
             buildOverlay.SetSize(buildSize);
             BuildSizeWindow? buildSizeWindow = null;
+            buildOverlay.SizeRequested += OpenBuildSize;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
@@ -226,11 +227,11 @@ internal static class Program
             tray.DoubleClick += (_, _) => OpenDiagnostics();
             app.Startup += (_, _) =>
             {
-                var shortcuts = buildOverlay.RegisterShortcuts(ToggleBuild, OpenBuildSize);
+                var shortcuts = buildOverlay.RegisterShortcuts(ToggleBuild);
                 if (shortcuts.Toggle)
                     showBuild.ShortcutKeyDisplayString = "Ctrl+Alt+B";
                 if (shortcuts.Size)
-                    resizeBuild.ShortcutKeyDisplayString = "Ctrl+Alt+T";
+                    resizeBuild.ShortcutKeyDisplayString = BuildOverlay.SizeShortcutLabel;
                 if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
                 _ = Task.Run(async () =>
@@ -278,6 +279,8 @@ internal static class Program
             {
                 if (buildSizeWindow is not null)
                 {
+                    if (buildSizeWindow.WindowState == WindowState.Minimized)
+                        buildSizeWindow.WindowState = WindowState.Normal;
                     buildSizeWindow.Activate();
                     return;
                 }
@@ -291,6 +294,7 @@ internal static class Program
                 buildSizeWindow = window;
                 window.Closed += (_, _) => buildSizeWindow = null;
                 window.Show();
+                window.Activate();
             }
 
             void OpenDiagnostics()

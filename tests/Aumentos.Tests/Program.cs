@@ -129,6 +129,7 @@ internal static class Program
             OverlaySmoke();
             BuildOverlaySmoke();
             BuildSizeControlSmoke(ratings.Catalog.Patch);
+            BuildSizeButtonSmoke(ratings.Catalog.Patch);
             ChampionSelectTests.Smoke();
         }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
@@ -684,6 +685,49 @@ internal static class Program
             File.Delete(file);
             if (Directory.Exists(folder))
                 Directory.Delete(folder);
+        }
+    }
+
+    private static void BuildSizeButtonSmoke(string patch)
+    {
+        var overlay = new BuildOverlay { Left = -30000, Top = -30000 };
+        BuildSizeWindow? settings = null;
+        overlay.SizeRequested += () =>
+        {
+            settings = new BuildSizeWindow(100, patch, null, _ => true)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual, ShowActivated = false,
+                Left = -30000, Top = -30000
+            };
+            settings.Show();
+        };
+        try
+        {
+            var bounds = new Int32Rect(-30000, -30000, 1600, 900);
+            var shop = new Int32Rect(350, 75, 870, 690);
+            overlay.Render(new BuildDisplay(bounds, 0, "Lillia", Mode.Caos, null, shop));
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var sizeControl = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
+            var button = (Button)sizeControl.Content;
+            var handle = new WindowInteropHelper(sizeControl).Handle;
+            var position = Native.Bounds(handle);
+            var overlayPosition = Native.Bounds(new WindowInteropHelper(overlay).Handle);
+            Check(sizeControl.IsVisible && position.Y >= bounds.Y && position.Y + position.Height < overlayPosition.Y &&
+                position.X + position.Width <= bounds.X + bounds.Width &&
+                (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000000,
+                "el botón queda encima de la build y acepta clics sin tomar el foco");
+            var peer = new System.Windows.Automation.Peers.ButtonAutomationPeer(button);
+            var action = (System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke);
+            action.Invoke();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Check(settings is { IsVisible: true } && settings.FindName("SizeSlider") is Slider, "el botón abre el ajuste de tamaño");
+            overlay.Render(null);
+            Check(!sizeControl.IsVisible, "el botón se oculta con la build");
+        }
+        finally
+        {
+            settings?.Close();
+            overlay.Close();
         }
     }
 

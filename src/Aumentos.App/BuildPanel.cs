@@ -198,10 +198,41 @@ internal sealed class BuildPanel : Border
             }
         }
         else if (purchased.Length == 6)
-            AddLine("Build completa", 17, PurchaseAccent, bold: true, top: 10);
+        {
+            if (plan.Swap is { } swap)
+                AddSwap(swap, patch);
+            else
+                AddLine("Build completa", 17, PurchaseAccent, bold: true, top: 10);
+        }
 
         AddLine($"Equipados · {purchased.Length} de 6", 14, Brushes.WhiteSmoke, bold: true, top: 10);
         AddItems(purchased.Select(step => step.Item).ToArray(), patch, ordered: false);
+    }
+
+    private void AddSwap(BuildSwap swap, string patch)
+    {
+        var card = new StackPanel();
+        card.Children.Add(new TextBlock { Text = "Cambio sugerido", FontSize = 13,
+            Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
+        card.Children.Add(SwapItem("Sale", swap.Outgoing));
+        card.Children.Add(SwapItem("Entra", swap.Incoming));
+        card.Children.Add(new TextBlock { Text = swap.Reason, FontSize = 12.5, Foreground = Muted,
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+        AddPurchaseCard(card);
+
+        DockPanel SwapItem(string label, OpGgBuildItem item)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 5, 0, 0) };
+            var icon = ItemIcon(item, patch, Compact ? 27 : 31);
+            icon.Margin = new Thickness(0, 0, 8, 0);
+            row.Children.Add(icon);
+            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = Muted });
+            text.Children.Add(new TextBlock { Text = item.Name, FontSize = Compact ? 14 : 15,
+                Foreground = Brushes.WhiteSmoke, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            row.Children.Add(text);
+            return row;
+        }
     }
 
     private void AddPurchase(BuildStep step, string patch, int position, bool showDetail = true)
@@ -235,12 +266,15 @@ internal sealed class BuildPanel : Border
         row.Children.Add(text);
 
         if (next)
-            content.Children.Add(new Border { Child = row, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
-                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(Compact ? 7 : 9),
-                Margin = new Thickness(0, 10, 0, 0) });
+            AddPurchaseCard(row);
         else
             content.Children.Add(row);
     }
+
+    private void AddPurchaseCard(UIElement child) =>
+        content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(Compact ? 7 : 9),
+            Margin = new Thickness(0, 10, 0, 0) });
 
     private void RenderPrismatics(string champion, PrismaticDisplay view)
     {

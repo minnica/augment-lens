@@ -59,6 +59,23 @@ internal static class MayhemBuildTests
             source.Recommend(game with { Mode = Mode.Arena }, match.Mayhem, build) is null,
             "reconoce el inventario completo y las builds situacionales no se activan en Arena");
 
+        var completed = new MayhemMatch([6655, 3158, 4645, 3089, 3102, 3157],
+            [new("Ornn", [2504]), new("Brand", [3089]), new("Lux", [6655]), new("Veigar", [4645])]);
+        var swap = source.Recommend(game, completed, build);
+        Check(swap is { Swap.Outgoing.Id: 3157, Swap.Incoming.Id: 3135 } &&
+            swap.Steps.Select(step => step.Item.Id).SequenceEqual(completed.Items) &&
+            swap.Swap.Reason == "Contra 1 rival con objetos de resistencia mágica",
+            "el mago gana penetración y conserva la defensa contra la presión mágica y su núcleo");
+        Check(source.Recommend(game, completed, null)?.Swap is { Outgoing.Id: 3157, Incoming.Id: 3135 },
+            "el cambio funciona con el catálogo local cuando falta OP.GG y hay un objeto situacional intercambiable");
+        var heals = completed with { Opponents = [new("Aatrox", [3072]), new("Briar", [3153])] };
+        Check(source.Recommend(game, heals, build)?.Swap is { Incoming.Id: 3165, Reason: "Para reducir la curación de Aatrox y Briar" },
+            "la recomendación cambia cuando cambian las compras rivales con el mismo inventario");
+        var replaced = completed with { Items = [6655, 3158, 4645, 3089, 3102, 3135] };
+        Check(source.Recommend(game, replaced, build) is { Swap: null } &&
+            source.Recommend(game, completed with { Opponents = [new("Ornn", [1033]), new("Lux", [1033])] }, build) is { Swap: null },
+            "el cambio desaparece cuando ya cubres la amenaza y no se activa con componentes sueltos");
+
         var damageMix = flat with { Opponents = [..flat.Opponents, new("Zed", []), new("Akali", [6673])] };
         var updatedMix = damageMix with { Opponents = [..flat.Opponents, new("Zed", []), new("Akali", [3089])] };
         Check(source.EstimateEnemyDamage(damageMix) is { PhysicalPercent: 70, MagicPercent: 30 } &&
@@ -78,6 +95,9 @@ internal static class MayhemBuildTests
         Check(marksmanPlan is not null && marksmanPlan.Steps[^2].Item.Id == 3036 &&
             marksmanPlan.Steps[^1].Item.Id == 3072,
             "las compras de armadura favorecen penetración física sin duplicar el grupo de Último Suspiro");
+        var mortalReminder = new MayhemMatch([3006, 3032, 3031, 3094, 3033, 3072], [new("Ornn", [3075])]);
+        Check(source.Recommend(marksman, mortalReminder, marksmanBuild) is { Swap: null },
+            "Recordatorio Mortal ya cubre la armadura y no se cambia por otro objeto de penetración");
         Console.WriteLine("Build situacional de ARAM Caos verificada con inventario, composición y compras rivales.");
     }
 

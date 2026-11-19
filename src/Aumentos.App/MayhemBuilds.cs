@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace Aumentos;
 
 internal sealed record BuildStep(OpGgBuildItem Item, string? Detail = null, bool Owned = false);
-internal sealed record MayhemBuildPlan(BuildStep[] Steps);
+internal sealed record MayhemBuildPlan(BuildStep[] Steps, BuildSwap? Swap = null);
 
 internal sealed record MayhemItem(string Name, bool Finished, bool Available, bool Boots, bool OnHit, bool Sustain,
     int Armor, int MagicResist, int Health, int AttackDamage, int AbilityPower, decimal Crit, decimal AttackSpeed);
@@ -120,27 +120,30 @@ internal sealed class MayhemBuilds
 
     internal MayhemBuildPlan? Recommend(GameContext game, MayhemMatch? match, OpGgBuildSnapshot? build)
     {
-        if (game.Mode != Mode.Caos || match is null || build is not { Mode: Mode.Caos } ||
-            !string.Equals(build.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ||
+        if (game.Mode != Mode.Caos || match is null ||
             !champions.TryGetValue(game.Champion, out var champion) || items.Count == 0)
             return null;
 
         var owned = match.Items.Where(IsFinished)
             .DistinctBy(BaseId).Take(6).ToArray();
         var steps = owned.Select(id => Step(id, "Comprado", owned: true)).ToList();
-        if (steps.Count == 6)
-            return new(steps.ToArray());
-
-        var paths = build.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Core)?.Choices
+        var source = build is { Mode: Mode.Caos } && string.Equals(build.Champion, game.Champion, StringComparison.OrdinalIgnoreCase)
+            ? build : null;
+        var paths = source?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Core)?.Choices
             .Select(choice => choice.Select(item => BaseId(item.Id))
                 .Where(id => items.GetValueOrDefault(id) is { Available: true, Boots: false }).Distinct().ToArray())
             .Where(choice => choice.Length >= 2).ToArray() ?? [];
+        var core = paths.MaxBy(path => path.Intersect(owned.Select(BaseId)).Count()) ?? [];
+        var style = BuildStyle(champion, core.Concat(owned).Distinct());
+        if (steps.Count == 6)
+        {
+            var equipped = steps.ToArray();
+            return new(equipped, RecommendSwap(equipped, core, style, match.Opponents));
+        }
         if (paths.Length == 0)
             return null;
 
-        var core = paths.MaxBy(path => path.Intersect(owned.Select(BaseId)).Count())!;
-        var style = BuildStyle(champion, core.Concat(owned).Distinct());
-        var boot = build.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Boots)?.Choices
+        var boot = source?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Boots)?.Choices
             .SelectMany(choice => choice).Select(item => item.Id)
             .FirstOrDefault(id => items.GetValueOrDefault(id) is { Available: true, Boots: true }) ?? 0;
         foreach (var id in core.Take(1).Concat([boot]).Concat(core.Skip(1)))
@@ -177,10 +180,44 @@ internal sealed class MayhemBuilds
         return steps.Count == 6 ? new(steps.ToArray()) : null;
     }
 
+    private BuildSwap? RecommendSwap(BuildStep[] equipped, int[] core, Style style, MayhemOpponent[] opponents)
+    {
+        var replaceable = equipped.Where(step =>
+        {
+            int id = step.Item.Id;
+            var item = items[id];
+            return id == BaseId(id) && item is { Available: true, Boots: false } && !core.Take(3).Contains(id) &&
+                (core.Length > 0 || IsAntiHeal(id) || Situational(id) && (item.Armor >= 30 || item.MagicResist >= 30));
+        }).OrderByDescending(step => Situational(step.Item.Id)).ThenBy(step => step.Item.Id);
+
+        var counters = AssessThreats(opponents, purchasesOnly: true).Select(threat => new SwapCounter(threat.Reason,
+            Choices.Where(choice => choice.Need == threat.Need && (choice.Styles & style) != 0 && IsFinished(choice.Id))
+                .Select(choice => choice.Id).ToArray(),
+            id => Covers(id, threat.Need)));
+        return BuildSwap.Find(equipped, replaceable, counters, CanAdd, id => new(id, items[id].Name));
+    }
+
+    private static bool Situational(int id) => Choices.Any(choice => choice.Id == id && choice.Need != Need.General);
+
+    private bool Covers(int id, Need need)
+    {
+        var item = items[id];
+        if (item.Boots)
+            return false;
+        return need switch
+        {
+            Need.Healing => IsAntiHeal(id),
+            Need.Armor when id == 3033 => true,
+            Need.MagicDamage when item.MagicResist >= 30 => true,
+            Need.PhysicalDamage when item.Armor >= 30 => true,
+            _ => Choices.Any(choice => choice.Id == id && choice.Need == need)
+        };
+    }
+
     private BuildStep Step(int id, string? detail = null, bool owned = false) => new(new(id, items[id].Name), detail, owned);
     private bool IsFinished(int id) => items.GetValueOrDefault(id)?.Finished == true;
 
-    private bool CanAdd(int id, List<BuildStep> steps)
+    private bool CanAdd(int id, IReadOnlyList<BuildStep> steps)
     {
         if (items.GetValueOrDefault(id) is not { Available: true } item)
             return false;
@@ -215,9 +252,10 @@ internal sealed class MayhemBuilds
         };
     }
 
-    private IEnumerable<Threat> AssessThreats(MayhemOpponent[] opponents)
+    private IEnumerable<Threat> AssessThreats(MayhemOpponent[] opponents, bool purchasesOnly = false)
     {
-        var rivals = opponents.Where(opponent => champions.ContainsKey(opponent.Champion)).Select(ReadOpponent).ToArray();
+        var rivals = opponents.Where(opponent => champions.ContainsKey(opponent.Champion))
+            .Select(opponent => ReadOpponent(opponent, purchasesOnly)).ToArray();
         var threats = new List<Threat>();
         int magicResistance = rivals.Count(rival => rival.MagicResist >= 20);
         int armor = rivals.Count(rival => rival.Armor >= 20);
@@ -226,19 +264,19 @@ internal sealed class MayhemBuilds
         if (armor >= 2 || rivals.Any(rival => rival.Armor >= 65))
             threats.Add(new(Need.Armor, 7 + armor, PurchaseReason(armor, "armadura")));
 
-        var healers = rivals.Where(rival => rival.Sustain || Healers.Contains(rival.Champion.Key)).ToArray();
+        var healers = rivals.Where(rival => rival.Sustain || !purchasesOnly && Healers.Contains(rival.Champion.Key)).ToArray();
         if (healers.Length >= 2 || healers.Any(rival => TeamHealers.Contains(rival.Champion.Key)))
             threats.Add(new(Need.Healing, 7 + healers.Length, ChampionReason("Para reducir la curación de", healers)));
         int shields = rivals.Count(rival => rival.Shields);
         if (shields >= 2)
             threats.Add(new(Need.Shields, 6 + shields, "Contra rivales con escudos"));
         var divers = rivals.Where(rival => rival.Dive).ToArray();
-        if (divers.Length > 0)
+        if (!purchasesOnly && divers.Length > 0)
             threats.Add(new(Need.Dive, 5 + divers.Length, ChampionReason("Para resistir las entradas de", divers)));
         int health = rivals.Count(rival => rival.Health >= 500);
         if (health >= 2)
             threats.Add(new(Need.Health, 5 + health, PurchaseReason(health, "vida")));
-        else if (rivals.Count(rival => rival.Champion.Roles[0] == "Tank") >= 2)
+        else if (!purchasesOnly && rivals.Count(rival => rival.Champion.Roles[0] == "Tank") >= 2)
             threats.Add(new(Need.Health, 6, "Contra varios tanques rivales"));
         if (rivals.Count(rival => rival.MagicDamage) >= 3)
             threats.Add(new(Need.MagicDamage, 6, "Contra el daño mágico rival"));
@@ -247,19 +285,22 @@ internal sealed class MayhemBuilds
         return threats.OrderByDescending(threat => threat.Priority);
     }
 
-    private Opponent ReadOpponent(MayhemOpponent opponent)
+    private Opponent ReadOpponent(MayhemOpponent opponent, bool purchasesOnly)
     {
         var champion = champions[opponent.Champion];
-        var equipped = EquippedItems(opponent).ToArray();
+        var itemIds = purchasesOnly ? opponent.Items.Where(id => items.GetValueOrDefault(id) is { Finished: true, Boots: false }) :
+            opponent.Items.AsEnumerable();
+        var purchases = itemIds.ToArray();
+        var equipped = purchases.Select(id => items.GetValueOrDefault(id)).OfType<MayhemItem>().ToArray();
         var ap = equipped.Sum(item => item.AbilityPower);
         var ad = equipped.Sum(item => item.AttackDamage);
         bool mage = champion.Roles.Contains("Mage");
-        bool magic = (ap >= 40 && ap > ad) || (ad < 30 && mage);
+        bool magic = (ap >= 40 && ap > ad) || (!purchasesOnly && ad < 30 && mage);
         bool physical = (ad >= 30 && ad >= ap) ||
-            (ap < 40 && !mage && champion.Roles[0] is "Marksman" or "Fighter" or "Assassin");
+            (!purchasesOnly && ap < 40 && !mage && champion.Roles[0] is "Marksman" or "Fighter" or "Assassin");
         return new(champion, equipped.Sum(item => item.Armor), equipped.Sum(item => item.MagicResist),
             equipped.Sum(item => item.Health), equipped.Any(item => item.Sustain),
-            Shielders.Contains(champion.Key) || opponent.Items.Any(id => id is 3053 or 3156 or 3190 or 6673), magic, physical,
+            (!purchasesOnly && Shielders.Contains(champion.Key)) || purchases.Any(id => id is 3053 or 3156 or 3190 or 6673), magic, physical,
             champion.Roles[0] == "Assassin" || Divers.Contains(champion.Key));
     }
 

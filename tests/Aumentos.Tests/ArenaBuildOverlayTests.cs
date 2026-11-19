@@ -55,6 +55,12 @@ internal static class ArenaBuildOverlayTests
         Check(fullLabels.Contains("Build completa") && fullLabels.Contains("Equipados · 6 de 6") &&
             !fullLabels.Contains("Siguiente compra") && !panel.Children.OfType<DockPanel>().Any(),
             "inventario lleno sin una compra pendiente");
+        var swap = new BuildSwap(full.Steps[^1].Item, new(223156, "Fauces de Malmortius"), "Contra el daño mágico de Brand");
+        renderer.Render(view with { Plan = full with { Swap = swap }, Source = null }, 215);
+        Check(ReadText(panel.Children.OfType<Border>().Single()).SequenceEqual(
+            ["Cambio sugerido", "Sale", "Presagio de Randuin", "Entra", "Fauces de Malmortius", "Contra el daño mágico de Brand"]) &&
+            ReadText(panel).Contains("Equipados · 6 de 6"),
+            "el cambio muestra los dos objetos y el motivo sin alterar el inventario equipado");
         Console.WriteLine("Tienda de Arena verificada con próximas compras, inventario separado y ruta completa.");
     }
 

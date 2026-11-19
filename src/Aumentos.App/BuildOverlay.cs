@@ -57,8 +57,10 @@ internal sealed class BuildOverlay : Window
     private const int SizeHotkeyId = 2;
     private const int HotkeyMessage = 0x0312;
     private const uint CtrlAltNoRepeat = 0x4003;
+    private const uint CtrlShiftNoRepeat = 0x4006;
     private const uint KeyB = 0x42;
-    private const uint KeyT = 0x54;
+    private const uint Digit9 = 0x39;
+    internal const string SizeShortcutLabel = "Ctrl+Shift+9";
     private const double MinimumShopSideWidth = 210;
 
     private readonly BuildPanel panel;
@@ -68,8 +70,11 @@ internal sealed class BuildOverlay : Window
     private nint handle;
     private HwndSource? hotkeySource;
     private Action? onToggle;
-    private Action? onOpenSize;
+    private bool sizeShortcutRegistered;
+    private BuildSizeButton? sizeButton;
     private int sizePercent = BuildSizePreference.Default;
+
+    internal event Action? SizeRequested;
 
     internal BuildOverlay(BuildItemIcons? itemIcons = null)
     {
@@ -97,10 +102,10 @@ internal sealed class BuildOverlay : Window
         };
     }
 
-    internal (bool Toggle, bool Size) RegisterShortcuts(Action toggle, Action openSize)
+    internal (bool Toggle, bool Size) RegisterShortcuts(Action toggle)
     {
         if (hotkeySource is not null)
-            return (onToggle is not null, onOpenSize is not null);
+            return (onToggle is not null, sizeShortcutRegistered);
 
         var window = new WindowInteropHelper(this).EnsureHandle();
         var source = HwndSource.FromHwnd(window);
@@ -108,14 +113,13 @@ internal sealed class BuildOverlay : Window
             return (false, false);
         if (RegisterHotKey(window, ToggleHotkeyId, CtrlAltNoRepeat, KeyB))
             onToggle = toggle;
-        if (RegisterHotKey(window, SizeHotkeyId, CtrlAltNoRepeat, KeyT))
-            onOpenSize = openSize;
-        if (onToggle is not null || onOpenSize is not null)
+        sizeShortcutRegistered = RegisterHotKey(window, SizeHotkeyId, CtrlShiftNoRepeat, Digit9);
+        if (onToggle is not null || sizeShortcutRegistered)
         {
             hotkeySource = source;
             source.AddHook(OnWindowMessage);
         }
-        return (onToggle is not null, onOpenSize is not null);
+        return (onToggle is not null, sizeShortcutRegistered);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -124,13 +128,13 @@ internal sealed class BuildOverlay : Window
         {
             if (onToggle is not null)
                 UnregisterHotKey(handle, ToggleHotkeyId);
-            if (onOpenSize is not null)
+            if (sizeShortcutRegistered)
                 UnregisterHotKey(handle, SizeHotkeyId);
             if (!source.IsDisposed)
                 source.RemoveHook(OnWindowMessage);
         }
         onToggle = null;
-        onOpenSize = null;
+        sizeShortcutRegistered = false;
         hotkeySource = null;
         base.OnClosed(e);
     }
@@ -139,7 +143,8 @@ internal sealed class BuildOverlay : Window
     {
         if (message == HotkeyMessage)
         {
-            var action = wParam == ToggleHotkeyId ? onToggle : wParam == SizeHotkeyId ? onOpenSize : null;
+            var action = wParam == ToggleHotkeyId ? onToggle :
+                wParam == SizeHotkeyId && sizeShortcutRegistered ? SizeRequested : null;
             if (action is not null)
             {
                 handled = true;
@@ -164,6 +169,7 @@ internal sealed class BuildOverlay : Window
     {
         if (view is null || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
         {
+            sizeButton?.Hide();
             if (IsVisible)
                 Hide();
             displayed = null;
@@ -221,21 +227,38 @@ internal sealed class BuildOverlay : Window
 
         panel.Measure(new Size(panel.Width, double.PositiveInfinity));
         var desired = panel.DesiredSize;
+        int buttonWidth = (int)Math.Ceiling(BuildSizeButton.ButtonWidth * dpi);
+        int buttonHeight = (int)Math.Ceiling(BuildSizeButton.ButtonHeight * dpi);
+        int buttonGap = (int)Math.Ceiling(5 * dpi);
+        bool showSizeButton = view.Prismatics is null && SizeRequested is not null &&
+            maxWidth >= buttonWidth && maxHeight >= 2 * buttonHeight + buttonGap;
+        int top = margin + (showSizeButton ? buttonHeight + buttonGap : 0);
+        maxHeight -= top - margin;
         double scale = Math.Min(requestedScale, Math.Min(maxWidth / desired.Width, maxHeight / desired.Height));
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
         int height = Math.Clamp((int)Math.Ceiling(desired.Height * scale), 1, maxHeight);
         var target = new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
-            bounds.Y + Math.Clamp((int)(bounds.Height * 0.12), margin, bounds.Height - margin - height), width, height);
+            bounds.Y + Math.Clamp((int)(bounds.Height * 0.12), top, bounds.Height - margin - height), width, height);
 
-        if (IsVisible && Native.IsWindowVisible(handle) && target == placement)
-            return;
-        Width = width / dpi;
-        Height = height / dpi;
-        if (!IsVisible)
-            Show();
-        const uint showWithoutActivation = 0x0040 | 0x0010;
-        if (Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation))
-            placement = target;
+        if (!IsVisible || !Native.IsWindowVisible(handle) || target != placement)
+        {
+            Width = width / dpi;
+            Height = height / dpi;
+            if (!IsVisible)
+                Show();
+            const uint showWithoutActivation = 0x0040 | 0x0010;
+            if (Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation))
+                placement = target;
+        }
+
+        if (showSizeButton && Native.IsWindowVisible(handle))
+        {
+            sizeButton ??= new BuildSizeButton(() => SizeRequested?.Invoke()) { Owner = this };
+            int x = Math.Max(target.X + target.Width - buttonWidth, bounds.X + margin);
+            sizeButton.Display(new Int32Rect(x, target.Y - buttonHeight - buttonGap, buttonWidth, buttonHeight), dpi);
+        }
+        else
+            sizeButton?.Hide();
     }
 
     [DllImport("user32.dll")]

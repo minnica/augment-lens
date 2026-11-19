@@ -164,7 +164,8 @@ internal sealed class LiveOverlay
                                 var updated = currentGame.Mode == Mode.Arena
                                     ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
                                     : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
-                                if (updated is null || plan is null || !updated.Steps.SequenceEqual(plan.Steps))
+                                if (updated is null || plan is null || updated.Swap != plan.Swap ||
+                                    !updated.Steps.SequenceEqual(plan.Steps))
                                     plan = updated;
                                 enemyDamage = currentGame.Mode == Mode.Arena
                                     ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
