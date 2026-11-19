@@ -40,29 +40,49 @@ internal static class Program
                     if (read is not { Result: var result })
                         return 3;
                     CardComparison?[]? comparisons = null;
+                    CardComparison?[]? itemChoices = null;
+                    var shards = mode == Mode.Arena ? ArenaShardRatings.Identify(result) : null;
                     if (args.Length == 4)
                     {
                         var champion = ratings.Catalog.Champions.Single(item =>
                             string.Equals(item.Key, args[3], StringComparison.OrdinalIgnoreCase));
                         var game = new GameContext(mode, champion.Key);
-                        var (source, mayhem, arena) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
-                            new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http));
-                        comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
-                            mayhem: mayhem?.Data, ggez: arena?.Data);
-                        Console.WriteLine(source.Status);
-                        if (mayhem is not null)
-                            Console.WriteLine(mayhem.Status);
-                        if (arena is not null)
-                            Console.WriteLine(arena.Status);
+                        itemChoices = ratings.Shards.ForOffer(game, result) ?? ratings.Prismatics.ForOffer(game, result) ??
+                            ratings.Legendaries.ForOffer(game, result);
+                        if (itemChoices is null)
+                        {
+                            var (source, mayhem, arena) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
+                                new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http));
+                            comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
+                                mayhem: mayhem?.Data, ggez: arena?.Data);
+                            Console.WriteLine(source.Status);
+                            if (mayhem is not null)
+                                Console.WriteLine(mayhem.Status);
+                            if (arena is not null)
+                                Console.WriteLine(arena.Status);
+                        }
                     }
                     for (int index = 0; index < result.Cards.Length; index++)
                     {
                         var card = ratings.Catalog.Augments.FirstOrDefault(augment =>
                             augment.Mode == mode.ToString() && augment.Id == result.Cards[index]);
                         var label = result.Items[index] ? $"Objeto: {result.Texts[index]}" : card?.Name ?? $"? {result.Texts[index]}";
+                        if (shards?[index] is { } shard)
+                            label = ArenaShardRatings.Name(shard);
+                        if (itemChoices?[index] is { ArenaChoice: { } choice } choiceBadge)
+                            label = $"{(shards is null ? "Objeto: " : "")}{choice.Name} · Tier local {choiceBadge.LocalText} · {choice.Reason}" +
+                                (choice.Recommended ? " · Recomendado" : "");
                         if (card is not null && comparisons?[index] is { } comparison)
                         {
-                            label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
+                            if (comparison.IsArenaAugment && comparison.Local != CardComparison.Missing)
+                            {
+                                label += comparison.LocalReason is { } reason ? $" · Valoración variable · {reason}" :
+                                    $" · Tier local {comparison.LocalText}";
+                                if (comparison.External is not null)
+                                    label += $" · OP.GG {comparison.ExternalText}";
+                            }
+                            else
+                                label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
                             if (comparison.Mayhem is { } popularity)
                                 label += $" · {popularity.Text} · {(popularity.IsPrevious ? "Parche anterior" : "Parche")} {popularity.Patch}";
                             if (comparison.Arena is { } arenaPopularity)
@@ -70,8 +90,8 @@ internal static class Program
                         }
                         Console.WriteLine(label);
                     }
-                    Console.WriteLine(result.CanShow(false) ? "Overlay visible" : "Overlay oculto");
-                    return result.Cards.Select((card, slot) => card.HasValue || result.Items[slot]).All(valid => valid) ? 0 : 4;
+                    Console.WriteLine(result.CanShow(false) || itemChoices is not null ? "Overlay visible" : "Overlay oculto");
+                    return result.Matched == result.Cards.Length ? 0 : 4;
                 }
                 return 0;
             }

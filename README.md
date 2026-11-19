@@ -21,25 +21,27 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 
 ## Comparar aumentos en partida
 
-**OP.GG** muestra la letra que publica para tu campeón en ARAM Caos (S, A, B, C, D o E). En Arena indica «Elección» con el porcentaje de veces que se eligió la carta con tu campeón, cuando publica ese dato. La **estimación local** usa las reglas de sinergia del proyecto y se muestra junto a OP.GG. Cada fuente conserva su propia valoración o porcentaje. En el caso de **¡¡¡Abejas!!!** con Lux, la estimación local es **A**.
+**OP.GG** muestra la letra que publica para tu campeón en ARAM Caos (S, A, B, C, D o E). En Arena la carta encabeza con su **tier local** (S+, A, B o C) si tiene una regla de sinergia. Debajo aparecen los porcentajes de elección que publiquen OP.GG y GGEZ.GG. En el caso de **¡¡¡Abejas!!!** con Lux, la estimación local es **A**.
 
 | Etiqueta | Significado en el overlay |
 | --- | --- |
-| S | Estimación local para una sinergia excepcional incluida en la tabla editorial |
+| S / S+ | Estimación local para una sinergia excepcional. En Arena se muestra S+ |
 | A | Estimación local para una mecánica afín al perfil del campeón |
 | B | Estimación local intermedia indicada en la tabla editorial |
 | C | Estimación local para una mecánica con poca afinidad con el perfil |
 | Sin dato | La carta se reconoció y esa fuente carece de una valoración disponible para el campeón, modo y parche |
-| Variable | La utilidad depende del aumento que reemplaces o del resultado de una transformación |
+| Variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
 | ? | La app todavía está intentando identificar la carta |
 
 Al cambiar una carta, el overlay vuelve a leer esa posición y actualiza sus valoraciones. Si dos cartas comparten título, la app también puede consultar la descripción. Para **¡Estadísticas sobre Estadísticas!**, lee cuántos yunques ofrece para distinguir la versión de tres de la de cuatro.
 
 Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su página pública de OP.GG. Mientras llega por primera vez, aparece «Consultando…» junto a la estimación local. Las imágenes del juego se procesan en memoria. La consulta externa contiene el modo y el campeón. Cada cambio de carta usa la tabla que ya está en memoria.
 
-La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\opgg` y se actualiza tras 12 horas de antigüedad cuando vuelves a usar ese campeón. Si falla la red, la app puede seguir usando una copia del mismo parche. El diagnóstico indica cuándo se actualizó o por qué falta. [Datos de aumentos de OP.GG](https://op.gg/lol/modes/aram-mayhem/lux/augments) · [Uso de los datos de OP.GG](https://help.op.gg/hc/en-us/articles/31091405109401-Can-I-use-OP-GG-data)
+La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\opgg` y se actualiza tras 12 horas de antigüedad cuando vuelves a usar ese campeón. En Arena, si OP.GG solo publica el parche inmediatamente anterior de la misma temporada, el overlay identifica el parche junto al porcentaje y vuelve a consultar a los 15 minutos. Si falla la red, la app puede seguir usando su copia. El diagnóstico indica cuándo se actualizó o por qué falta. [Datos de aumentos de OP.GG](https://op.gg/lol/modes/aram-mayhem/lux/augments) · [Uso de los datos de OP.GG](https://help.op.gg/hc/en-us/articles/31091405109401-Can-I-use-OP-GG-data)
 
-En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese campeón y el número de partidas que lo respalda, por ejemplo «59/760 partidas · 26.23». La muestra abarca todas las regiones que recoge la fuente. Se usa el parche vigente o el inmediatamente anterior de la misma temporada con la marca «parche ant.». El menú **Datos de GGEZ.GG** abre la página del último campeón de Arena que detectó la app. El overlay queda oculto cuando aparecen cartas de objetos. [Ejemplo en Arena de Elise](https://ggez.gg/champion/Elise/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
+En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese campeón y el número de partidas que lo respalda, por ejemplo «59/760 partidas · 26.23». La muestra abarca todas las regiones que recoge la fuente. Se usa el parche vigente o el inmediatamente anterior de la misma temporada con la marca «parche ant.». El menú **Datos de GGEZ.GG** abre la página del último campeón de Arena que detectó la app. [Ejemplo en Arena de Elise](https://ggez.gg/champion/Elise/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
+
+Al elegir un **objeto legendario o prismático de Arena**, o un **fragmento del yunque de estadísticas**, cada carta reconocida muestra un tier local y el motivo de su afinidad con el campeón. Cuando todas las opciones son legibles y sus tiers difieren, el overlay destaca las de mayor tier. Las cartas con porcentajes publicados de aumentos de Arena muestran los datos de cada fuente y su parche.
 
 En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global de la carta en la muestra de esa fuente. La app prioriza el archivo del parche actual y, si aún falta, usa el inmediatamente anterior de la misma temporada. En ese caso, debajo del porcentaje aparece «Parche anterior» con el número. La fuente se consulta en segundo plano y se comparte entre todos los campeones. La app vuelve a comprobar los archivos anteriores cada 15 minutos y los del parche actual cada 12 horas mientras se usa el modo. [Datos de ARAMMayhem.com · CC BY 4.0](https://arammayhem.com/data/)
 
@@ -48,6 +50,8 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 Pulsa **P**, la tecla predeterminada de la tienda, en **ARAM Caos** o **Arena**. La build aparece automáticamente a un lado de la tienda y se oculta al cerrarla. El panel también se aparta durante la elección de aumentos.
 
 Lee los **iconos y las flechas de izquierda a derecha** para seguir el orden de compra. Debajo de cada icono aparece el nombre del objeto en español. El panel incluye objetos iniciales, botas, la build principal y su alternativa cuando OP.GG la publica. En Arena también muestra los objetos prismáticos disponibles. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
+
+En **ARAM Caos**, la **Ruta a 6 objetos** cuenta las botas mejoradas y los demás objetos terminados de tu inventario. Parte del núcleo de OP.GG y sugiere cómo cubrir los espacios libres según la composición y las compras que reporta el marcador del cliente local. Debajo de cada objeto situacional aparece el motivo. La app actualiza la ruta con los cambios de la partida y consulta los datos de los objetos del mismo parche en Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 

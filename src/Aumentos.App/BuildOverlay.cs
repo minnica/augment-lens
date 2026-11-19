@@ -10,7 +10,7 @@ using System.Windows.Media;
 namespace Aumentos;
 
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView Source,
-    Int32Rect? Shop = null);
+    Int32Rect? Shop = null, MayhemBuildPlan? Plan = null);
 
 internal sealed class BuildVisibility
 {
@@ -156,7 +156,7 @@ internal sealed class BuildOverlay : Window
         }
 
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
-            displayed.Source != view.Source)
+            displayed.Source != view.Source || displayed.Plan != view.Plan)
             RenderContent(view);
         displayed = view;
 
@@ -203,8 +203,8 @@ internal sealed class BuildOverlay : Window
         var patch = build is null ? mode :
             $"{mode} · {(build.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(build.SourcePatch)}";
         content.Children.Clear();
-        AddLine($"{view.Champion} · OP.GG", 17, Brushes.WhiteSmoke, bold: true);
-        AddLine(patch, 12, build?.IsPrevious == true ? PreviousPatch : Muted);
+        AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 17, Brushes.WhiteSmoke, bold: true);
+        AddLine(view.Plan is null ? patch : $"{patch} · Base OP.GG", 12, build?.IsPrevious == true ? PreviousPatch : Muted);
 
         if (build is null || build.Groups.Length == 0)
         {
@@ -214,6 +214,19 @@ internal sealed class BuildOverlay : Window
 
         foreach (var group in build.Groups)
         {
+            if (group.Section == OpGgBuildSection.Core && view.Plan is { } plan)
+            {
+                AddLine("Ruta a 6 objetos", 12, Accent, bold: true, top: 9);
+                foreach (var row in plan.Steps.Chunk(3))
+                    AddItems(row.Select(step => step.Item).ToArray(), build.ClientPatch, ordered: true,
+                        details: row.Select(step => step.Detail).ToArray());
+                if (group.Choices.ElementAtOrDefault(1) is { } alternative)
+                {
+                    AddLine("Núcleo alternativo · OP.GG", 11, Muted, top: 5);
+                    AddItems(alternative, build.SourcePatch, ordered: true);
+                }
+                continue;
+            }
             AddLine(SectionLabel(group.Section), 12, Accent, bold: true, top: 9);
             if ((group.Section is OpGgBuildSection.Boots or OpGgBuildSection.Prismatic) &&
                 group.Choices.All(choice => choice.Length == 1))
@@ -230,7 +243,7 @@ internal sealed class BuildOverlay : Window
         }
     }
 
-    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered)
+    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered, string?[]? details = null)
     {
         var row = new Grid { Margin = new Thickness(0, 4, 0, 1), HorizontalAlignment = HorizontalAlignment.Left };
         double cellWidth = Math.Min(90, (PanelWidth - 34 - (ordered ? (items.Length - 1) * 12 : 0)) / items.Length);
@@ -255,6 +268,12 @@ internal sealed class BuildOverlay : Window
                 Text = item.Name, FontSize = 10.5, Foreground = Brushes.WhiteSmoke,
                 TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0)
             });
+            if (details?[i] is { } detail)
+                tile.Children.Add(new TextBlock
+                {
+                    Text = detail, FontSize = 10, Foreground = Muted, TextWrapping = TextWrapping.Wrap,
+                    TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 2, 0, 2)
+                });
             AddColumn(tile, cellWidth);
             if (itemIcons is not null)
                 _ = SetIcon(image, itemIcons, patch, item.Id);

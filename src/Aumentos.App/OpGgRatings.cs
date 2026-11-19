@@ -96,28 +96,27 @@ internal sealed class OpGgRatings
             return;
         }
         var path = Path.Combine(directory, $"{game.Mode}-{slug}.json");
-        var data = entry.View.Data ?? ReadCache(path, game);
+        var previousPath = Path.Combine(directory, $"{game.Mode}-{slug}-previous.json");
+        var data = entry.View.Data ?? ReadCache(path, game, previous: false) ??
+            (game.Mode == Mode.Arena ? ReadCache(previousPath, game, previous: true) : null);
         var nextCheck = DateTimeOffset.UtcNow + RetryAfterFailure;
+        DateTimeOffset? retryAt = null;
         string status;
         try
         {
-            if (data is null || data.FetchedAt + FreshFor <= DateTimeOffset.UtcNow)
+            if (data is null || ExpiresAt(data) <= DateTimeOffset.UtcNow)
             {
                 if (data is not null)
                     lock (gate) entry.View = new(data, "Actualizando la copia de OP.GG…");
-                using var response = await client.GetAsync(OpGgPage.Address(game), cancellation).ConfigureAwait(false);
-                if (response.StatusCode == HttpStatusCode.TooManyRequests && response.Headers.RetryAfter is { } retry)
-                {
-                    var after = retry.Date ?? DateTimeOffset.UtcNow + (retry.Delta ?? RetryAfterFailure);
-                    if (after > nextCheck) nextCheck = after;
-                }
-                response.EnsureSuccessStatusCode();
-                var html = await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);
-                data = OpGgPage.Read(html, game, patch, cards[game.Mode]);
-                StatsCache.Write(path, data);
+                var fetched = await DownloadPreferred().ConfigureAwait(false);
+                if (data is { IsPrevious: false } && fetched.IsPrevious)
+                    throw new InvalidDataException($"OP.GG devolvió el parche anterior {LeaguePatch.Public(fetched.DataPatch)}.");
+                data = fetched;
+                StatsCache.Write(data.IsPrevious ? previousPath : path, data);
             }
-            status = $"OP.GG · Parche {patch} · Actualizado {data.FetchedAt.ToLocalTime():dd/MM HH:mm}";
-            nextCheck = data.FetchedAt + FreshFor;
+            var period = data.IsPrevious ? $"Parche anterior {LeaguePatch.Public(data.DataPatch)}" : $"Parche {patch}";
+            status = $"OP.GG · {period} · Actualizado {data.FetchedAt.ToLocalTime():dd/MM HH:mm}";
+            nextCheck = ExpiresAt(data);
         }
         catch (InvalidDataException error) { status = error.Message; }
         catch (HttpRequestException error) { status = $"OP.GG no disponible{(error.StatusCode is { } code ? $" ({(int)code})" : "")}."; }
@@ -126,21 +125,57 @@ internal sealed class OpGgRatings
         {
             status = "No se pudo leer el formato de OP.GG.";
         }
-        if (data is not null && data.FetchedAt + FreshFor <= DateTimeOffset.UtcNow)
+        if (data is not null && ExpiresAt(data) <= DateTimeOffset.UtcNow)
             status += $" Usando copia del {data.FetchedAt.ToLocalTime():dd/MM HH:mm}.";
         lock (gate)
         {
             entry.View = new(data, status);
-            entry.NextCheck = nextCheck;
+            entry.NextCheck = retryAt is { } retry && retry > nextCheck ? retry : nextCheck;
+        }
+
+        async Task<OpGgSnapshot> DownloadPreferred()
+        {
+            var localized = OpGgPage.Address(game, localized: true);
+            OpGgSnapshot first;
+            try { first = await Download(OpGgPage.Address(game)).ConfigureAwait(false); }
+            catch (InvalidDataException) { return await Download(localized).ConfigureAwait(false); }
+            if (!first.IsPrevious)
+                return first;
+            try
+            {
+                var alternative = await Download(localized).ConfigureAwait(false);
+                return alternative.IsPrevious ? first : alternative;
+            }
+            catch (Exception error) when (!cancellation.IsCancellationRequested && error is InvalidDataException or
+                HttpRequestException or JsonException or InvalidOperationException or FormatException or OperationCanceledException)
+            {
+                return first;
+            }
+        }
+
+        async Task<OpGgSnapshot> Download(Uri address)
+        {
+            using var response = await client.GetAsync(address, cancellation).ConfigureAwait(false);
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && response.Headers.RetryAfter is { } retry)
+            {
+                retryAt = retry.Date ?? DateTimeOffset.UtcNow + (retry.Delta ?? RetryAfterFailure);
+            }
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);
+            return OpGgPage.Read(html, game, patch, cards[game.Mode]);
         }
     }
 
-    private OpGgSnapshot? ReadCache(string path, GameContext game)
+    private static DateTimeOffset ExpiresAt(OpGgSnapshot data) =>
+        data.FetchedAt + (data.IsPrevious ? RetryAfterFailure : FreshFor);
+
+    private OpGgSnapshot? ReadCache(string path, GameContext game, bool previous)
     {
         try
         {
             var cached = Ratings.Read<OpGgSnapshot>(path);
-            if (cached.Patch != patch || cached.Mode != game.Mode ||
+            if (cached.Patch != patch || cached.Mode != game.Mode || cached.IsPrevious != previous ||
+                (cached.IsPrevious && (game.Mode != Mode.Arena || cached.DataPatch != LeaguePatch.Previous(patch))) ||
                 !string.Equals(cached.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ||
                 cached.FetchedAt > DateTimeOffset.UtcNow || cached.Cards is not { Count: > 0 })
                 return null;

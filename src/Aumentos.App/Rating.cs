@@ -13,7 +13,8 @@ public enum Mode { Caos, Arena }
 public enum Tier { S, A, B, C }
 public record Champion(string Key, string Name, string[] Roles);
 public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases, int? AnvilCount = null);
-public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems);
+public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems,
+    ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
 public record ExceptionRating(string Mode, string Champion, string Augment, string Tier);
 public record EditorialRules(
@@ -34,17 +35,20 @@ public sealed class Ratings
     private readonly Dictionary<(Mode, int), string[]> affinities;
     private readonly Dictionary<(Mode, string, int), Tier> overrides;
     private readonly HashSet<string> arenaItems;
-    private readonly HashSet<(Mode, int)> variableChoices;
+    private readonly Dictionary<int, string> arenaVariableChoices;
     public Catalog Catalog { get; }
+    internal ArenaPrismaticRatings Prismatics { get; }
+    internal ArenaLegendaryRatings Legendaries { get; }
+    internal ArenaShardRatings Shards { get; }
 
     public Ratings(string assetPath)
     {
         Catalog = Read<Catalog>(Path.Combine(assetPath, "catalog.json"));
         var rules = Read<EditorialRules>(Path.Combine(assetPath, "ratings.json"));
         arenaItems = (Catalog.ArenaItems ?? []).Select(Normalize).ToHashSet(StringComparer.Ordinal);
-        variableChoices = Catalog.Augments.Where(card => card.Mode == "Arena" &&
-            (card.Key is "ReplaceAugment" or "UnstableTransmutation" || card.Key.StartsWith("Transmute", StringComparison.Ordinal)))
-            .Select(card => (Mode.Arena, card.Id)).ToHashSet();
+        arenaVariableChoices = Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena))
+            .Select(card => (card.Id, Reason: ArenaVariableReason(card.Key)))
+            .Where(choice => choice.Reason is not null).ToDictionary(choice => choice.Id, choice => choice.Reason!);
         var groups = Catalog.Augments.GroupBy(card => Enum.Parse<Mode>(card.Mode)).ToArray();
         foreach (var group in groups)
         {
@@ -67,6 +71,9 @@ public sealed class Ratings
             }
             return tags;
         }, StringComparer.OrdinalIgnoreCase);
+        Prismatics = new ArenaPrismaticRatings(Catalog.ArenaPrismatics ?? [], profiles);
+        Legendaries = new ArenaLegendaryRatings(Catalog.ArenaLegendaries ?? [], Catalog.Champions, profiles);
+        Shards = new ArenaShardRatings(Catalog.Champions, profiles);
 
         var descriptions = Catalog.Augments.Where(card => card.Mode == "Arena")
             .GroupBy(card => MechanicKey(card.Key)).ToDictionary(group => group.Key, group => group.First().Description);
@@ -111,9 +118,14 @@ public sealed class Ratings
             return [];
         if (query.Length < 2 || !names.TryGetValue(mode, out var choices))
             return [];
-        var exact = choices.Where(candidate => candidate.Name == query).Select(candidate => candidate.Card).Distinct().ToArray();
+        var exact = Exact(query);
         if (exact.Length != 0)
             return exact;
+        if (mode == Mode.Arena && Regex.Match(text, @"^\s*\(\d+\)\s+(.+)$") is { Success: true } prefix)
+        {
+            var title = Normalize(prefix.Groups[1].Value);
+            return arenaItems.Contains(title) ? [] : Exact(title);
+        }
         if (query.Length < 5)
             return [];
 
@@ -128,15 +140,19 @@ public sealed class Ratings
         var best = ranked[0];
         var close = ranked.TakeWhile(choice => best.Score - choice.Score < 0.10).ToArray();
         return close.All(choice => choice.Name == best.Name) ? close.Select(choice => choice.Card).ToArray() : [];
+
+        Augment[] Exact(string title) => choices.Where(candidate => candidate.Name == title)
+            .Select(candidate => candidate.Card).Distinct().ToArray();
     }
 
     public bool IsArenaItem(string title) => arenaItems.Contains(Normalize(title));
 
-    internal bool IsVariable(Mode mode, int augment) => variableChoices.Contains((mode, augment));
+    internal string? VariableReason(Mode mode, int augment) =>
+        mode == Mode.Arena ? arenaVariableChoices.GetValueOrDefault(augment) : null;
 
     public Tier? Rate(Mode mode, string champion, int augment)
     {
-        if (variableChoices.Contains((mode, augment)) || !profiles.TryGetValue(champion, out var profile)
+        if (VariableReason(mode, augment) is not null || !profiles.TryGetValue(champion, out var profile)
             || !affinities.TryGetValue((mode, augment), out var tags))
             return null;
         if (overrides.TryGetValue((mode, champion.ToLowerInvariant(), augment), out var tier))
@@ -145,6 +161,18 @@ public sealed class Ratings
             return null;
         return tags.Any(profile.Contains) ? Tier.A : Tier.C;
     }
+
+    private static string? ArenaVariableReason(string key) => key switch
+    {
+        "TrashToTreasure" => "Prismático al eliminar o reemplazar esta carta",
+        "ParasiticMutation" => "Copia un aumento rival cada ronda",
+        "SymbioticMutation" => "Copia un aumento aliado cada ronda",
+        "AugmentedPower" => "Depende del daño de tus objetos y aumentos",
+        "ReplaceAugment" => "Depende del aumento que reemplaces",
+        "UnstableTransmutation" => "Depende del aumento que resulte",
+        _ when key.StartsWith("Transmute", StringComparison.Ordinal) => "Depende del aumento que resulte",
+        _ => null
+    };
 
     private static string MechanicKey(string key) => key.StartsWith("ARAM_", StringComparison.OrdinalIgnoreCase)
         ? key[5..].ToLowerInvariant() : key.ToLowerInvariant();
@@ -163,7 +191,7 @@ public sealed class Ratings
         return output.ToString().TrimEnd();
     }
 
-    private static int Distance(string left, string right)
+    internal static int Distance(string left, string right)
     {
         Span<int> row = stackalloc int[right.Length + 1];
         for (int column = 0; column < row.Length; column++)

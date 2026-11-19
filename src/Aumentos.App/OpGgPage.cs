@@ -10,30 +10,38 @@ namespace Aumentos;
 
 internal sealed record OpGgCard(string? Tier = null, decimal? PickPercent = null);
 internal sealed record OpGgSnapshot(string Patch, Mode Mode, string Champion, DateTimeOffset FetchedAt,
-    Dictionary<int, OpGgCard> Cards);
+    Dictionary<int, OpGgCard> Cards, string? SourcePatch = null)
+{
+    internal bool IsPrevious => SourcePatch is not null && SourcePatch != Patch;
+    internal string DataPatch => SourcePatch ?? Patch;
+}
 
 internal static class OpGgPage
 {
     // The six badges displayed on OP.GG's Mayhem page, in the provider's numeric order.
     private const string MayhemTiers = "SABCDE";
 
-    internal static Uri Address(GameContext game)
+    internal static Uri Address(GameContext game, bool localized = false)
     {
         var mode = game.Mode == Mode.Caos ? "aram-mayhem" : "arena";
-        return new Uri($"https://op.gg/lol/modes/{mode}/{Uri.EscapeDataString(game.Champion.ToLowerInvariant())}/augments");
+        var locale = localized ? "/es-419" : "";
+        return new Uri($"https://op.gg{locale}/lol/modes/{mode}/{Uri.EscapeDataString(game.Champion.ToLowerInvariant())}/augments");
     }
 
     internal static OpGgSnapshot Read(string html, GameContext game, string patch,
         IReadOnlyDictionary<int, Augment> catalog)
     {
         var canonical = Regex.Match(html, """<link\b[^>]*\brel="canonical"[^>]*\bhref="([^"]+)"[^>]*>""");
-        if (WebUtility.HtmlDecode(canonical.Groups[1].Value) != Address(game).AbsoluteUri)
+        var address = WebUtility.HtmlDecode(canonical.Groups[1].Value);
+        if (address != Address(game).AbsoluteUri && address != Address(game, localized: true).AbsoluteUri)
             throw new InvalidDataException("OP.GG devolvió otra página de aumentos.");
-        var title = Regex.Match(html, @"<title>[^<]*?\bPatch (\d+\.\d+)\b[^<]*</title>");
+        var title = Regex.Match(html, @"<title>[^<]*?\b(?:patch|parche)\s+(\d+\.\d+)\b[^<]*</title>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         if (!title.Success)
             throw new InvalidDataException("OP.GG no indicó el parche.");
-        if (title.Groups[1].Value != patch)
-            throw new InvalidDataException($"OP.GG publica el parche {title.Groups[1].Value}. Se necesita {patch}.");
+        var sourcePatch = title.Groups[1].Value;
+        if (sourcePatch != patch && (game.Mode != Mode.Arena || sourcePatch != LeaguePatch.Previous(patch)))
+            throw new InvalidDataException($"OP.GG publica el parche {sourcePatch}. Se necesita {patch}.");
 
         // The public page includes the data used to render its badges and Arena tables.
         // Reassemble the stream before reading records: one table can span several script tags.
@@ -60,7 +68,8 @@ internal static class OpGgPage
                         ReadCards(rarity.Value, game.Mode, catalog, cards);
             }
             if (cards.Count > 0)
-                return new OpGgSnapshot(patch, game.Mode, game.Champion, DateTimeOffset.UtcNow, cards);
+                return new OpGgSnapshot(patch, game.Mode, game.Champion, DateTimeOffset.UtcNow, cards,
+                    sourcePatch == patch ? null : sourcePatch);
         }
         throw new InvalidDataException("OP.GG no publicó una tabla de aumentos reconocible.");
     }

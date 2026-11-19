@@ -22,7 +22,11 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
+        ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"));
+        ArenaShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
+        ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
+        MayhemBuildTests.Run(ratings, assets);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
         ChampionSelectTests.Run();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
@@ -50,7 +54,8 @@ internal static class Program
             [{"riotId":"other#000","rawChampionName":"game_character_displayname_Brand"},
              {"riotId":"player#000","rawChampionName":"game_character_displayname_DrMundo"}]
             """);
-        Check(LiveGame.ChampionKey(players.RootElement, "player#000") == "DrMundo", "campeón del jugador activo");
+        Check(LiveGame.ParseMatch(Mode.Caos, players.RootElement, "player#000")?.Game.Champion == "DrMundo",
+            "campeón del jugador activo");
         var arena = ratings.Recognize(Mode.Arena, "Misión: Endurece tu corazón");
         var reading = ratings.Recognize(Mode.Caos, " ENDURECE   TU CORAZÓN ");
         Check(arena is not null && reading is not null && reading.Mode == "Caos", "catálogo y normalización por modo");
@@ -63,7 +68,7 @@ internal static class Program
         var cards = ratings.Catalog.Augments.Where(card => card.Mode == "Arena").ToArray();
         Check(cards.GroupBy(card => ratings.Rate(Mode.Arena, "Jinx", card.Id)).Any(group => group.Count() >= 3),
             "empates permitidos");
-        Check(ratings.Rate(Mode.Caos, "Lux", 1211) is null, "carta sin regla queda sin valorar");
+        Check(ratings.Rate(Mode.Caos, "Lux", 3071) is null, "carta sin regla queda sin valorar");
 
         var offer = new OfferState();
         offer.Set(0, 2, null);
@@ -353,7 +358,9 @@ internal static class Program
         foreach (var (title, index) in result.Texts.Select((title, index) => (title, index)))
             Console.WriteLine($"Panel de objetos: {title} · {(result.Items[index] ? "objeto" : "sin coincidencia")}");
         Check(result.Items.All(item => item), "identificación de las tres cartas de objetos");
-        Check(!result.CanShow(false) && !result.CanShow(true), "los objetos de Arena dejan el overlay oculto");
+        Check(!result.CanShow(false) && !result.CanShow(true) &&
+            ratings.Prismatics.ForOffer(new GameContext(Mode.Arena, "Elise"), result)?.All(badge => badge?.ArenaChoice is not null) == true,
+            "las cartas de objetos reciben tiers prismáticos separados del overlay de aumentos");
     }
 
     private static void CheckFullscreenScreenshot(string file, Calibration layout, string assets, Ratings ratings)
@@ -478,6 +485,20 @@ internal static class Program
                     .SequenceEqual(["El Tormento de Liandry", "Cetro de Cristal de Rylai"]) &&
                 route.Children.OfType<TextBlock>().Single().Text == "→",
                 "iconos y flechas en el orden de compra");
+
+            var plan = new MayhemBuildPlan([
+                new(new(6653, "El Tormento de Liandry"), "Comprado"), new(new(3020, "Botas del Hechicero")),
+                new(new(3116, "Cetro de Cristal de Rylai")), new(new(3089, "Sombrero Mortífero de Rabadon")),
+                new(new(3135, "Báculo del Vacío"), "2 rivales con compras de resistencia mágica"),
+                new(new(3165, "Morellonomicón"), "Curación rival")
+            ]);
+            overlay.Render(new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(data, "Prueba"), Plan: plan));
+            var routeRows = rows.Children.OfType<Grid>().ToArray();
+            var tiles = routeRows.SelectMany(itemRow => itemRow.Children.OfType<StackPanel>()).ToArray();
+            var routeDetails = tiles.SelectMany(tile => tile.Children.OfType<TextBlock>()).Select(text => text.Text).ToArray();
+            Check(routeRows.Length == 2 && tiles.Length == 6 && routeDetails.Contains("Comprado") &&
+                routeDetails.Contains("2 rivales con compras de resistencia mágica") && routeDetails.Contains("Curación rival"),
+                "la ruta cabe en dos filas y muestra los motivos situacionales");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
@@ -556,10 +577,18 @@ internal static class Program
             Check(VisibleLines(first).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A", "ARAMMayhem.com   18.81 % global"]),
                 "la anotación del parche anterior desaparece al llegar los datos vigentes");
             overlay.Render(new OverlayUpdate("Arena", bounds, layout,
-                [new("A", Arena: new(7.76m, 59, 760, "26.23", false)), null]));
+                [new("A", Arena: new(7.76m, 59, 760, "26.23", false), IsArenaAugment: true),
+                 new("S", new OpGgCard(PickPercent: 4.82m), ExternalPreviousPatch: "26.22", IsArenaAugment: true),
+                 new("B", Loading: true, IsArenaAugment: true)]));
             Check(VisibleLines(first).SequenceEqual(
-                ["OP.GG   Sin dato", "Estimación local   A", "GGEZ.GG   7.76 % elección", "59/760 partidas · 26.23"]),
-                "Arena muestra el porcentaje y la muestra del campeón con atribución y parche");
+                ["Tier local   A", "GGEZ.GG   7.76 % elección", "59/760 partidas · 26.23"]) &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(["Tier local   S+", "OP.GG   Elección 4.82 % · parche ant. 26.22"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["Tier local   B", "OP.GG   Consultando…"]),
+                "Arena destaca la estimación disponible y conserva los datos externos publicados y el estado de consulta");
+            overlay.Render(new OverlayUpdate("Arena variable", bounds, layout,
+                [new("Variable", IsArenaAugment: true, LocalReason: "Copia un aumento rival cada ronda")]));
+            Check(VisibleLines(first).SequenceEqual(["Valoración variable", "Copia un aumento rival cada ronda"]),
+                "una carta variable explica su condición aunque falten porcentajes");
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
             Console.WriteLine("Overlay de WPF verificado.");

@@ -42,15 +42,18 @@ public sealed class OfferState
     internal readonly byte[]?[] Descriptions = new byte[4][];
     internal readonly string[] Texts = new string[4];
     internal readonly bool[] ItemSlots = new bool[4];
+    internal readonly ArenaShard?[] ShardSlots = new ArenaShard?[4];
 
     public int? this[int slot] => ids[slot];
-    internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null)
+    internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null,
+        ArenaShard? shard = null)
     {
         ids[slot] = id;
         Samples[slot] = sample;
         Descriptions[slot] = description;
         Texts[slot] = text;
         ItemSlots[slot] = item;
+        ShardSlots[slot] = shard;
     }
 
     public void Clear()
@@ -60,6 +63,7 @@ public sealed class OfferState
         Array.Clear(Descriptions);
         Array.Fill(Texts, "");
         Array.Clear(ItemSlots);
+        Array.Clear(ShardSlots);
     }
 }
 
@@ -138,6 +142,7 @@ internal sealed class Detection : IDisposable
         var texts = new string[calibration.Titles.Length];
         var ids = new int?[calibration.Titles.Length];
         var items = new bool[calibration.Titles.Length];
+        var shards = mode == Mode.Arena ? new ArenaShard?[calibration.Titles.Length] : null;
         for (int index = 0; index < ids.Length; index++)
         {
             var rect = Relative(calibration.Titles[index], scan, calibration);
@@ -151,8 +156,9 @@ internal sealed class Detection : IDisposable
                 state.Set(index, null, null);
                 var text = ReadTitle(image, rect, PageSegMode.SingleLine);
                 var item = mode == Mode.Arena && ratings.IsArenaItem(text);
-                var candidates = item ? [] : ratings.FindTitle(mode, text);
-                if (candidates.Length != 1 && !item)
+                var shard = shards is not null && !item ? ArenaShardRatings.Recognize(text) : null;
+                var candidates = item || shard.HasValue ? [] : ratings.FindTitle(mode, text);
+                if (candidates.Length != 1 && !item && !shard.HasValue)
                 {
                     var extra = Math.Min(rect.Y, rect.Height * 3 / 4);
                     var trim = rect.Width / 24;
@@ -160,8 +166,9 @@ internal sealed class Detection : IDisposable
                         rect.Width - trim * 2, rect.Height + extra - rect.Height / 6);
                     var fallback = ReadTitle(image, widerTitle, PageSegMode.SingleBlock);
                     item = mode == Mode.Arena && ratings.IsArenaItem(fallback);
-                    var alternate = item ? [] : ratings.FindTitle(mode, fallback);
-                    if (item || alternate.Length > 0 || candidates.Length == 0)
+                    shard = shards is not null && !item ? ArenaShardRatings.Recognize(fallback) : null;
+                    var alternate = item || shard.HasValue ? [] : ratings.FindTitle(mode, fallback);
+                    if (item || shard.HasValue || alternate.Length > 0 || candidates.Length == 0)
                     {
                         if (fallback.Length != 0)
                             text = fallback;
@@ -177,13 +184,15 @@ internal sealed class Detection : IDisposable
                     detail = description ?? Signature(image, crop);
                     card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
                 }
-                state.Set(index, card?.Id, current, text, item, detail);
+                state.Set(index, card?.Id, current, text, item, detail, shard);
             }
             ids[index] = state[index];
             texts[index] = state.Texts[index];
             items[index] = state.ItemSlots[index];
+            if (shards is not null)
+                shards[index] = state.ShardSlots[index];
         }
-        return new DetectionResult(true, ids, texts, items);
+        return new DetectionResult(true, ids, texts, items, shards);
     }
 
     private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)
@@ -321,8 +330,8 @@ internal sealed class Detection : IDisposable
     public void Dispose() => engine.Dispose();
 }
 
-internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items)
+internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items, ArenaShard?[]? Shards = null)
 {
-    internal int Matched => Cards.Count(id => id.HasValue) + Items.Count(item => item);
+    internal int Matched => Cards.Count(id => id.HasValue) + Items.Count(item => item) + (Shards?.Count(shard => shard.HasValue) ?? 0);
     internal bool CanShow(bool continuing) => Cards.Count(id => id.HasValue) >= (continuing ? 1 : 2);
 }

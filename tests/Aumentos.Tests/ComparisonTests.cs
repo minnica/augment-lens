@@ -35,7 +35,7 @@ internal static class ComparisonTests
         var loaded = await wait;
         Check((await second).Data == loaded.Data && server.Requests == 1, "una sola descarga por campeón");
         labels = CardComparison.ForOffer(ratings, lux, [1211, 3086, 3071, 3150], new bool[4], loaded.Data);
-        Check(labels[0] == new CardComparison("Sin dato", new OpGgCard("A")) &&
+        Check(labels[0] == new CardComparison("A", new OpGgCard("A")) &&
             labels[1] == new CardComparison("A", new OpGgCard("S")) && labels[2]?.External is null &&
             labels[3]?.External is null, "identidad, letras nativas, tier desconocido y sin B automático");
         var reroll = CardComparison.ForOffer(ratings, lux, [3086, null, 3071, null], [false, false, false, true], loaded.Data);
@@ -50,10 +50,10 @@ internal static class ComparisonTests
         Check((await restarted.ForCaptureAsync(lux, default)).Data?.Cards[3086].Tier == "S" && oldPage.Requests == 0,
             "la caché vigente funciona al reiniciar sin red");
         var unavailable = await restarted.ForCaptureAsync(elise, default);
-        Check(unavailable.Data is null && unavailable.Status.Contains("15.1") && oldPage.Requests == 1,
-            "un parche distinto informa la causa y no puntúa");
+        Check(unavailable.Data is null && unavailable.Status.Contains("15.1") && oldPage.Requests == 2,
+            "si ninguna página tiene un parche aplicable, se informa la causa y no se asigna un dato");
         await restarted.ForCaptureAsync(elise, default);
-        Check(oldPage.Requests == 1, "la fuente no se vuelve a consultar por cada carta");
+        Check(oldPage.Requests == 2, "la fuente no se vuelve a consultar por cada carta");
 
         var cacheFile = Directory.GetFiles(folder.Path, "*.json", SearchOption.AllDirectories).Single();
         var stale = loaded.Data! with { FetchedAt = DateTimeOffset.UtcNow.AddDays(-1) };
@@ -66,9 +66,161 @@ internal static class ComparisonTests
         File.WriteAllText(cacheFile, JsonSerializer.Serialize(stale with { Patch = "15.1" }));
         Check((await new OpGgRatings(ratings.Catalog, folder.Path, failedHttp).ForCaptureAsync(lux, default)).Data is null,
             "un archivo de otro parche tampoco sirve como respaldo");
+        await CheckZileanOffer(ratings, lux, patch, folder.Path);
+        await CheckRellArenaOffer(ratings, patch);
+        CheckRellRoundTen(ratings, patch);
+        CheckRellConditionalOffers(ratings, patch);
+        CheckRellPrismaticAugments(ratings, patch);
+        CheckRellSilverAugments(ratings, patch);
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
         await CheckGgezArena(ratings, lux, elise);
+    }
+
+    private static void CheckRellConditionalOffers(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        var ids = new[] { "De Basura a Tesoro", "Mutación Parasitaria", "A Tope" }
+            .Select(name => ratings.Recognize(Mode.Arena, name)?.Id).ToArray();
+        var cards = CardComparison.ForOffer(ratings, rell, ids, new bool[3], null);
+        Check(ids.SequenceEqual([389, 240, 2016]) && cards is
+            [{ Local: "Variable", LocalReason: "Prismático al eliminar o reemplazar esta carta" },
+             { Local: "Variable", LocalReason: "Copia un aumento rival cada ronda" }, { Local: "B", LocalReason: null }],
+            "cada carta reconocida tiene un tier o una condición explícita aunque falten ambas fuentes");
+        Check(ratings.Rate(Mode.Arena, "Jinx", 2016) == Tier.A && ratings.Rate(Mode.Arena, "Rell", 389) is null,
+            "A Tope favorece los ataques y De Basura a Tesoro conserva una valoración condicional");
+
+        int?[] otherIds = [322, 136, 57, 1344, 193, 108, 110];
+        var opgg = new OpGgSnapshot(patch, Mode.Arena, "Rell", DateTimeOffset.UtcNow,
+            new() { [322] = new(PickPercent: 1.87m) });
+        var other = CardComparison.ForOffer(ratings, rell, otherIds, new bool[otherIds.Length], opgg);
+        Check(other.Select(card => card?.Local).SequenceEqual(["Variable", "A", "A", "A", "B", "A", "B"]) &&
+            other[0] is { LocalReason: "Depende del daño de tus objetos y aumentos", External.PickPercent: 1.87m },
+            "las sinergias observadas aparecen y la valoración condicional convive con el porcentaje publicado");
+    }
+
+    private static void CheckRellRoundTen(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        var ids = new[] { "Infranqueable", "Curación Crítica", "Movimiento Sombrío" }
+            .Select(name => ratings.Recognize(Mode.Arena, name)?.Id).ToArray();
+        var opgg = new OpGgSnapshot(patch, Mode.Arena, "Rell", DateTimeOffset.UtcNow,
+            new() { [149] = new(PickPercent: 4.71m), [118] = new(PickPercent: 1.73m) });
+        var cards = CardComparison.ForOffer(ratings, rell, ids, new bool[3], opgg);
+        Check(ids.SequenceEqual([149, 118, 73]) && cards.Select(card => card?.LocalText).SequenceEqual(["S+", "B", "B"]) &&
+            cards[0]?.External?.PickPercent == 4.71m && cards[1]?.External?.PickPercent == 1.73m && cards[2]?.External is null,
+            "las letras de Rell se muestran con o sin porcentaje publicado");
+    }
+
+    private static async Task CheckRellArenaOffer(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        var ids = new[] { "Plan de Escape", "Profanador", "Purista: Hechicero" }
+            .Select(name => ratings.Recognize(rell.Mode, name)?.Id).ToArray();
+        Check(ids.SequenceEqual([1333, 218, 2018]), "las tres cartas de Arena se reconocen por título");
+
+        var ggez = new GgezArenaSnapshot("Rell", patch, patch, DateTimeOffset.UtcNow, 833,
+            new() { [218] = new(13.085m, 109) });
+        var offer = CardComparison.ForOffer(ratings, rell, ids, new bool[3], null, ggez: ggez);
+        Check(offer.Select(card => card?.Local).SequenceEqual(["A", "A", "B"]) &&
+            offer[1]?.Arena?.GamesPicked == 109 && offer[0]?.Arena is null && offer[2]?.Arena is null,
+            "las afinidades de Rell cubren las tres cartas y respetan la cobertura de GGEZ.GG");
+
+        if (LeaguePatch.Previous(patch) is not { } previous)
+            return;
+        const string rows = """{"data":{"1":[{"id":218,"pick_rate":14}]},"mode":"arena"}""";
+        const string currentRows = """{"data":{"1":[{"id":218,"pick_rate":16},{"id":2018,"pick_rate":2}]},"mode":"arena"}""";
+        using var folder = new TemporaryFolder();
+        var server = new PageHandler((request, _) =>
+        {
+            var localized = request.RequestUri!.AbsolutePath.StartsWith("/es-419/");
+            return Task.FromResult(Ok(Page(rell, previous, rows, localized)));
+        });
+        using var http = new HttpClient(server);
+        var view = await new OpGgRatings(ratings.Catalog, folder.Path, http).ForCaptureAsync(rell, default);
+        var prior = view.Data;
+        offer = CardComparison.ForOffer(ratings, rell, ids, new bool[3], prior, ggez: ggez);
+        var previousDisplay = LeaguePatch.Public(previous);
+        Check(prior is { IsPrevious: true } && server.Requests == 2 && view.Status.Contains(previousDisplay) &&
+            offer[1]?.ExternalText == $"Elección 14 % · parche ant. {previousDisplay}" &&
+            offer[1]?.Arena?.GamesPicked == 109 && offer[0]?.External is null && offer[2]?.External is null,
+            "el parche anterior se identifica en la carta y no se mezcla con el dato vigente de GGEZ.GG");
+
+        var recheck = new PageHandler((request, _) =>
+        {
+            var localized = request.RequestUri!.AbsolutePath.StartsWith("/es-419/");
+            return Task.FromResult(Ok(localized ? Page(rell, patch, currentRows, localized: true) : Page(rell, previous, rows)));
+        });
+        using var recheckHttp = new HttpClient(recheck);
+        var cached = await new OpGgRatings(ratings.Catalog, folder.Path, recheckHttp).ForCaptureAsync(rell, default);
+        Check(cached.Data is { IsPrevious: true } && recheck.Requests == 0,
+            "la copia anterior recién descargada se reutiliza");
+        var cacheFile = Directory.GetFiles(folder.Path, "*.json", SearchOption.AllDirectories).Single();
+        File.WriteAllText(cacheFile, JsonSerializer.Serialize(prior! with { FetchedAt = DateTimeOffset.UtcNow.AddMinutes(-16) }));
+        var current = await new OpGgRatings(ratings.Catalog, folder.Path, recheckHttp).ForCaptureAsync(rell, default);
+        var refreshed = CardComparison.ForOffer(ratings, rell, ids, new bool[3], current.Data);
+        Check(current.Data is { IsPrevious: false } && recheck.Requests == 2 &&
+            refreshed[1]?.ExternalText == "Elección 16 %" && refreshed[2]?.ExternalText == "Elección 2 %",
+            "la copia anterior se revisa a los 15 minutos y cede ante la tabla vigente localizada");
+    }
+
+    private static void CheckRellPrismaticAugments(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        var ids = new[] { "Archimago", "(2) Incendio", "Caída de Icathia" }
+            .Select(title => ratings.Recognize(rell.Mode, title)?.Id).ToArray();
+        Check(ids.SequenceEqual([2087, 379, 393]) && ratings.Recognize(rell.Mode, "(2) Inccendio") is null,
+            "el OCR recupera el título exacto tras un prefijo numérico de interfaz");
+
+        if (LeaguePatch.Previous(patch) is not { } previous)
+            return;
+        var catalog = ratings.Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena)).ToDictionary(card => card.Id);
+        const string rows = """{"data":{"8":[{"id":379,"pick_rate":1.66},{"id":393,"pick_rate":4.9}]},"mode":"arena"}""";
+        var source = OpGgPage.Read(Page(rell, previous, rows), rell, patch, catalog);
+        var ggez = new GgezArenaSnapshot("Rell", patch, patch, DateTimeOffset.UtcNow, 833,
+            new() { [2087] = new(1.08m, 9), [379] = new(3.48m, 29), [393] = new(7.44m, 62) });
+        var offer = CardComparison.ForOffer(ratings, rell, ids, new bool[3], source, ggez: ggez);
+        Check(offer.Select(card => card?.Local).SequenceEqual(["C", "B", "A"]) &&
+            offer.Select(card => card?.External?.PickPercent).SequenceEqual([null, 1.66m, 4.9m]) &&
+            offer.Skip(1).All(card => card?.ExternalPreviousPatch == LeaguePatch.Public(previous)) &&
+            offer.Select(card => card?.Arena?.GamesPicked).SequenceEqual([9, 29, 62]),
+            "la oferta prismática de aumentos conserva la cobertura real de cada fuente y recomienda la misión defensiva");
+    }
+
+    private static void CheckRellSilverAugments(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        var ids = new[] { "Enroque", "Compañeros de Mejora", "Atormentador" }
+            .Select(title => ratings.Recognize(rell.Mode, title)?.Id).ToArray();
+        var source = new OpGgSnapshot(patch, rell.Mode, rell.Champion, DateTimeOffset.UtcNow,
+            new() { [85] = new(PickPercent: 4.82m) }, LeaguePatch.Previous(patch));
+        var ggez = new GgezArenaSnapshot(rell.Champion, patch, patch, DateTimeOffset.UtcNow, 833,
+            new() { [85] = new(4.8m, 40) });
+        var offer = CardComparison.ForOffer(ratings, rell, ids, new bool[3], source, ggez: ggez);
+        Check(ids.SequenceEqual([12, 9, 85]) && offer.Select(card => card?.Local).SequenceEqual(["A", "B", "A"]) &&
+            offer.Take(2).All(card => card is { External: null, Arena: null }) &&
+            offer[2]?.External?.PickPercent == 4.82m && offer[2]?.Arena?.GamesPicked == 40,
+            "las estimaciones de sinergia de Rell se muestran aunque las fuentes solo cubran Atormentador");
+    }
+
+    private static async Task CheckZileanOffer(Ratings ratings, GameContext lux, string patch, string settings)
+    {
+        var zilean = new GameContext(Mode.Caos, "Zilean");
+        const string rows = """{"data":[{"id":1211,"tier":4,"key":"ARAM_ItsKillingTime"},{"id":1373,"tier":0,"key":"ShrinkEngine"},{"id":2103,"tier":1,"key":"ARAM_BangBang"}]}""";
+        var server = new PageHandler((request, _) => Task.FromResult(Ok(
+            request.RequestUri!.AbsolutePath == "/es-419/lol/modes/aram-mayhem/zilean/augments"
+                ? Page(zilean, patch, rows, localized: true) : Page(lux, patch, rows))));
+        using var http = new HttpClient(server);
+        var source = new OpGgRatings(ratings.Catalog, settings, http);
+        int?[] ids = [1211, 1373, 2103];
+        var missing = CardComparison.ForOffer(ratings, zilean, ids, new bool[3], null);
+        Check(missing.Select(card => card?.Local).SequenceEqual(["C", "A", "A"]),
+            "las tres cartas de Zilean tienen estimación local aunque OP.GG no esté disponible");
+
+        var view = await source.ForCaptureAsync(zilean, default);
+        var offer = CardComparison.ForOffer(ratings, zilean, ids, new bool[3], view.Data);
+        Check(server.Requests == 2 && offer.Select(card => card?.ExternalText).SequenceEqual(["D", "S", "A"]),
+            "si OP.GG devuelve otro campeón, la página localizada recupera los tiers de Zilean");
     }
 
     private static async Task CheckAramMayhem(Ratings ratings, GameContext lux, GameContext elise)
@@ -207,13 +359,14 @@ internal static class ComparisonTests
             """;
     }
 
-    private static string Page(GameContext game, string patch, string props)
+    private static string Page(GameContext game, string patch, string props, bool localized = false)
     {
         var record = $"1:[\"$\",\"$L1\",null,{props}]\n";
         var mid = record.Length / 2;
         static string Chunk(string text) =>
             $"<script>self.__next_f.push({JsonSerializer.Serialize(new object[] { 1, text })})</script>";
-        return $"<title>Build Patch {patch}: Augments | OP.GG</title><link rel=\"canonical\" href=\"{OpGgPage.Address(game)}\"/>" +
+        var title = localized ? $"{game.Mode} parche {patch}" : $"Build Patch {patch}: Augments";
+        return $"<title>{title} | OP.GG</title><link rel=\"canonical\" href=\"{OpGgPage.Address(game, localized)}\"/>" +
             Chunk(record[..mid]) + Chunk(record[mid..]);
     }
 

@@ -261,20 +261,32 @@ internal sealed class Diagnostics : Window
                 var read = detector.Scan(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight), calibration, mode);
                 return (calibration, read);
             });
-            var names = result.Cards.Select((id, index) => result.Items[index] ? $"Objeto «{result.Texts[index]}»" : id.HasValue
-                ? ratings.Catalog.Augments.Single(card => card.Mode == mode.ToString() && card.Id == id.Value).Name
+            if (!result.PanelVisible)
+            {
+                detail.Text = "No encontré el panel. Revisa el recorte del marcador.";
+                return;
+            }
+            var prismatics = mode == Mode.Arena ? ratings.Prismatics.Identify(result) : null;
+            var shards = mode == Mode.Arena ? ArenaShardRatings.Identify(result) : null;
+            var legendaries = mode == Mode.Arena && prismatics is null ? ratings.Legendaries.Identify(result) : null;
+            var names = result.Cards.Select((id, index) => shards?[index] is { } shard ? ArenaShardRatings.Name(shard)
+                : result.Items[index]
+                ? (prismatics ?? legendaries)?[index]?.Name ?? $"Objeto «{result.Texts[index]}»"
+                : id.HasValue ? ratings.Catalog.Augments.Single(card => card.Mode == mode.ToString() && card.Id == id.Value).Name
                 : $"? «{result.Texts[index]}»").ToArray();
-            if (result.Items.Count(item => item) >= 2 && !result.CanShow(false))
-                detail.Text = "La captura muestra objetos de Arena. Los tiers aparecen en el juego al ofrecerse aumentos.";
-            else if (save && result.CanShow(false))
+            bool recognized = result.CanShow(false) || prismatics is not null || legendaries is not null || shards is not null;
+            if (save && recognized)
             {
                 layouts.Save(new SavedLayout(mode, layout));
                 detail.Text = $"Calibración guardada · {string.Join("  |  ", names)}";
             }
-            else if (result.CanShow(false))
-                detail.Text = $"Aumentos detectados · {string.Join("  |  ", names)} · Los tiers aparecen en la partida.";
+            else if (recognized)
+                detail.Text = $"{(shards is not null ? "Fragmentos" : prismatics is not null ? "Prismáticos" : legendaries is not null ? "Legendarios" : "Aumentos")} detectados · " +
+                    $"{string.Join("  |  ", names)} · Los tiers aparecen en la partida.";
+            else if (result.Items.Count(item => item) >= 2)
+                detail.Text = "La captura muestra objetos de Arena. Los tiers aparecen con las cartas legendarias o prismáticas reconocidas.";
             else
-                detail.Text = "No encontré suficientes aumentos. Revisa el modo y los recortes de los títulos.";
+                detail.Text = "No encontré suficientes cartas. Revisa el modo y los recortes de los títulos.";
         }
         catch (Exception error)
         {

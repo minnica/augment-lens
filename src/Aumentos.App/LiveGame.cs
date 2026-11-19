@@ -12,6 +12,9 @@ using System.Threading.Tasks;
 namespace Aumentos;
 
 internal record GameContext(Mode Mode, string Champion);
+internal sealed record MayhemOpponent(string Champion, int[] Items);
+internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
+internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null);
 
 internal sealed class LiveGame : IDisposable
 {
@@ -51,7 +54,10 @@ internal sealed class LiveGame : IDisposable
         return chain.Build(certificate);
     }
 
-    internal async Task<GameContext?> Read(CancellationToken cancellation)
+    internal async Task<GameContext?> Read(CancellationToken cancellation) =>
+        (await ReadMatch(cancellation).ConfigureAwait(false))?.Game;
+
+    internal async Task<LiveMatch?> ReadMatch(CancellationToken cancellation)
     {
         using var game = await ReadJson("gamestats", cancellation).ConfigureAwait(false);
         var mode = ParseMode(game.RootElement.GetProperty("gameMode").GetString());
@@ -59,8 +65,7 @@ internal sealed class LiveGame : IDisposable
             return null;
         using var name = await ReadJson("activeplayername", cancellation).ConfigureAwait(false);
         using var players = await ReadJson("playerlist", cancellation).ConfigureAwait(false);
-        var key = ChampionKey(players.RootElement, name.RootElement.GetString());
-        return key is null ? null : new GameContext(mode.Value, key);
+        return ParseMatch(mode.Value, players.RootElement, name.RootElement.GetString());
     }
 
     internal static Mode? ParseMode(string? mode) => mode switch
@@ -70,24 +75,57 @@ internal sealed class LiveGame : IDisposable
         _ => null
     };
 
-    internal static string? ChampionKey(JsonElement players, string? active)
+    internal static LiveMatch? ParseMatch(Mode mode, JsonElement players, string? active)
     {
-        if (string.IsNullOrWhiteSpace(active))
+        if (string.IsNullOrWhiteSpace(active) || players.ValueKind != JsonValueKind.Array)
             return null;
-        const string prefix = "game_character_displayname_";
         foreach (var player in players.EnumerateArray())
         {
             if (Identity(player, "riotId") != active && Identity(player, "summonerName") != active)
                 continue;
-            var raw = Identity(player, "rawChampionName");
-            if (raw is not null && raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return raw[prefix.Length..];
+            if (ChampionKey(player) is not { } champion)
+                continue;
+            var game = new GameContext(mode, champion);
+            var team = Identity(player, "team");
+            // Arena still uses only the player's champion. Its PvP teams change by round.
+            if (mode != Mode.Caos || team is not ("ORDER" or "CHAOS") || ReadItems(player) is not { } owned)
+                return new(game);
+
+            var enemyTeam = team == "ORDER" ? "CHAOS" : "ORDER";
+            var opponents = players.EnumerateArray().Where(rival => Identity(rival, "team") == enemyTeam)
+                .Select(rival => (Champion: ChampionKey(rival), Items: ReadItems(rival)))
+                .Where(rival => rival.Champion is not null)
+                .Select(rival => new MayhemOpponent(rival.Champion!, rival.Items ?? []))
+                .ToArray();
+            return new(game, new MayhemMatch(owned, opponents));
         }
         return null;
     }
 
+    private static string? ChampionKey(JsonElement player)
+    {
+        const string prefix = "game_character_displayname_";
+        var name = Identity(player, "rawChampionName");
+        return name?.Length > prefix.Length && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? name[prefix.Length..] : null;
+    }
+
+    private static int[]? ReadItems(JsonElement player)
+    {
+        if (!player.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+            return null;
+        var ids = new List<int>();
+        foreach (var item in items.EnumerateArray())
+            if (item.ValueKind == JsonValueKind.Object &&
+                item.TryGetProperty("itemID", out var id) && id.ValueKind == JsonValueKind.Number &&
+                id.TryGetInt32(out var number) && number > 0)
+                ids.Add(number);
+        return ids.ToArray();
+    }
+
     private static string? Identity(JsonElement player, string field) =>
-        player.TryGetProperty(field, out var value) ? value.GetString() : null;
+        player.ValueKind == JsonValueKind.Object && player.TryGetProperty(field, out var value) &&
+        value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private async Task<JsonDocument> ReadJson(string path, CancellationToken cancellation)
     {
