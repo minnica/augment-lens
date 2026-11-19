@@ -1,0 +1,57 @@
+{
+  "profiles": {
+    "Fighter": ["durability", "sustain"],
+    "Mage": ["ap", "casting"],
+    "Assassin": ["burst", "mobility"],
+    "Marksman": ["attacks", "crit", "range"],
+    "Tank": ["durability", "control"],
+    "Support": ["casting"]
+  },
+  "traits": {
+    "ap": "Akali Amumu Bard Blitzcrank Diana Elise Evelynn Fizz Galio Gwen Kaisa Karma Kassadin Katarina Kayle Kennen KogMaw Lillia Malphite Maokai Mordekaiser Nami Nidalee Nunu Rakan Rumble Shaco Shyvana Sona Soraka Sylas TahmKench Taric Teemo Thresh Udyr Varus Volibear Warwick Yuumi",
+    "casting": "Aatrox Akali AurelionSol Corki Ezreal Hecarim Karma Karthus Kassadin Lucian Pantheon Pyke Rakan Riven Sona Soraka Sylas Taliyah Thresh Udyr Varus Zed Zeri",
+    "attacks": "Belveth Briar Camille Diana Ekko Elise Fiora Gwen Irelia Jax Kayle MasterYi Nocturne Olaf RekSai Renekton Rengar Sett Shyvana Teemo Trundle Tryndamere Udyr Viego Volibear Warwick XinZhao Yasuo Yone Yorick",
+    "crit": "Gangplank MasterYi Nilah Senna Tryndamere Viego Yasuo Yone",
+    "control": "Aatrox Ahri Anivia Ashe AurelionSol Azir Bard Blitzcrank Briar Camille Diana Elise Fiddlesticks Galio Gnar Gragas Hecarim Ivern Janna JarvanIV Kennen Lissandra Lulu Lux Mel Morgana Nami Neeko Nunu Pantheon Poppy Pyke Quinn Rakan Renata Renekton Rell Riven Sejuani Sett Skarner Swain Sylas Syndra Taliyah Thresh Tristana Veigar Vex Vi Wukong XinZhao Yasuo Yone Yuumi Zac Ziggs Zyra",
+    "ally": "Bard Ivern Janna Karma Kayle LeeSin Lulu Lux Milio Morgana Nami Nidalee Rakan Renata Senna Seraphine Sona Soraka Taric Thresh Yuumi",
+    "durability": "Amumu Bard Briar DrMundo Galio Garen Kled Lillia Morgana Nautilus Nunu Olaf Rakan RekSai Rell Renata Sion Swain TahmKench Taric Thresh Udyr Urgot Volibear Warwick",
+    "sustain": "Ahri Briar DrMundo Fiddlesticks Gwen Illaoi Kayn Nasus Nilah Nunu Olaf Renekton Shaco Soraka Swain Sylas TahmKench Trundle Vladimir Volibear Warwick Zac",
+    "mobility": "Ahri Akshan Ambessa Aurora Belveth Briar Camille Corki Diana Ekko Ezreal Fiora Fizz Galio Gnar Gragas Graves Gwen Hecarim Irelia JarvanIV Jax Kaisa Kalista Kassadin Katarina Kayn Kindred Kled Leblanc LeeSin Lucian MasterYi Nidalee Nilah Pantheon Poppy Pyke Qiyana Quinn Rakan RekSai Renekton Rengar Riven Samira Sejuani Shaco Shen Shyvana Skarner Smolder Sylas Taliyah Talon Tristana Tryndamere Vayne Vi Viego Wukong XinZhao Yasuo Yone Yunara Zac Zed Zeri",
+    "range": "Ahri Anivia AurelionSol Aurora Azir Brand Hwei Jayce Karma Karthus Lux Mel Morgana Nidalee Orianna Senna Seraphine Swain Syndra Taliyah Teemo TwistedFate Veigar Velkoz Viktor Xerath Ziggs Zoe Zyra",
+    "burst": "Ahri Annie Aurora Brand Diana Ekko Elise Fiddlesticks Fizz Kennen Leblanc Lissandra Lux Malphite Naafiri Neeko Syndra Veigar Vex Viktor Zoe",
+    "hybrid": "Gwen Jax Kaisa Katarina Kayle KogMaw Teemo Varus Volibear",
+    "resistheals": "Alistar Amumu Galio Nautilus Poppy Rakan Rell Shen TahmKench Taric Thresh"
+  },
+  "affinities": [
+    { "tag": "ap", "keys": "phenomenalevil|marksmage|archmage|apexinventor|witchful|adapt$", "descriptionPattern": "obtienes [0-9]+ de poder de habilidad|poder de habilidad adicional" },
+    { "tag": "casting", "keys": "^bread|recursion|spellwake|spellcrit|spellburn|transcendent|spellcraft|eureka|overflow|infernalconduit", "descriptionPattern": "aceleracion de habilidad adicional" },
+    { "tag": "hybrid", "keys": "^masterofduality$" },
+    { "tag": "attacks", "keys": "lightningstrikes|twice|rhythm|dualwield|tapdancer|onhit|deft|scop(e|ing)|doubletrouble|marksmage", "descriptionPattern": "cada tercer ataque|efectos de impacto|velocidad de ataque adicional" },
+    { "tag": "crit", "keys": "criticalrhythm|critconversion|mindtomatter|critstrikes", "descriptionPattern": "probabilidad de golpe critico adicional" },
+    { "tag": "control", "keys": "courageofthecolossus|aftershock|frostwraith|tormentor|impair|impassable", "descriptionPattern": "cuando inmovilizas|al inmovilizar" },
+    { "tag": "ally", "keys": "firstaidkit|allforyou|sacrifice|holyfire|spiritlink|soulmates|protector|weewooweewoo", "descriptionPattern": "cuando curas o proteges|curas o escudos que otorgas" },
+    { "tag": "durability", "keys": "steelyourheart|tankengine|slowcooker|goliath|raidboss|tankitorleaveit|missionturbo|hugify|grow", "descriptionPattern": "por cada [0-9]+ de tu vida maxima|vida adicional como|armadura y resistencia magica adicional" },
+    { "tag": "resistheals", "keys": "^proteinshake$" },
+    { "tag": "sustain", "keys": "drain|vampir|omnisoul|bloodbag", "descriptionPattern": "robo de vida adicional|omnivampirismo adicional" },
+    { "tag": "mobility", "keys": "^dashing$|dashbonus|lightemup|flashy", "descriptionPattern": "aceleracion para tus deslizamientos|al deslizarte o teleportarte" },
+    { "tag": "range", "keys": "sniper|longrange|scop(e|ing)", "descriptionPattern": "segun la distancia al objetivo" },
+    { "tag": "burst", "keys": "^executioner$|assassinblade|glasscannon", "descriptionPattern": "cuando eliminas a un campeon enemigo con" }
+  ],
+  "exceptions": [
+    { "mode": "*", "champion": "Kalista", "augment": "Dashing", "tier": "B" },
+    { "mode": "*", "champion": "DrMundo", "augment": "Quest_SteelYourHeart", "tier": "S" },
+    { "mode": "*", "champion": "Sion", "augment": "Quest_SteelYourHeart", "tier": "S" },
+    { "mode": "*", "champion": "Brand", "augment": "PhenomenalEvil", "tier": "S" },
+    { "mode": "*", "champion": "Swain", "augment": "PhenomenalEvil", "tier": "S" },
+    { "mode": "*", "champion": "Amumu", "augment": "CourageoftheColossus", "tier": "S" },
+    { "mode": "*", "champion": "Leona", "augment": "CourageoftheColossus", "tier": "S" },
+    { "mode": "*", "champion": "Kaisa", "augment": "Marksmage", "tier": "S" },
+    { "mode": "*", "champion": "Kayle", "augment": "Marksmage", "tier": "S" },
+    { "mode": "*", "champion": "Brand", "augment": "InfernalConduit", "tier": "S" },
+    { "mode": "*", "champion": "Lillia", "augment": "InfernalConduit", "tier": "S" },
+    { "mode": "*", "champion": "Singed", "augment": "InfernalConduit", "tier": "S" },
+    { "mode": "*", "champion": "Teemo", "augment": "InfernalConduit", "tier": "S" },
+    { "mode": "Arena", "champion": "DrMundo", "augment": "SlowCooker", "tier": "S" },
+    { "mode": "Caos", "champion": "Jinx", "augment": "CriticalRhythm", "tier": "S" }
+  ]
+}

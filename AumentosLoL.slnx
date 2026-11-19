@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Aumentos.App/Aumentos.App.csproj" />
+  <Project Path="tests/Aumentos.Tests/Aumentos.Tests.csproj" />
+</Solution>
