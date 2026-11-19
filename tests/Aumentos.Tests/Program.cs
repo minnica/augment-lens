@@ -128,6 +128,7 @@ internal static class Program
             CaptureSmoke();
             OverlaySmoke();
             BuildOverlaySmoke();
+            BuildSizeControlSmoke(ratings.Catalog.Patch);
             ChampionSelectTests.Smoke();
         }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
@@ -533,7 +534,7 @@ internal static class Program
                 placement.Y >= bounds.Y && placement.Y + placement.Height <= bounds.Y + bounds.Height &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
                 "build visible dentro del juego, sin tomar el foco ni bloquear clics");
-            Check(BuildOverlay.ChoiceText(OpGgBuildSection.Core, data.Groups[0].Choices[0])
+            Check(BuildPanel.ChoiceText(OpGgBuildSection.Core, data.Groups[0].Choices[0])
                 .StartsWith("El Tormento de Liandry", StringComparison.Ordinal), "orden de objetos en la ruta");
             var shopPanel = (Border)((Viewbox)overlay.Content).Child;
             var rows = (StackPanel)shopPanel.Child;
@@ -610,6 +611,25 @@ internal static class Program
             Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "OP.GG no tiene recomendaciones de objetos disponibles."),
                 "una respuesta con solo hechizos muestra un estado vacío de objetos");
 
+            var wide = new Int32Rect(-30000, -30000, Pixels(1450), Pixels(900));
+            var sample = new BuildDisplay(wide, 0, "Zyra", Mode.Caos, new(data, "Prueba"));
+            overlay.Render(sample);
+            var normal = Native.Bounds(handle);
+            overlay.SetSize(BuildSizePreference.Minimum);
+            var small = Native.Bounds(handle);
+            overlay.SetSize(BuildSizePreference.Maximum);
+            var big = Native.Bounds(handle);
+            Check(small.Width < normal.Width && small.Height < normal.Height &&
+                big.Width > normal.Width && big.Height > normal.Height &&
+                big.X + big.Width == normal.X + normal.Width && big.Y + big.Height <= wide.Y + wide.Height,
+                "el tamaño cambia de inmediato y el panel conserva el anclaje y cabe en la partida");
+            overlay.Render(sample with { Bounds = compactBounds, Shop = shop });
+            var fit = Native.Bounds(handle);
+            Check(fit.X >= compactBounds.X + shop.X + shop.Width &&
+                fit.X + fit.Width <= compactBounds.X + compactBounds.Width &&
+                fit.Y >= compactBounds.Y && fit.Y + fit.Height <= compactBounds.Y + compactBounds.Height,
+                "la escala máxima respeta el espacio junto a la tienda estrecha");
+
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
@@ -632,6 +652,38 @@ internal static class Program
                 Math.Abs(segments[0].ActualWidth - bar.ActualWidth * physical / 100) <= 1 &&
                 Math.Abs(segments[1].ActualWidth - bar.ActualWidth * (100 - physical) / 100) <= 1,
                 "la barra muestra ambos porcentajes y actualiza las proporciones aunque la ruta siga igual");
+        }
+    }
+
+    private static void BuildSizeControlSmoke(string patch)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var file = Path.Combine(folder, "build-size.json");
+        var preference = new BuildSizePreference(file);
+        Check(preference.Load() == 100, "tamaño normal al usar el ajuste por primera vez");
+        var window = new BuildSizeWindow(preference.Load(), patch, null, preference.Save);
+        try
+        {
+            var slider = (Slider)window.FindName("SizeSlider");
+            var preview = (BuildPanel)((ContentPresenter)window.FindName("PreviewHost")).Content;
+            var percent = (TextBlock)window.FindName("PercentText");
+            var reset = (Button)window.FindName("ResetButton");
+            slider.Value = 135;
+            Check(preference.Load() == 135 && percent.Text == "135 %" &&
+                preview.LayoutTransform is ScaleTransform { ScaleX: 1.35, ScaleY: 1.35 } && reset.IsEnabled,
+                "el deslizador actualiza la vista previa y guarda el porcentaje elegido");
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(slider.Value == 100 && preference.Load() == 100 && !reset.IsEnabled,
+                "restablecer recupera el tamaño normal y lo guarda");
+            File.WriteAllText(file, "175");
+            Check(preference.Load() == 100, "una preferencia fuera de rango vuelve al tamaño normal");
+        }
+        finally
+        {
+            window.Close();
+            File.Delete(file);
+            if (Directory.Exists(folder))
+                Directory.Delete(folder);
         }
     }
 
@@ -744,12 +796,13 @@ internal static class Program
         var overlay = new Overlay();
         try
         {
-            var bounds = new Int32Rect(10, 10, 540, 260);
+            var bounds = new Int32Rect(10, 10, 1280, 720);
             var marker = new Region(.1, .1, .1, .1);
             var titles = new[] { new Region(.1, .5, .15, .1), new Region(.4, .5, .15, .1), new Region(.7, .5, .15, .1) };
             var layout = new Calibration(bounds.Width, bounds.Height, marker, titles, new byte[720]);
-            overlay.Render(new OverlayUpdate("Prueba", bounds, layout,
-                [new("A", new OpGgCard("S")), new("B"), CardComparison.Unread]));
+            var comparison = new OverlayUpdate("Prueba", bounds, layout,
+                [new("A", new OpGgCard("S")), new("A", new OpGgCard("A")), CardComparison.Unread]);
+            overlay.Render(comparison);
             var first = overlay.Windows[0];
             var handle = new WindowInteropHelper(first).Handle;
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -760,7 +813,7 @@ internal static class Program
                 placement.Y + placement.Height <= bounds.Y + titles[0].Y * bounds.Height &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
                 "letra en una ventana nativa visible, alineada y sin capturar foco o clics");
-            var firstBadge = (Border)first.Content;
+            var firstBadge = Frame(first);
             Check(overlay.Windows.Count(window => window.IsVisible) == 3 && firstBadge.ActualWidth > 0 && firstBadge.ActualHeight > 0,
                 "una ventana por letra");
             var rendered = new RenderTargetBitmap((int)Math.Ceiling(firstBadge.ActualWidth), (int)Math.Ceiling(firstBadge.ActualHeight),
@@ -769,48 +822,80 @@ internal static class Program
             var pixel = new byte[4];
             rendered.CopyPixels(new Int32Rect(6, 8, 1, 1), pixel, 4, 0);
             Check(pixel[3] > 100, "píxeles visibles del badge");
-            static string[] VisibleLines(Window window) => ((Panel)((Border)window.Content).Child).Children
-                .OfType<TextBlock>().Where(text => text.Visibility == Visibility.Visible).Select(text => text.Text).ToArray();
-            Check(VisibleLines(first).SequenceEqual(["OP.GG   S", "Estimación local   A"]) &&
-                VisibleLines(overlay.Windows[2]).SequenceEqual(["?"]), "Abejas muestra sus dos fuentes y el OCR dudoso muestra ?");
-            overlay.Render(new OverlayUpdate("Reroll", bounds, layout,
-                [new("Sin dato", new OpGgCard("B"), Mayhem: new(18.81m, "26.22", true)), null, new("A")]));
+            static Border Frame(Window window) => (Border)((Viewbox)window.Content).Child;
+            static string[] VisibleLines(Window window) => BuildElements<TextBlock>(Frame(window))
+                .Where(text => text.Visibility == Visibility.Visible).Select(text => text.Text).ToArray();
+            var texts = BuildElements<TextBlock>(firstBadge).ToArray();
+            Check(VisibleLines(first).SequenceEqual(["S", "OP.GG", "Local", "A"]) &&
+                texts[0].FontSize >= 2 * texts[1].FontSize &&
+                texts[3].FontSize < texts[0].FontSize &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "OP.GG", "Local", "A"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["Leyendo carta…"]), "Abejas muestra sus dos fuentes y el estado de lectura es explícito");
+            overlay.ShowDetails = true;
+            overlay.Render(comparison);
+            Check(VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "OP.GG", "Local", "A"]),
+                "la vista detallada también muestra ambas letras una sola vez aunque coincidan");
+            overlay.ShowDetails = false;
+            var reroll = new OverlayUpdate("Reroll", bounds, layout,
+                [new("Sin dato", new OpGgCard("B"), Mayhem: new(18.81m, "26.22", true)), null, new("A")]);
+            overlay.Render(reroll);
+            Check(VisibleLines(first).SequenceEqual(["B", "OP.GG"]) &&
+                !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["A", "Local"]),
+                "la vista compacta prioriza el tier y omite las estadísticas y valoraciones ausentes");
+            overlay.ShowDetails = true;
+            overlay.Render(reroll);
             Check(VisibleLines(first).SequenceEqual(
-                ["OP.GG   B", "Estimación local   Sin dato", "ARAMMayhem.com   18.81 % global", "Parche anterior 26.22"]) &&
-                !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A"]),
-                "las dos líneas se actualizan al cambiar cartas y desaparecen sobre objetos");
+                ["Elección global", "18.81 %", "ARAMMayhem.com", "Parche anterior 26.22", "B", "OP.GG"]) &&
+                !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["A", "Local"]),
+                "la vista detallada conserva la elección global y el parche");
+            var updated = Native.Bounds(handle);
+            var localOnly = Native.Bounds(new WindowInteropHelper(overlay.Windows[2]).Handle);
+            Check(updated.Y + updated.Height == localOnly.Y + localOnly.Height && updated.Width == localOnly.Width &&
+                updated.Height > localOnly.Height &&
+                updated.Width <= titles[0].Pixels(bounds.Width, bounds.Height).Width,
+                "los tiers se alinean aunque una carta tenga más datos que otra, dentro del ancho calibrado");
             overlay.Render(new OverlayUpdate("Parche vigente", bounds, layout,
                 [new("A", Mayhem: new(18.81m, "26.23", false))]));
-            Check(VisibleLines(first).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A", "ARAMMayhem.com   18.81 % global"]),
+            Check(VisibleLines(first).SequenceEqual(["Elección global", "18.81 %", "ARAMMayhem.com", "A", "Local"]),
                 "la anotación del parche anterior desaparece al llegar los datos vigentes");
-            overlay.Render(new OverlayUpdate("Arena", bounds, layout,
+            var arenaOffer = new OverlayUpdate("Arena", bounds, layout,
                 [new("A", Arena: new(7.76m, 59, 760, "26.23", false), IsArenaAugment: true),
-                 new("S", new OpGgCard(PickPercent: 4.82m), ExternalPreviousPatch: "26.22", IsArenaAugment: true),
-                 new("B", Loading: true, IsArenaAugment: true)]));
+                 new("S", new OpGgCard(PickPercent: 4.82m), ExternalPreviousPatch: "26.22", IsArenaAugment: true,
+                     RecommendedUpgrade: true, UpgradeLevel: 2),
+                 new("B", Loading: true, IsArenaAugment: true)]);
+            overlay.Render(arenaOffer);
             Check(VisibleLines(first).SequenceEqual(
-                ["Tier local   A", "GGEZ.GG   7.76 % elección", "59/760 partidas · 26.23"]) &&
-                VisibleLines(overlay.Windows[1]).SequenceEqual(["Tier local   S+", "OP.GG   Elección 4.82 % · parche ant. 26.22"]) &&
-                VisibleLines(overlay.Windows[2]).SequenceEqual(["Tier local   B", "OP.GG   Consultando…"]),
+                ["Frecuencia de elección", "GGEZ.GG", "7.76 %", "59 de 760 partidas · 26.23", "A", "Local"]) &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(
+                    ["Frecuencia de elección", "OP.GG", "4.82 %", "Parche anterior 26.22", "S+", "Local", "Nv. 2", "Mejora recomendada"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["Consultando OP.GG…", "B", "Local"]),
                 "Arena destaca la estimación disponible y conserva los datos externos publicados y el estado de consulta");
+            overlay.ShowDetails = false;
+            overlay.Render(arenaOffer);
+            Check(VisibleLines(first).SequenceEqual(["A", "Local"]) &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(["S+", "Local", "Nv. 2", "Recomendado"]),
+                "Arena conserva la recomendación y el nivel en la vista compacta");
             overlay.Render(new OverlayUpdate("Arena variable", bounds, layout,
                 [new("Variable", IsArenaAugment: true, LocalReason: "Copia un aumento rival cada ronda")]));
-            Check(VisibleLines(first).SequenceEqual(["Valoración variable", "Copia un aumento rival cada ronda"]),
+            Check(VisibleLines(first).SequenceEqual(["Copia un aumento rival cada ronda", "Afinidad variable"]),
                 "una carta variable explica su condición aunque falten porcentajes");
 
             var shardBounds = new Int32Rect(10, 10, 1000, 560);
             var shardOffer = new OverlayUpdate("Fragmentos", shardBounds, layout,
-                [new("B", ArenaChoice: new("Vida", Tier.B, "Más vida para resistir daño", Recommended: true)),
+                [new("B", ArenaChoice: new("Vida", Tier.B, "Más vida para resistir el daño de los rivales durante un combate prolongado", Recommended: true)),
                  new("C", ArenaChoice: new("Velocidad de ataque", Tier.C, "Más ataques básicos por segundo")),
                  new("C", ArenaChoice: new("Letalidad", Tier.C, "Penetración para daño físico"))]);
+            overlay.ShowDetails = true;
             overlay.Render(shardOffer);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var shardPlacements = overlay.Windows.Select(window => Native.Bounds(new WindowInteropHelper(window).Handle)).ToArray();
             for (int i = 0; i < shardOffer.Labels!.Length; i++)
             {
-                var frame = (Border)overlay.Windows[i].Content;
-                var reason = ((StackPanel)frame.Child).Children.OfType<TextBlock>().Last(text => text.IsVisible);
+                var frame = Frame(overlay.Windows[i]);
+                var reason = BuildElements<TextBlock>(frame).Single(text => text.Text == shardOffer.Labels[i]!.ArenaChoice!.Reason);
                 var reasonBounds = reason.TransformToAncestor(frame).TransformBounds(new Rect(reason.RenderSize));
-                Check(reason.ActualHeight > reason.FontSize * 2 && reasonBounds.Bottom <= frame.ActualHeight - frame.Padding.Bottom &&
+                Check(reason.ActualHeight > (i == 0 ? reason.FontSize * 2 : 0) &&
+                    reasonBounds.Bottom <= frame.ActualHeight - frame.Padding.Bottom + 1 &&
                     shardPlacements[i].Width <= titles[i].Width * shardBounds.Width &&
                     shardPlacements[i].Y + shardPlacements[i].Height < shardBounds.Y + titles[i].Y * shardBounds.Height - 12,
                     "el motivo de varias líneas cabe completo por encima del título del fragmento");

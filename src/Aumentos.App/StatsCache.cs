@@ -6,7 +6,7 @@ namespace Aumentos;
 
 internal static class StatsCache
 {
-    internal static void Write<T>(string path, T data)
+    internal static bool Write<T>(string path, T data)
     {
         var temp = $"{path}.{Guid.NewGuid():N}.tmp";
         try
@@ -14,10 +14,11 @@ internal static class StatsCache
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(temp, JsonSerializer.Serialize(data));
             File.Move(temp, path, overwrite: true);
+            return true;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            // The caller can still use the verified data in memory.
+            return false;
         }
         finally
         {

@@ -7,13 +7,14 @@ namespace Aumentos;
 
 internal sealed record MayhemPopularity(decimal Percent, string Patch, bool IsPrevious)
 {
-    internal string Text => $"{AramMayhemRatings.Attribution}   {Percent.ToString("0.##", CultureInfo.GetCultureInfo("es-MX"))} % global";
+    internal string Text => $"{AramMayhemRatings.Attribution}   {CardComparison.FormatPercent(Percent)} global";
 }
 
 internal sealed record ArenaPopularity(decimal Percent, int GamesPicked, int SampleGames, string Patch, bool IsPrevious)
 {
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-MX");
-    internal string Text => $"{GgezArenaPage.Attribution}   {Percent.ToString("0.##", Spanish)} % elección";
+    internal string Text => $"{GgezArenaPage.Attribution}   {CardComparison.FormatPercent(Percent)} elección";
+    internal string SampleText => $"{GamesPicked.ToString("N0", Spanish)} de {SampleGames.ToString("N0", Spanish)} partidas";
     internal string Details => $"{GamesPicked.ToString("N0", Spanish)}/{SampleGames.ToString("N0", Spanish)} partidas · " +
         (IsPrevious ? $"parche ant. {Patch}" : Patch);
 }
@@ -42,9 +43,10 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
         }
     }
     internal string ExternalText => External?.PickPercent is { } pick
-        ? $"Elección {pick.ToString("0.##", CultureInfo.GetCultureInfo("es-MX"))} %" +
+        ? $"Elección {FormatPercent(pick)}" +
             (ExternalPreviousPatch is { } patch ? $" · parche ant. {patch}" : "")
         : External?.Tier ?? (Loading ? "Consultando…" : Missing);
+    internal static string FormatPercent(decimal percent) => $"{percent.ToString("0.##", CultureInfo.GetCultureInfo("es-MX"))} %";
 
     internal static CardComparison?[] ForOffer(Ratings ratings, GameContext game, int?[] ids,
         bool[] items, OpGgSnapshot? snapshot, bool loading = false, AramMayhemSnapshot? mayhem = null,

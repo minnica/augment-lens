@@ -139,7 +139,12 @@ internal static class Program
                 }
             };
             var overlay = new Overlay();
-            var buildOverlay = new BuildOverlay(new BuildItemIcons(http));
+            var itemIcons = new BuildItemIcons(http);
+            var buildOverlay = new BuildOverlay(itemIcons);
+            var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
+            int buildSize = sizePreference.Load();
+            buildOverlay.SetSize(buildSize);
+            BuildSizeWindow? buildSizeWindow = null;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
@@ -189,8 +194,13 @@ internal static class Program
                         ArenaWikiMechanics.Attribution));
             menu.Items.Add("Tier de campeones de Arena", null, (_, _) =>
                 OpenProviderPage(ArenaChampionTierSource.Address.AbsoluteUri, ArenaChampionTierSource.Attribution));
+            var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
+            cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
+            menu.Items.Add(cardDetails);
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
+            var resizeBuild = new Forms.ToolStripMenuItem("Tamaño de las builds…", null, (_, _) => OpenBuildSize());
+            menu.Items.Add(resizeBuild);
             menu.Items.Add("Abrir build de OP.GG", null, (_, _) => OpenProviderPage(builds.SourceUrl, "OP.GG"));
             var pause = new Forms.ToolStripMenuItem("Pausar overlay") { CheckOnClick = true };
             pause.CheckedChanged += (_, _) =>
@@ -216,8 +226,11 @@ internal static class Program
             tray.DoubleClick += (_, _) => OpenDiagnostics();
             app.Startup += (_, _) =>
             {
-                if (buildOverlay.RegisterShortcut(ToggleBuild))
+                var shortcuts = buildOverlay.RegisterShortcuts(ToggleBuild, OpenBuildSize);
+                if (shortcuts.Toggle)
                     showBuild.ShortcutKeyDisplayString = "Ctrl+Alt+B";
+                if (shortcuts.Size)
+                    resizeBuild.ShortcutKeyDisplayString = "Ctrl+Alt+T";
                 if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
                 _ = Task.Run(async () =>
@@ -259,6 +272,25 @@ internal static class Program
             {
                 if (!worker.ToggleBuild())
                     buildOverlay.Render(null);
+            }
+
+            void OpenBuildSize()
+            {
+                if (buildSizeWindow is not null)
+                {
+                    buildSizeWindow.Activate();
+                    return;
+                }
+
+                var window = new BuildSizeWindow(buildSize, ratings.Catalog.Patch, itemIcons, percent =>
+                {
+                    buildSize = percent;
+                    buildOverlay.SetSize(percent);
+                    return sizePreference.Save(percent);
+                });
+                buildSizeWindow = window;
+                window.Closed += (_, _) => buildSizeWindow = null;
+                window.Show();
             }
 
             void OpenDiagnostics()
@@ -307,8 +339,8 @@ internal static class Program
                 Console.WriteLine("Hechizos de invocador · " +
                     string.Join(" | ", spells.Select(pair => $"{pair.First} + {pair.Second}")));
             foreach (var group in data.Groups)
-                Console.WriteLine($"{BuildOverlay.SectionLabel(group.Section)} · " +
-                    string.Join(" | ", group.Choices.Select(items => BuildOverlay.ChoiceText(group.Section, items))));
+                Console.WriteLine($"{BuildPanel.SectionLabel(group.Section)} · " +
+                    string.Join(" | ", group.Choices.Select(items => BuildPanel.ChoiceText(group.Section, items))));
             return 0;
         }
         catch (Exception error)

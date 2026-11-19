@@ -22,7 +22,9 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 
 ## Comparar aumentos en partida
 
-**OP.GG** muestra la letra que publica para tu campeón en ARAM Caos (S, A, B, C, D o E). En Arena la carta encabeza con su **tier local** (S+, A, B o C) si tiene una regla de sinergia. Debajo aparecen los porcentajes de elección que publiquen OP.GG y GGEZ.GG. En el caso de **¡¡¡Abejas!!!** con Lux, la estimación local es **A**.
+La vista compacta alinea las letras grandes justo encima de los títulos. En **ARAM Caos** la letra principal es el tier de **OP.GG** para tu campeón (S, A, B, C, D o E). Cuando hay una afinidad calculada por la app, su letra aparece más pequeña junto a **Local**, incluso si coincide con la de OP.GG. Si falta el tier publicado, la afinidad local toma el lugar principal. En **Arena** la letra principal siempre es local (S+, A, B o C).
+
+Activa **Detalles de las cartas** en el icono de la bandeja para ver porcentajes de elección, parches y motivos. Regresa a League para ver el cambio. La vista compacta conserva las recomendaciones de Arena, el nivel y las condiciones de afinidad variable.
 
 | Etiqueta | Significado en el overlay |
 | --- | --- |
@@ -30,13 +32,13 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 | A | Estimación local para una mecánica afín al perfil del campeón |
 | B | Estimación local intermedia para la sinergia evaluada |
 | C | Estimación local para una mecánica con poca afinidad con el perfil |
-| Sin dato | La carta se reconoció y esa fuente carece de una valoración disponible para el campeón, modo y parche |
-| Variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
-| ? | La app todavía está intentando identificar la carta |
+| Sin tier | La carta se reconoció y la fuente carece de una valoración para el campeón, el modo y el parche |
+| Afinidad variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
+| Leyendo carta… | La app está intentando identificar la carta |
 
 Al cambiar una carta, el overlay vuelve a leer esa posición y actualiza sus valoraciones. Si dos cartas comparten título, la app también puede consultar la descripción. En **ARAM Caos**, para **¡Estadísticas sobre Estadísticas!**, lee cuántos yunques ofrece para distinguir la versión de tres de la de cuatro.
 
-Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su página pública de OP.GG. Mientras llega por primera vez, aparece «Consultando…» junto a la estimación local. Las imágenes del juego se procesan en memoria. La consulta externa contiene el modo y el campeón. Cada cambio de carta usa la tabla que ya está en memoria.
+Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su página pública de OP.GG. Durante la consulta, la vista compacta muestra la afinidad local si está disponible. Las imágenes del juego se procesan en memoria. La consulta externa contiene el modo y el campeón. Cada cambio de carta usa la tabla que ya está en memoria.
 
 La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\opgg` y se actualiza tras 12 horas de antigüedad cuando vuelves a usar ese campeón. En Arena, si OP.GG solo publica el parche inmediatamente anterior de la misma temporada, el overlay identifica el parche junto al porcentaje y vuelve a consultar a los 15 minutos. Si falla la red, la app puede seguir usando su copia. El diagnóstico indica cuándo se actualizó o por qué falta. [Datos de aumentos de OP.GG](https://op.gg/lol/modes/aram-mayhem/lux/augments) · [Uso de los datos de OP.GG](https://help.op.gg/hc/en-us/articles/31091405109401-Can-I-use-OP-GG-data)
 
@@ -46,7 +48,7 @@ En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese
 
 **Nv. 2** y **Nv. 3** corresponden a la mejora ofrecida en esa posición. Si hay cifras comprobadas para el parche, el panel muestra qué cambia. Con **Hábil** en Jax, pasar de nivel 2 a 3 lleva la velocidad de ataque del 80 % al 130 % y elimina su límite. En algunas mejoras, como **Grandes jugadas Nv. 2** con Elise, la etiqueta **Tier del efecto base** indica que la letra valora la afinidad del efecto inicial.
 
-Al elegir un **fragmento del Yunque de estadísticas** en **ARAM Caos o Arena**, el overlay muestra el tier local y el motivo según tu campeón. En **Arena**, también valora los objetos legendarios y prismáticos. Durante una oferta prismática, un panel lateral muestra los **cinco objetos prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
+Al elegir un **fragmento del Yunque de estadísticas** en **ARAM Caos o Arena**, el overlay muestra el tier local. El motivo según tu campeón está en **Detalles de las cartas**. En **Arena**, también valora los objetos legendarios y prismáticos. Durante una oferta prismática, un panel lateral muestra los **cinco objetos prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
 
 Las cartas de aumentos de Arena muestran **Recomendado** cuando la comparación de la oferta completa identifica una ganadora. Con Jax sin compras que cambien el desempate, **Bailarín de Tap** gana ante **Goliat** para sostener ataques y **Hábil** gana ante **Tifón** para atacar a un solo objetivo. **¡Enciéndelos! Nv. 2** muestra el cambio de cuatro a cinco fuegos y el modificador de daño del 90 % al 100 %, y puede ganar el empate frente a **Cerbero**. El porcentaje de elección indica la frecuencia observada en la muestra de cada fuente.
 
@@ -67,6 +69,8 @@ En **Arena**, **Equipados** cuenta las botas mejoradas, los legendarios y los pr
 El panel muestra **Daño rival estimado** en ambos modos con una barra de daño **físico** en naranja y **mágico** en violeta. Estima la proporción a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero.
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
+
+Pulsa **Ctrl + Alt + T** o abre **Tamaño de las builds…** desde el icono de la bandeja. Mueve el control de **75 % a 150 %** para ver el cambio en la vista previa, o usa **Restablecer 100 %**. El tamaño se guarda automáticamente y se aplica a las builds de ARAM Caos y Arena. Al volver a League, el panel se ajusta al espacio disponible junto a la tienda.
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 
