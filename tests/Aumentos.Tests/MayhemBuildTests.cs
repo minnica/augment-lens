@@ -98,6 +98,22 @@ internal static class MayhemBuildTests
         var mortalReminder = new MayhemMatch([3006, 3032, 3031, 3094, 3033, 3072], [new("Ornn", [3075])]);
         Check(source.Recommend(marksman, mortalReminder, marksmanBuild) is { Swap: null },
             "Recordatorio Mortal ya cubre la armadura y no se cambia por otro objeto de penetración");
+
+        var karthus = new GameContext(Mode.Caos, "Karthus");
+        OpGgBuildItem malignance = new(3118, "Maldad"), shadowflame = new(4645, "Lumbría"),
+            liandry = new(6653, "El Tormento de Liandry"), deathcap = new(3089, "Sombrero Mortífero de Rabadon");
+        var karthusBuild = build with { Champion = karthus.Champion, Groups =
+            [new(OpGgBuildSection.Core, [[malignance, liandry, shadowflame], [malignance, shadowflame, deathcap]])] };
+        var criticalMatch = new MayhemMatch([3118, 3089, 6653, 4645, 3135, 3165],
+            [new("Karma", [3089, 2530, 124011, 6621, 6617, 3158]),
+             new("Yunara", [3124, 3085, 3115, 3153, 3302, 6665]),
+             new("Rengar", [6676, 3074, 3031, 3036, 126697, 3111]),
+             new("Xayah", [3032, 3006, 6675, 3033, 3153, 6676]),
+             new("Sejuani", [3084, 3075, 3742, 3110, 6665, 3143])]);
+        Check(source.Recommend(karthus, criticalMatch, karthusBuild)?.Swap is
+            { Outgoing.Id: 4645, Incoming.Id: 3157, Reason: "Contra los golpes críticos de Rengar y Xayah" } &&
+            source.Recommend(karthus, criticalMatch with { Items = [3118, 3089, 6653, 3157, 3135, 3165] }, karthusBuild) is { Swap: null },
+            "una build completa de Karthus añade defensa contra críticos y conserva Rabadon, penetración y heridas graves");
         Console.WriteLine("Build situacional de ARAM Caos verificada con inventario, composición y compras rivales.");
     }
 

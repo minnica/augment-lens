@@ -487,22 +487,30 @@ internal static class Program
         {
             var handle = new WindowInteropHelper(window).Handle;
             using var capture = new WindowCapture(handle);
-            var timer = Stopwatch.StartNew();
-            while (timer.ElapsedMilliseconds < 3000)
+            ReadColor(() => capture.Read(new Int32Rect(15, 15, 20, 25)), 2);
+            window.Background = Brushes.Blue;
+            ReadColor(() => capture.ReadProbe(new Int32Rect(15, 15, 40, 5)), 0);
+            window.Background = Brushes.Red;
+            ReadColor(() => capture.Read(new Int32Rect(15, 15, 20, 25)), 2);
+            Console.WriteLine("Captura de ventana y recortes D3D11 verificados.");
+
+            static void ReadColor(Func<BitmapSource?> read, int channel)
             {
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                var pixels = capture.Read(new Int32Rect(15, 15, 20, 25));
-                if (pixels is not null)
+                var timer = Stopwatch.StartNew();
+                while (timer.ElapsedMilliseconds < 3000)
                 {
-                    var color = new byte[4];
-                    pixels.CopyPixels(new Int32Rect(5, 5, 1, 1), color, 4, 0);
-                    Check(color[2] > 200 && color[1] < 50 && color[0] < 50, "píxeles del recorte D3D11");
-                    Console.WriteLine("Captura de ventana D3D11 verificada.");
-                    return;
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                    if (read() is { } pixels)
+                    {
+                        var color = new byte[4];
+                        pixels.CopyPixels(new Int32Rect(2, 2, 1, 1), color, 4, 0);
+                        if (color[channel] > 200 && color[2 - channel] < 50 && color[1] < 50)
+                            return;
+                    }
+                    Thread.Sleep(30);
                 }
-                Thread.Sleep(30);
+                throw new InvalidOperationException("No se recibió el color esperado en el recorte D3D11.");
             }
-            throw new InvalidOperationException("No se recibió un cuadro de Windows Graphics Capture.");
         }
         finally { window.Close(); }
     }

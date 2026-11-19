@@ -18,10 +18,10 @@ internal sealed class MayhemBuilds
     [Flags]
     private enum Style { Mage = 1, Support = 2, Tank = 4, Fighter = 8, Lethality = 16, Crit = 32, OnHit = 64 }
 
-    private enum Need { General, MagicResist, Armor, Healing, Shields, Health, Dive, MagicDamage, PhysicalDamage }
+    private enum Need { General, MagicResist, Armor, Healing, Shields, Health, Dive, CriticalHits, MagicDamage, PhysicalDamage }
     private sealed record Choice(int Id, Style Styles, Need Need = Need.General);
     private sealed record Threat(Need Need, int Priority, string Reason);
-    private sealed record Opponent(Champion Champion, int Armor, int MagicResist, int Health,
+    private sealed record Opponent(Champion Champion, int Armor, int MagicResist, int Health, decimal Crit,
         bool Sustain, bool Shields, bool MagicDamage, bool PhysicalDamage, bool Dive);
 
     private const Style Attackers = Style.Crit | Style.OnHit;
@@ -43,6 +43,7 @@ internal sealed class MayhemBuilds
         new(3102, Style.Mage, Need.MagicDamage), new(3190, Style.Support, Need.MagicDamage),
         new(2504, Style.Tank, Need.MagicDamage), new(4401, Style.Tank, Need.MagicDamage),
         new(3156, Physical, Need.MagicDamage), new(3091, Attackers, Need.MagicDamage),
+        new(3157, Style.Mage, Need.CriticalHits), new(3143, Style.Tank | Style.Fighter | Style.Support, Need.CriticalHits),
         new(3157, Style.Mage, Need.PhysicalDamage), new(3190, Style.Support, Need.PhysicalDamage),
         new(3143, Style.Tank, Need.PhysicalDamage), new(3110, Style.Tank, Need.PhysicalDamage),
         new(6333, Style.Fighter | Style.Lethality, Need.PhysicalDamage), new(6673, Style.Crit, Need.PhysicalDamage),
@@ -186,9 +187,11 @@ internal sealed class MayhemBuilds
         {
             int id = step.Item.Id;
             var item = items[id];
-            return id == BaseId(id) && item is { Available: true, Boots: false } && !core.Take(3).Contains(id) &&
+            return id == BaseId(id) && item is { Available: true, Boots: false } && !core.Take(2).Contains(id) &&
+                !AmplifiesBuild(id, style) &&
                 (core.Length > 0 || IsAntiHeal(id) || Situational(id) && (item.Armor >= 30 || item.MagicResist >= 30));
-        }).OrderByDescending(step => Situational(step.Item.Id)).ThenBy(step => step.Item.Id);
+        }).OrderBy(step => core.Contains(step.Item.Id))
+            .ThenByDescending(step => Situational(step.Item.Id)).ThenBy(step => step.Item.Id);
 
         var counters = AssessThreats(opponents, purchasesOnly: true).Select(threat => new SwapCounter(threat.Reason,
             Choices.Where(choice => choice.Need == threat.Need && (choice.Styles & style) != 0 && IsFinished(choice.Id))
@@ -198,6 +201,9 @@ internal sealed class MayhemBuilds
     }
 
     private static bool Situational(int id) => Choices.Any(choice => choice.Id == id && choice.Need != Need.General);
+
+    private static bool AmplifiesBuild(int id, Style style) => (id, style) is
+        (3089, Style.Mage) or (3031, Style.Crit) or (3124, Style.OnHit);
 
     private bool Covers(int id, Need need)
     {
@@ -209,7 +215,7 @@ internal sealed class MayhemBuilds
             Need.Healing => IsAntiHeal(id),
             Need.Armor when id == 3033 => true,
             Need.MagicDamage when item.MagicResist >= 30 => true,
-            Need.PhysicalDamage when item.Armor >= 30 => true,
+            Need.PhysicalDamage or Need.CriticalHits when item.Armor >= 30 => true,
             _ => Choices.Any(choice => choice.Id == id && choice.Need == need)
         };
     }
@@ -278,6 +284,9 @@ internal sealed class MayhemBuilds
             threats.Add(new(Need.Health, 5 + health, PurchaseReason(health, "vida")));
         else if (!purchasesOnly && rivals.Count(rival => rival.Champion.Roles[0] == "Tank") >= 2)
             threats.Add(new(Need.Health, 6, "Contra varios tanques rivales"));
+        var critical = rivals.Where(rival => rival.Crit >= 0.5m).OrderByDescending(rival => rival.Crit).ToArray();
+        if (purchasesOnly && (critical.Length >= 2 || critical.Any(rival => rival.Crit >= 0.75m)))
+            threats.Add(new(Need.CriticalHits, 7 + critical.Length, ChampionReason("Contra los golpes críticos de", critical)));
         if (rivals.Count(rival => rival.MagicDamage) >= 3)
             threats.Add(new(Need.MagicDamage, 6, "Contra el daño mágico rival"));
         if (rivals.Count(rival => rival.PhysicalDamage) >= 3)
@@ -294,12 +303,20 @@ internal sealed class MayhemBuilds
         var equipped = purchases.Select(id => items.GetValueOrDefault(id)).OfType<MayhemItem>().ToArray();
         var ap = equipped.Sum(item => item.AbilityPower);
         var ad = equipped.Sum(item => item.AttackDamage);
+        var crit = equipped.Sum(item => item.Crit);
         bool mage = champion.Roles.Contains("Mage");
         bool magic = (ap >= 40 && ap > ad) || (!purchasesOnly && ad < 30 && mage);
         bool physical = (ad >= 30 && ad >= ap) ||
             (!purchasesOnly && ap < 40 && !mage && champion.Roles[0] is "Marksman" or "Fighter" or "Assassin");
+        if (purchasesOnly)
+        {
+            int magicItems = equipped.Count(item => item.AbilityPower > 0);
+            int physicalItems = equipped.Count(item => item.AttackDamage > 0 || item.Crit > 0);
+            magic = ap >= 40 && magicItems >= physicalItems;
+            physical = (ad >= 30 || crit >= 0.5m) && physicalItems >= magicItems;
+        }
         return new(champion, equipped.Sum(item => item.Armor), equipped.Sum(item => item.MagicResist),
-            equipped.Sum(item => item.Health), equipped.Any(item => item.Sustain),
+            equipped.Sum(item => item.Health), crit, equipped.Any(item => item.Sustain),
             (!purchasesOnly && Shielders.Contains(champion.Key)) || purchases.Any(id => id is 3053 or 3156 or 3190 or 6673), magic, physical,
             champion.Roles[0] == "Assassin" || Divers.Contains(champion.Key));
     }

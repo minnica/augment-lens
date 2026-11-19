@@ -113,6 +113,8 @@ internal sealed unsafe class WindowCapture : IDisposable
     private readonly GraphicsCaptureSession session;
     private ID3D11Texture2D? staging;
     private Int32Rect stagingRegion;
+    private ID3D11Texture2D? probeStaging;
+    private Int32Rect probeStagingRegion;
     private bool disposed;
     public nint Handle { get; }
     public int Width { get; }
@@ -158,7 +160,11 @@ internal sealed unsafe class WindowCapture : IDisposable
         }
     }
 
-    public BitmapSource? Read(Int32Rect region)
+    public BitmapSource? Read(Int32Rect region) => ReadRegion(region, ref staging, ref stagingRegion);
+
+    internal BitmapSource? ReadProbe(Int32Rect region) => ReadRegion(region, ref probeStaging, ref probeStagingRegion);
+
+    private BitmapSource? ReadRegion(Int32Rect region, ref ID3D11Texture2D? texture, ref Int32Rect previousRegion)
     {
         using var frame = pool.TryGetNextFrame();
         if (frame is null || frame.ContentSize.Width != Width || frame.ContentSize.Height != Height)
@@ -167,19 +173,20 @@ internal sealed unsafe class WindowCapture : IDisposable
             region.X + region.Width > Width || region.Y + region.Height > Height)
             return null;
 
-        if (staging is null || stagingRegion.Width != region.Width || stagingRegion.Height != region.Height)
+        if (texture is null || previousRegion.Width != region.Width || previousRegion.Height != region.Height)
         {
-            staging?.Dispose();
-            staging = device.CreateTexture2D(new Texture2DDescription(Format.B8G8R8A8_UNorm,
+            var requested = device.CreateTexture2D(new Texture2DDescription(Format.B8G8R8A8_UNorm,
                 (uint)region.Width, (uint)region.Height, 1, 1, BindFlags.None,
                 ResourceUsage.Staging, CpuAccessFlags.Read));
-            stagingRegion = region;
+            texture?.Dispose();
+            texture = requested;
+            previousRegion = region;
         }
 
         using var source = GetTexture(frame.Surface);
         var box = new Box(region.X, region.Y, 0, region.X + region.Width, region.Y + region.Height, 1);
-        context.CopySubresourceRegion(staging, 0, 0, 0, 0, source, 0, box);
-        var mapped = context.Map(staging, 0, MapMode.Read);
+        context.CopySubresourceRegion(texture, 0, 0, 0, 0, source, 0, box);
+        var mapped = context.Map(texture, 0, MapMode.Read);
         try
         {
             var stride = region.Width * 4;
@@ -190,7 +197,7 @@ internal sealed unsafe class WindowCapture : IDisposable
             bitmap.Freeze();
             return bitmap;
         }
-        finally { context.Unmap(staging, 0); }
+        finally { context.Unmap(texture, 0); }
     }
 
     private static ID3D11Texture2D GetTexture(IDirect3DSurface surface)
@@ -239,6 +246,7 @@ internal sealed unsafe class WindowCapture : IDisposable
         session.Dispose();
         pool.Dispose();
         staging?.Dispose();
+        probeStaging?.Dispose();
         context.Dispose();
         device.Dispose();
     }

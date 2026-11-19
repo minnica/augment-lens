@@ -14,8 +14,7 @@ internal sealed class ShopDetection
     internal Int32Rect? Read(BitmapSource frame, Detection detector, Int32Rect? previous)
     {
         // A long gold edge over the blue shop background locates the tabs even after the panel moves.
-        var image = frame.Format == PixelFormats.Bgr32 || frame.Format == PixelFormats.Bgra32 ||
-            frame.Format == PixelFormats.Pbgra32 ? frame : new FormatConvertedBitmap(frame, PixelFormats.Bgr32, null, 0);
+        var image = UseBgr(frame);
         int width = image.PixelWidth;
         int height = image.PixelHeight;
         if (width < 320 || height < 240)
@@ -23,23 +22,11 @@ internal sealed class ShopDetection
         int step = Math.Max(2, width / 720);
         int below = Math.Max(3, height / 480);
 
-        if (previous is { } shop && shop.X >= 0 && shop.X + shop.Width <= width && shop.Y + below < height)
-        {
-            Load(image, shop.Y, below + 1);
-            int matches = 0;
-            const int samples = 12;
-            for (int i = 1; i <= samples; i++)
-            {
-                int x = shop.X + shop.Width * i / (samples + 1);
-                if (IsEdge(x * 4, below * width * 4))
-                    matches++;
-            }
-            if (matches >= 10)
-                return previous;
-        }
+        if (previous is { } shop && ProbeRegion(shop, width, height) is { } edge && MatchesProbe(image, edge))
+            return shop;
 
         int rows = height * 2 / 3;
-        Load(image, 0, rows);
+        Load(image, new Int32Rect(0, 0, width, rows));
         int minWidth = Math.Max(215, width / 5);
         int maxWidth = width - 2 * step;
         var tested = new List<Int32Rect>(4);
@@ -58,6 +45,28 @@ internal sealed class ShopDetection
                 break;
         }
         return null;
+    }
+
+    internal static Int32Rect? ProbeRegion(Int32Rect shop, int width, int height)
+    {
+        int below = Math.Max(3, height / 480);
+        return shop.X >= 0 && shop.Width >= 12 && shop.X + shop.Width <= width && shop.Y >= 0 && shop.Y + below < height
+            ? new Int32Rect(shop.X, shop.Y, shop.Width, below + 1) : null;
+    }
+
+    internal bool MatchesProbe(BitmapSource frame, Int32Rect edge)
+    {
+        Load(UseBgr(frame), edge);
+        int below = (edge.Height - 1) * edge.Width * 4;
+        int matches = 0;
+        const int samples = 12;
+        for (int i = 1; i <= samples; i++)
+        {
+            int x = edge.Width * i / (samples + 1);
+            if (IsEdge(x * 4, below))
+                matches++;
+        }
+        return matches >= 10;
     }
 
     internal static bool IsShopHeader(string text)
@@ -108,12 +117,16 @@ internal sealed class ShopDetection
             pixels[i + below + 1] >= pixels[i + below + 2] + 5;
     }
 
-    private void Load(BitmapSource image, int firstRow, int rows)
+    private static BitmapSource UseBgr(BitmapSource frame) => frame.Format == PixelFormats.Bgr32 ||
+        frame.Format == PixelFormats.Bgra32 || frame.Format == PixelFormats.Pbgra32
+        ? frame : new FormatConvertedBitmap(frame, PixelFormats.Bgr32, null, 0);
+
+    private void Load(BitmapSource image, Int32Rect region)
     {
-        int stride = image.PixelWidth * 4;
-        int size = stride * rows;
+        int stride = region.Width * 4;
+        int size = stride * region.Height;
         if (pixels.Length < size)
             pixels = new byte[size];
-        image.CopyPixels(new Int32Rect(0, firstRow, image.PixelWidth, rows), pixels, stride, 0);
+        image.CopyPixels(region, pixels, stride, 0);
     }
 }

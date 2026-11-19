@@ -17,6 +17,8 @@ internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibrati
 
 internal sealed class LiveOverlay
 {
+    private const int FramePollInterval = 40;
+    private const int CardScanInterval = 110;
     private readonly Ratings ratings;
     private readonly LayoutStore layouts;
     private readonly CardHistory history;
@@ -68,9 +70,11 @@ internal sealed class LiveOverlay
         EnemyDamageMix? enemyDamage = null;
         bool hideStartingItems = false;
         long nextPoll = 0;
+        Task<LiveMatch?>? pendingMatch = null;
+        (nint Handle, uint ProcessId) pendingWindow = default;
         long lastFrame = 0;
         long lastOffer = 0;
-        long nextShopScan = 0;
+        long nextCardScan = 0;
         string idle = "Esperando la partida…";
         Calibration? previous = null;
         GameWindow? lastWindow = null;
@@ -78,6 +82,7 @@ internal sealed class LiveOverlay
         bool cardsVisible = false;
         PrismaticDisplay? prismaticDisplay = null;
         Int32Rect? shop = null;
+        Int32Rect? knownShop = null;
         try
         {
             while (!cancellation.IsCancellationRequested)
@@ -88,6 +93,7 @@ internal sealed class LiveOverlay
                     if (window.Handle != lastWindow?.Handle || window.ProcessId != lastWindow?.ProcessId)
                     {
                         StopCapture();
+                        knownShop = null;
                         buildVisibility.ObserveShop(open: false);
                         history.ResetMatch();
                         game = null;
@@ -95,6 +101,9 @@ internal sealed class LiveOverlay
                         confirmedMatch = null;
                         nextPoll = 0;
                     }
+                    else if (lastWindow is { } prior &&
+                        (window.Bounds.Width != prior.Bounds.Width || window.Bounds.Height != prior.Bounds.Height))
+                        knownShop = null;
                     lastWindow = window;
                 }
                 OverlayUpdate? result;
@@ -110,34 +119,44 @@ internal sealed class LiveOverlay
                 else
                 {
                     var now = Environment.TickCount64;
-                    if (now >= nextPoll)
+                    if (pendingMatch is { IsCompleted: true } completed)
                     {
+                        pendingMatch = null;
+                        bool sameWindow = pendingWindow == (window.Handle, window.ProcessId);
                         try
                         {
-                            var current = await live.ReadMatch(cancellation).ConfigureAwait(false);
-                            bool newMatch = current is not null && confirmedMatch is not null && current.IsNewSession(confirmedMatch);
-                            if (game != current?.Game || newMatch)
-                                StopCapture();
-                            if (newMatch)
-                                history.ResetMatch();
-                            if (current is not null)
-                                confirmedMatch = current.GameTime.HasValue || newMatch
-                                    ? current : current with { GameTime = confirmedMatch?.GameTime };
-                            game = current?.Game;
-                            match = current;
-                            lastMatchRead = Environment.TickCount64;
+                            var current = await completed.ConfigureAwait(false);
+                            if (sameWindow)
+                            {
+                                bool newMatch = current is not null && confirmedMatch is not null && current.IsNewSession(confirmedMatch);
+                                if (game != current?.Game || newMatch)
+                                    StopCapture();
+                                if (newMatch)
+                                    history.ResetMatch();
+                                if (current is not null)
+                                    confirmedMatch = current.GameTime.HasValue || newMatch
+                                        ? current : current with { GameTime = confirmedMatch?.GameTime };
+                                game = current?.Game;
+                                match = current;
+                                lastMatchRead = Environment.TickCount64;
+                            }
                         }
                         catch (Exception error) when (error is HttpRequestException or JsonException or KeyNotFoundException
                             or InvalidOperationException or TaskCanceledException)
                         {
-                            if (Environment.TickCount64 - lastMatchRead >= 2500)
+                            if (sameWindow && Environment.TickCount64 - lastMatchRead >= 2500)
                             {
                                 StopCapture();
                                 game = null;
                                 match = null;
                             }
                         }
-                        nextPoll = Environment.TickCount64 + 1000;
+                    }
+                    if (pendingMatch is null && now >= nextPoll)
+                    {
+                        pendingWindow = (window.Handle, window.ProcessId);
+                        pendingMatch = live.ReadMatch(cancellation);
+                        nextPoll = now + 1000;
                     }
                     result = game is null
                         ? new OverlayUpdate("Esperando ARAM Caos o Arena…")
@@ -190,10 +209,19 @@ internal sealed class LiveOverlay
                             updateBuild(build);
                     }, DispatcherPriority.Normal, cancellation);
                 lastBuild = build;
-                await Task.Delay(capture is null ? 240 : 115, cancellation).ConfigureAwait(false);
+                await Task.Delay(window is null ? 180 : FramePollInterval, cancellation).ConfigureAwait(false);
             }
         }
-        finally { capture?.Dispose(); }
+        finally
+        {
+            capture?.Dispose();
+            if (pendingMatch is not null)
+            {
+                try { await pendingMatch.ConfigureAwait(false); }
+                catch (Exception error) when (error is HttpRequestException or JsonException or KeyNotFoundException
+                    or InvalidOperationException or TaskCanceledException) { }
+            }
+        }
 
         void StopCapture()
         {
@@ -203,7 +231,7 @@ internal sealed class LiveOverlay
             detector.Clear();
             lastFrame = 0;
             lastOffer = 0;
-            nextShopScan = 0;
+            nextCardScan = 0;
             cardsVisible = false;
             prismaticDisplay = null;
             shop = null;
@@ -221,37 +249,54 @@ internal sealed class LiveOverlay
                 StopCapture();
 
             var label = current.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
-            var name = ChampionName(current);
-            var source = opgg.Current(current, cancellation);
-            var mayhem = aramMayhem.Current(current.Mode, cancellation);
-            var arena = ggez.Current(current, cancellation);
-            var extraStatus = mayhem?.Status ?? arena?.Status;
-            var sources = extraStatus is null ? source.Status : $"{source.Status} · {extraStatus}";
-            idle = $"{label} · {name} · Esperando cartas… · {sources}";
-            var candidates = layouts.Find(current.Mode, window.Bounds.Width, window.Bounds.Height);
-
             try
             {
                 capture ??= new WindowCapture(window.Handle);
                 var scan = new Int32Rect(0, 0, window.Bounds.Width, window.Bounds.Height);
-                var frame = capture.Read(new Int32Rect(window.Bounds.X - window.Frame.X,
-                    window.Bounds.Y - window.Frame.Y, scan.Width, scan.Height));
+                var edge = knownShop is { } remembered ? ShopDetection.ProbeRegion(remembered, scan.Width, scan.Height) : null;
+                bool scanCards = Environment.TickCount64 >= nextCardScan;
+                if (!scanCards && edge is null)
+                    return null;
+                // Consultar solo el borde entre cuadros completos evita copiar toda la ventana para seguir la tienda.
+                var region = scanCards ? scan : edge.GetValueOrDefault();
+                var captureRegion = new Int32Rect(window.Bounds.X - window.Frame.X + region.X,
+                    window.Bounds.Y - window.Frame.Y + region.Y, region.Width, region.Height);
+                var frame = scanCards ? capture.Read(captureRegion) : capture.ReadProbe(captureRegion);
                 if (frame is null)
                 {
                     if (Environment.TickCount64 - lastFrame <= 600)
                         return null;
                     shop = null;
-                    nextShopScan = 0;
                     return new OverlayUpdate($"{label} · Esperando imagen de League…");
                 }
-                var now = Environment.TickCount64;
-                lastFrame = now;
-                if (now >= nextShopScan)
+                lastFrame = Environment.TickCount64;
+
+                bool wasOpen = shop.HasValue;
+                bool edgeVisible = edge is { } border && shopDetector.MatchesProbe(frame,
+                    scanCards ? border : new Int32Rect(0, 0, region.Width, region.Height));
+                shop = edgeVisible ? knownShop : null;
+                if (!edgeVisible && scanCards && (!wasOpen || edge is null))
                 {
-                    shop = shopDetector.Read(frame, detector, shop);
-                    buildVisibility.ObserveShop(shop.HasValue);
-                    nextShopScan = Environment.TickCount64 + (shop is null ? 400 : 180);
+                    shop = shopDetector.Read(frame, detector, previous: null);
+                    if (shop is { } located)
+                        knownShop = ShopDetection.ProbeRegion(located, scan.Width, scan.Height) is { } candidateEdge &&
+                            shopDetector.MatchesProbe(frame, candidateEdge) ? located : null;
                 }
+                buildVisibility.ObserveShop(shop.HasValue);
+                if (!scanCards)
+                    return null;
+                nextCardScan = lastFrame + CardScanInterval;
+                if (!cardsVisible && wasOpen != shop.HasValue)
+                    return null;
+
+                var name = ChampionName(current);
+                var source = opgg.Current(current, cancellation);
+                var mayhem = aramMayhem.Current(current.Mode, cancellation);
+                var arena = ggez.Current(current, cancellation);
+                var extraStatus = mayhem?.Status ?? arena?.Status;
+                var sources = extraStatus is null ? source.Status : $"{source.Status} · {extraStatus}";
+                idle = $"{label} · {name} · Esperando cartas… · {sources}";
+                var candidates = layouts.Find(current.Mode, scan.Width, scan.Height);
                 if (candidates.Length == 0)
                     return new OverlayUpdate($"{label} · Calibra un panel de {window.Bounds.Width} × {window.Bounds.Height}.");
                 string status = idle;

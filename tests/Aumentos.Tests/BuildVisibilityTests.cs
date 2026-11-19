@@ -35,6 +35,10 @@ internal static class BuildVisibilityTests
             var frame = Diagnostics.OpenBitmap(shopShot);
             shop = detector.Read(frame, ocr, previous: null);
             Check(shop is not null && detector.Read(frame, ocr, shop) == shop, "tienda real reconocida y sostenida");
+            var edge = ShopDetection.ProbeRegion(shop!.Value, frame.PixelWidth, frame.PixelHeight)!.Value;
+            var cropped = new CroppedBitmap(frame, edge);
+            Check(detector.MatchesProbe(cropped, new Int32Rect(0, 0, cropped.PixelWidth, cropped.PixelHeight)),
+                "la señal de reapertura se reconoce con solo el recorte del borde");
 
             var resized = Transform(frame, 1600, 900, new Rect(0, 0, 1600, 900));
             Check(detector.Read(resized, ocr, previous: null) is not null, "tienda reconocida al cambiar resolución");
@@ -51,6 +55,12 @@ internal static class BuildVisibilityTests
         {
             var frame = Diagnostics.OpenBitmap(closedShot);
             Check(detector.Read(frame, ocr, shop) is null, "la selección de aumentos no abre la build");
+            if (shop is { } remembered && ShopDetection.ProbeRegion(remembered, frame.PixelWidth, frame.PixelHeight) is { } edge)
+            {
+                var cropped = new CroppedBitmap(frame, edge);
+                Check(!detector.MatchesProbe(cropped, new Int32Rect(0, 0, cropped.PixelWidth, cropped.PixelHeight)),
+                    "el recorte deja de confirmar la tienda al cerrar y conserva la posición para reabrir");
+            }
         }
     }
 
