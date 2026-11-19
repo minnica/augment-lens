@@ -43,13 +43,15 @@ internal static class Program
                         var champion = ratings.Catalog.Champions.Single(item =>
                             string.Equals(item.Key, args[3], StringComparison.OrdinalIgnoreCase));
                         var game = new GameContext(mode, champion.Key);
-                        var (source, mayhem) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
-                            new AramMayhemRatings(ratings.Catalog, settings, http));
+                        var (source, mayhem, arena) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
+                            new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http));
                         comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
-                            mayhem: mayhem?.Data);
+                            mayhem: mayhem?.Data, ggez: arena?.Data);
                         Console.WriteLine(source.Status);
                         if (mayhem is not null)
                             Console.WriteLine(mayhem.Status);
+                        if (arena is not null)
+                            Console.WriteLine(arena.Status);
                     }
                     for (int index = 0; index < result.Cards.Length; index++)
                     {
@@ -61,6 +63,8 @@ internal static class Program
                             label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
                             if (comparison.Mayhem is { } popularity)
                                 label += $" · {popularity.Text} · {(popularity.IsPrevious ? "Parche anterior" : "Parche")} {popularity.Patch}";
+                            if (comparison.Arena is { } arenaPopularity)
+                                label += $" · {arenaPopularity.Text} · {arenaPopularity.Details}";
                         }
                         Console.WriteLine(label);
                     }
@@ -85,8 +89,9 @@ internal static class Program
             var history = new CardHistory(settings, ratings);
             var opgg = new OpGgRatings(ratings.Catalog, settings, http);
             var aramMayhem = new AramMayhemRatings(ratings.Catalog, settings, http);
+            var ggez = new GgezArenaRatings(ratings.Catalog, settings, http);
             if (args.FirstOrDefault() == "--registrar-capturas")
-                return ImportCaptures(args, assets, ratings, layouts, history, opgg, aramMayhem);
+                return ImportCaptures(args, assets, ratings, layouts, history, opgg, aramMayhem, ggez);
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var diagnostics = new Diagnostics(ratings, layouts, assets);
             var closing = false;
@@ -101,7 +106,7 @@ internal static class Program
             var overlay = new Overlay();
             using var stop = new CancellationTokenSource();
             string previous = "";
-            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, assets, app.Dispatcher, state =>
+            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
@@ -134,16 +139,9 @@ internal static class Program
                 }
             });
             menu.Items.Add($"Datos de {AramMayhemRatings.Attribution}", null, (_, _) =>
-            {
-                try
-                {
-                    using var browser = Process.Start(new ProcessStartInfo(AramMayhemRatings.AttributionUrl) { UseShellExecute = true });
-                }
-                catch (System.ComponentModel.Win32Exception)
-                {
-                    MessageBox.Show(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution);
-                }
-            });
+                OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
+            menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
+                OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
             var pause = new Forms.ToolStripMenuItem("Pausar overlay") { CheckOnClick = true };
             pause.CheckedChanged += (_, _) =>
             {
@@ -209,16 +207,26 @@ internal static class Program
         }
     }
 
-    private static (OpGgView OpGg, AramMayhemView? Mayhem) CaptureSources(GameContext game, OpGgRatings opgg,
-        AramMayhemRatings aramMayhem)
+    private static void OpenProviderPage(string url, string attribution)
+    {
+        try
+        {
+            using var browser = Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception) { MessageBox.Show(url, attribution); }
+    }
+
+    private static (OpGgView OpGg, AramMayhemView? Mayhem, GgezArenaView? Arena) CaptureSources(
+        GameContext game, OpGgRatings opgg, AramMayhemRatings aramMayhem, GgezArenaRatings ggez)
     {
         var opggWork = opgg.ForCaptureAsync(game, CancellationToken.None);
         var mayhemWork = aramMayhem.ForCaptureAsync(game.Mode, CancellationToken.None);
-        return (opggWork.GetAwaiter().GetResult(), mayhemWork.GetAwaiter().GetResult());
+        var arenaWork = ggez.ForCaptureAsync(game, CancellationToken.None);
+        return (opggWork.GetAwaiter().GetResult(), mayhemWork.GetAwaiter().GetResult(), arenaWork.GetAwaiter().GetResult());
     }
 
     private static int ImportCaptures(string[] args, string assets, Ratings ratings, LayoutStore layouts, CardHistory history,
-        OpGgRatings opgg, AramMayhemRatings aramMayhem)
+        OpGgRatings opgg, AramMayhemRatings aramMayhem, GgezArenaRatings ggez)
     {
         try
         {
@@ -238,9 +246,9 @@ internal static class Program
                 var read = detector.ReadPanel(image, bounds, options, mode, null);
                 if (read is not { Result: var result } || !result.CanShow(false))
                     throw new InvalidDataException($"No se pudieron verificar los aumentos de {Path.GetFileName(file)}.");
-                var (source, mayhem) = CaptureSources(new GameContext(mode, champion.Key), opgg, aramMayhem);
+                var (source, mayhem, arena) = CaptureSources(new GameContext(mode, champion.Key), opgg, aramMayhem, ggez);
                 history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards,
-                    source.Data, mayhem?.Data);
+                    source.Data, mayhem?.Data, arena?.Data);
                 Console.WriteLine($"{champion.Name} · {Path.GetFileName(file)} · {result.Cards.Count(card => card.HasValue)} cartas");
             }
             history.Flush();

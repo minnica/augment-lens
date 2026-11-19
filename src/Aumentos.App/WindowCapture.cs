@@ -51,6 +51,19 @@ internal record GameWindow(nint Handle, Int32Rect Bounds, Int32Rect Frame, strin
 
 internal static class LeaguePatch
 {
+    // Riot labels the public patch by season year, while the client reports its binary major version.
+    internal static string Public(string clientPatch)
+    {
+        var version = Version.Parse(clientPatch);
+        return $"{version.Major + 10}.{version.Minor}";
+    }
+
+    internal static string? Previous(string patch)
+    {
+        var version = Version.Parse(patch);
+        return version.Minor > 1 ? $"{version.Major}.{version.Minor - 1}" : null;
+    }
+
     internal static string? Installed()
     {
         var metadata = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),

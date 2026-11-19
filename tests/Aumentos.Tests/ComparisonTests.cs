@@ -68,11 +68,12 @@ internal static class ComparisonTests
             "un archivo de otro parche tampoco sirve como respaldo");
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
+        await CheckGgezArena(ratings, lux, elise);
     }
 
     private static async Task CheckAramMayhem(Ratings ratings, GameContext lux, GameContext elise)
     {
-        var current = AramMayhemRatings.SitePatch(ratings.Catalog.Patch);
+        var current = LeaguePatch.Public(ratings.Catalog.Patch);
         var version = Version.Parse(current);
         var prior = $"{version.Major}.{version.Minor - 1}";
         var older = $"{version.Major}.{version.Minor - 2}";
@@ -137,6 +138,73 @@ internal static class ComparisonTests
         });
         static object Row(string augmentId, string name, decimal pickRate) =>
             new { augmentId, name = new Dictionary<string, string> { ["es-MX"] = name }, pickRate };
+    }
+
+    private static async Task CheckGgezArena(Ratings ratings, GameContext lux, GameContext elise)
+    {
+        var patch = ratings.Catalog.Patch;
+        var ids = ratings.Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena)).Select(card => card.Id).ToHashSet();
+        using var folder = new TemporaryFolder();
+        var server = new PageHandler((_, _) => Task.FromResult(Ok(Page(elise.Champion, patch, "patch"))));
+        using var http = new HttpClient(server);
+        var source = new GgezArenaRatings(ratings.Catalog, folder.Path, http);
+        Check(source.Current(lux, default) is null && await source.ForCaptureAsync(lux, default) is null && server.Requests == 0,
+            "Caos no consulta GGEZ.GG");
+        var work = source.ForCaptureAsync(elise, default);
+        var second = source.ForCaptureAsync(elise, default);
+        var ready = await work;
+        var data = ready?.Data;
+        Check(data is { IsPrevious: false, SampleGames: 760 } && (await second)?.Data == data && server.Requests == 1 &&
+            source.SourceUrl == GgezArenaPage.Address(elise.Champion).AbsoluteUri, "una descarga por campeón y enlace a la fuente");
+        var labels = CardComparison.ForOffer(ratings, elise, [97, 120, 1034, null], new bool[4], null, ggez: data);
+        Check(labels[0]?.Arena is { GamesPicked: 59, SampleGames: 760, Percent: 7.7631578947368425m } &&
+            labels[1]?.Arena?.GamesPicked == 17 && labels[2]?.Arena is null && labels[3] == CardComparison.Unread,
+            "porcentaje y muestra para cada carta, con rechazo de una fila inconsistente");
+        Check(CardComparison.ForOffer(ratings, elise, [120], [false], null, ggez: data)[0] == labels[1] &&
+            CardComparison.ForOffer(ratings, elise with { Champion = "Lux" }, [97], [false], null, ggez: data)[0]?.Arena is null,
+            "reroll y aislamiento del campeón");
+
+        var broken = new PageHandler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)));
+        using var offline = new HttpClient(broken);
+        var restarted = new GgezArenaRatings(ratings.Catalog, folder.Path, offline);
+        Check((await restarted.ForCaptureAsync(elise, default))?.Data?.Picks[97].GamesPicked == 59 && broken.Requests == 0,
+            "reutiliza una copia válida al volver a iniciar");
+        var stale = data! with { FetchedAt = DateTimeOffset.UtcNow.AddDays(-1) };
+        var cache = Directory.GetFiles(folder.Path, "*.json", SearchOption.AllDirectories).Single();
+        File.WriteAllText(cache, JsonSerializer.Serialize(stale));
+        Check((await new GgezArenaRatings(ratings.Catalog, folder.Path, offline).ForCaptureAsync(elise, default))?.Data?.SampleGames == 760 &&
+            broken.Requests == 1, "conserva la copia al fallar la red");
+
+        if (LeaguePatch.Previous(patch) is { } previous)
+        {
+            var older = GgezArenaPage.Read(Page(elise.Champion, previous, "patch"), elise.Champion, patch, ids);
+            Check(older.IsPrevious, "identifica datos del parche anterior");
+        }
+        Reject(Page(elise.Champion, "13.1", "patch"), "rechaza un parche vencido");
+        Reject(Page(elise.Champion, patch, "rolling"), "rechaza una ventana que mezcla parches");
+        Reject(Page(lux.Champion, patch, "patch"), "rechaza una página de otro campeón");
+        Reject(Page(elise.Champion, patch, "patch").Replace("champion:\"Elise\"", "champion:\"Lux\""),
+            "rechaza datos de otro campeón incluso con la página correcta");
+        Check(GgezArenaPage.Address("MonkeyKing").AbsolutePath == "/champion/Wukong/arena" &&
+            GgezArenaPage.Read(Page("MonkeyKing", patch, "patch"), "MonkeyKing", patch, ids).SampleGames == 760,
+            "la página de Wukong usa su nombre público y conserva la identidad del cliente");
+        Console.WriteLine("GGEZ.GG verificado con porcentaje, partidas, parche, caché y aislamiento de Arena.");
+
+        void Reject(string html, string message)
+        {
+            try { GgezArenaPage.Read(html, elise.Champion, patch, ids); }
+            catch (InvalidDataException) { return; }
+            throw new InvalidOperationException(message);
+        }
+
+        static string Page(string champion, string pagePatch, string window) => $$$"""
+            <link rel="canonical" href="{{{GgezArenaPage.Address(champion)}}}"/>
+            <script>kit.start({data:[{type:"data",data:{champion:"{{{champion}}}",id:60,filters:{region:"all",window:"{{{window}}}"},available:true,patch:"{{{pagePatch}}}",matches:8047,row:{games:610},augments:[
+            {id:97,games:59,avgPlace:3.4,top3Rate:53.7,pickShare:7.7631578947368425,name:"Witchful Thinking"},
+            {id:120,games:17,pickShare:2.236842105263158,name:"Serve Beyond Death"},
+            {id:1034,games:70,pickShare:10,name:"mismatched"},
+            {id:99999,games:0,pickShare:0}],augOk:true,namesOk:true,teamsOk:true,augTotal:760}}]});</script>
+            """;
     }
 
     private static string Page(GameContext game, string patch, string props)

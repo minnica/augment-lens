@@ -25,13 +25,14 @@ internal sealed class LiveOverlay
     private readonly CardHistory history;
     private readonly OpGgRatings opgg;
     private readonly AramMayhemRatings aramMayhem;
+    private readonly GgezArenaRatings ggez;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private int paused;
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
-        AramMayhemRatings aramMayhem, string assets,
+        AramMayhemRatings aramMayhem, GgezArenaRatings ggez, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update)
     {
         this.ratings = ratings;
@@ -39,6 +40,7 @@ internal sealed class LiveOverlay
         this.history = history;
         this.opgg = opgg;
         this.aramMayhem = aramMayhem;
+        this.ggez = ggez;
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
@@ -129,7 +131,9 @@ internal sealed class LiveOverlay
                 string.Equals(item.Key, current.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? current.Champion;
             var source = opgg.Current(current, cancellation);
             var mayhem = aramMayhem.Current(current.Mode, cancellation);
-            var sources = mayhem is null ? source.Status : $"{source.Status} · {mayhem.Status}";
+            var arena = ggez.Current(current, cancellation);
+            var extraStatus = mayhem?.Status ?? arena?.Status;
+            var sources = extraStatus is null ? source.Status : $"{source.Status} · {extraStatus}";
             idle = $"{label} · {name} · Esperando cartas… · {sources}";
             var candidates = layouts.Find(current.Mode, window.Bounds.Width, window.Bounds.Height);
             if (candidates.Length == 0)
@@ -155,7 +159,7 @@ internal sealed class LiveOverlay
                     {
                         previous = candidate;
                         var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
-                            source.Data, source.Loading, mayhem?.Data);
+                            source.Data, source.Loading, mayhem?.Data, arena?.Data);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
@@ -231,7 +235,7 @@ internal sealed class Overlay
         private readonly TextBlock source = new() { FontWeight = FontWeights.Bold, FontSize = 16 };
         private readonly TextBlock local = new() { FontSize = 13, Foreground = Brushes.WhiteSmoke };
         private readonly TextBlock popularity = new() { FontSize = 12, Foreground = Brushes.WhiteSmoke };
-        private readonly TextBlock previousPatch = new() { FontSize = 11, Foreground = Paint("#FFD76D") };
+        private readonly TextBlock popularityDetails = new() { FontSize = 11 };
         private readonly Border badge;
         private CardComparison? displayed;
         private nint handle;
@@ -253,7 +257,7 @@ internal sealed class Overlay
             panel.Children.Add(source);
             panel.Children.Add(local);
             panel.Children.Add(popularity);
-            panel.Children.Add(previousPatch);
+            panel.Children.Add(popularityDetails);
             badge = new Border
             {
                 Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(6),
@@ -283,10 +287,13 @@ internal sealed class Overlay
                 source.Text = unread ? "?" : $"OP.GG   {value.ExternalText}";
                 local.Text = $"Estimación local   {value.Local}";
                 local.Visibility = unread ? Visibility.Collapsed : Visibility.Visible;
-                popularity.Text = value.Mayhem?.Text ?? "";
-                popularity.Visibility = value.Mayhem is null ? Visibility.Collapsed : Visibility.Visible;
-                previousPatch.Text = value.Mayhem is { IsPrevious: true } old ? $"Parche anterior {old.Patch}" : "";
-                previousPatch.Visibility = previousPatch.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                popularity.Text = value.Mayhem?.Text ?? value.Arena?.Text ?? "";
+                popularity.Visibility = popularity.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                popularityDetails.Text = value.Mayhem is { IsPrevious: true } old ?
+                    $"Parche anterior {old.Patch}" : value.Arena?.Details ?? "";
+                popularityDetails.Visibility = popularityDetails.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+                popularityDetails.Foreground = value.Mayhem?.IsPrevious == true || value.Arena?.IsPrevious == true
+                    ? Paint("#FFD76D") : Brushes.WhiteSmoke;
                 badge.BorderBrush = source.Foreground = value.External?.Tier switch
                 {
                     "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")

@@ -14,7 +14,7 @@ namespace Aumentos;
 internal sealed record AramMayhemSnapshot(string ClientPatch, string Patch, DateOnly? StatsDate,
     DateTimeOffset FetchedAt, Dictionary<int, decimal> Picks)
 {
-    internal bool IsPrevious => Patch != AramMayhemRatings.SitePatch(ClientPatch);
+    internal bool IsPrevious => Patch != LeaguePatch.Public(ClientPatch);
 }
 
 internal sealed record AramMayhemView(AramMayhemSnapshot? Data, string Status);
@@ -45,19 +45,11 @@ internal sealed class AramMayhemRatings
     private sealed record ExportMetadata(string Patch, DateOnly? StatsDate);
     private sealed record ExportRow(string? AugmentId, Dictionary<string, string>? Name, decimal? PickRate);
 
-    // Riot's public patch numbers use the season year (26.23) and the client uses its major version (16.23).
-    internal static string SitePatch(string clientPatch)
-    {
-        var version = Version.Parse(clientPatch);
-        return $"{version.Major + 10}.{version.Minor}";
-    }
-
     internal AramMayhemRatings(Catalog catalog, string settings, HttpClient client)
     {
         clientPatch = catalog.Patch;
-        patch = SitePatch(clientPatch);
-        var season = Version.Parse(patch);
-        previousPatch = season.Minor > 1 ? $"{season.Major}.{season.Minor - 1}" : null;
+        patch = LeaguePatch.Public(clientPatch);
+        previousPatch = LeaguePatch.Previous(patch);
         cachePath = Path.Combine(settings, "arammayhem", $"{clientPatch}.json");
         this.client = client;
         var cards = catalog.Augments.Where(card => card.Mode == nameof(Mode.Caos)).ToArray();

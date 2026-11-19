@@ -17,8 +17,9 @@ internal static class Program
         Native.SetProcessDpiAwarenessContext(-4);
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
         var ratings = new Ratings(assets);
-        CheckHistory(ratings, withOpGg: false);
-        CheckHistory(ratings, withOpGg: true);
+        CheckHistory(ratings, legacyColumns: 11);
+        CheckHistory(ratings, legacyColumns: 12);
+        CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
@@ -192,16 +193,25 @@ internal static class Program
         }
     }
 
-    private static void CheckHistory(Ratings ratings, bool withOpGg)
+    private static void CheckHistory(Ratings ratings, int legacyColumns)
     {
         var folder = Path.Combine(Path.GetTempPath(), $"AumentosHistory-{Guid.NewGuid():N}");
         var history = new CardHistory(folder, ratings);
         try
         {
             Directory.CreateDirectory(folder);
+            var headerSuffix = legacyColumns >= 12 ? ",opgg" : "";
+            var rowSuffix = legacyColumns >= 12 ? ",A" : "";
+            var savedSuffix = legacyColumns >= 12 ? ",\"A\"" : "";
+            if (legacyColumns == 14)
+            {
+                headerSuffix += ",arammayhem_popularidad_global_pct,arammayhem_parche";
+                rowSuffix += ",24.6,26.21";
+                savedSuffix += ",\"24.6\",\"26.21\"";
+            }
             File.WriteAllLines(history.FilePath, [
-                "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen" + (withOpGg ? ",opgg" : ""),
-                "2026-11-18,Arena,Elise,16.22,,1,2,57,\"Texto, con coma\",B,Partida" + (withOpGg ? ",A" : "")
+                "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen" + headerSuffix,
+                "2026-11-18,Arena,Elise,16.22,,1,2,57,\"Texto, con coma\",B,Partida" + rowSuffix
             ]);
             CardComparison?[] original = [new("B"), new("B"), CardComparison.Unread, new("S")];
             CardComparison?[] reroll = [new("B"), new("A", new OpGgCard("S"), Mayhem: new(12.5m, "26.22", true)),
@@ -212,17 +222,22 @@ internal static class Program
             history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], reroll, 1000);
             history.ObserveClosed(4, 2000);
             history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], reroll, 3400);
-            history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180]);
+            var ggez = new GgezArenaSnapshot("Elise", ratings.Catalog.Patch, ratings.Catalog.Patch,
+                DateTimeOffset.UtcNow, 100, new() { [1034] = new(10, 10) });
+            history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180], ggez: ggez);
             history.Flush();
             history.Flush();
             var lines = File.ReadAllLines(history.FilePath);
-            Check(lines[0].EndsWith(",opgg,arammayhem_popularidad_global_pct,arammayhem_parche") &&
-                lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\"," + (withOpGg ? "\"A\",," : ",,")),
+            Check(lines[0].EndsWith(",ggez_eleccion_pct,ggez_veces_elegido,ggez_partidas,ggez_parche") &&
+                lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\"" + savedSuffix + new string(',', 18 - legacyColumns)),
                 "la columna nueva conserva los valores del historial anterior");
             Check(lines.Length == 12, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
             Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\""))
-                .EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\",\"12.5\",\"26.22\""),
+                .EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\",\"12.5\",\"26.22\",\"\",\"\",\"\",\"\""),
                 "se guardan las valoraciones y el parche de la popularidad global");
+            Check(lines.Single(row => row.Contains("\"1034\",\"Velo del Centinela\""))
+                .EndsWith($"\"10\",\"10\",\"100\",\"{LeaguePatch.Public(ratings.Catalog.Patch)}\""),
+                "se guardan porcentaje y muestra de Arena");
             Check(lines.Any(row => row.Contains("\"2\",\"1\",\"2098\"")) &&
                 lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Variable\",\"Captura · tier recalculado · image4.png\"")),
                 "selecciones nuevas y origen de captura");
@@ -431,6 +446,11 @@ internal static class Program
                 [new("A", Mayhem: new(18.81m, "26.23", false))]));
             Check(VisibleLines(first).SequenceEqual(["OP.GG   Sin dato", "Estimación local   A", "ARAMMayhem.com   18.81 % global"]),
                 "la anotación del parche anterior desaparece al llegar los datos vigentes");
+            overlay.Render(new OverlayUpdate("Arena", bounds, layout,
+                [new("A", Arena: new(7.76m, 59, 760, "26.23", false)), null]));
+            Check(VisibleLines(first).SequenceEqual(
+                ["OP.GG   Sin dato", "Estimación local   A", "GGEZ.GG   7.76 % elección", "59/760 partidas · 26.23"]),
+                "Arena muestra el porcentaje y la muestra del campeón con atribución y parche");
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
             Console.WriteLine("Overlay de WPF verificado.");
