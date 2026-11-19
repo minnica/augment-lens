@@ -83,11 +83,15 @@ internal sealed class Detection : IDisposable
         (Calibration Layout, DetectionResult Result)? best = null;
         foreach (var layout in layouts.OrderByDescending(item => item == previous))
         {
-            if (!PanelVisible(image, scan, layout))
+            bool marker = PanelVisible(image, scan, layout);
+            if (!marker && layout.Titles.Where(title => LooksLikeTitle(image, Relative(title, scan, layout)))
+                    .Take(2).Count() < 2)
                 continue;
             if (layout != previous)
                 state.Clear();
             var result = Scan(image, scan, layout, mode, panelConfirmed: true);
+            if (!marker && result.Matched < 2)
+                continue;
             if (layout == previous && result.CanShow(true))
                 return (layout, result);
             if (best is null || result.Matched > best.Value.Result.Matched)
@@ -97,6 +101,25 @@ internal sealed class Detection : IDisposable
         }
         state.Clear();
         return best;
+    }
+
+    private static bool LooksLikeTitle(BitmapSource image, Int32Rect rect)
+    {
+        var gray = GrayCrop(image, rect);
+        var pixels = new byte[rect.Width * rect.Height];
+        gray.CopyPixels(pixels, rect.Width, 0);
+        int samples = 0, dark = 0, light = 0;
+        for (int y = 0; y < rect.Height; y += 2)
+        {
+            for (int x = rect.Width / 16; x < rect.Width - rect.Width / 16; x += 3)
+            {
+                byte value = pixels[y * rect.Width + x];
+                samples++;
+                if (value < 52) dark++;
+                if (value > 125) light++;
+            }
+        }
+        return dark * 4 >= samples * 3 && light * 100 >= samples && light * 4 <= samples;
     }
 
     internal DetectionResult Scan(BitmapSource image, Int32Rect scan, Calibration calibration, Mode mode, bool panelConfirmed = false)

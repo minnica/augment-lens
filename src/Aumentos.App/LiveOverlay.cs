@@ -15,21 +15,25 @@ using System.Windows.Threading;
 
 namespace Aumentos;
 
-internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null, string?[]? Labels = null);
+internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
+    string?[]? Labels = null, nint Target = 0);
 
 internal sealed class LiveOverlay
 {
     private readonly Ratings ratings;
     private readonly LayoutStore layouts;
+    private readonly CardHistory history;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private int paused;
 
-    public LiveOverlay(Ratings ratings, LayoutStore layouts, string assets, Dispatcher dispatcher, Action<OverlayUpdate> update)
+    public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, string assets,
+        Dispatcher dispatcher, Action<OverlayUpdate> update)
     {
         this.ratings = ratings;
         this.layouts = layouts;
+        this.history = history;
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
@@ -86,6 +90,7 @@ internal sealed class LiveOverlay
                         : ReadOverlay(window, game);
                 }
 
+                history.WriteIfDue(Environment.TickCount64);
                 if (result is not null)
                     await dispatcher.InvokeAsync(() => update(result), DispatcherPriority.Normal, cancellation);
                 await Task.Delay(capture is null ? 240 : 115, cancellation).ConfigureAwait(false);
@@ -146,7 +151,9 @@ internal sealed class LiveOverlay
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
-                        return new OverlayUpdate($"{label} · {name} · Tiers {string.Join(" / ", badges)}", window.Bounds, candidate, badges);
+                        history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
+                        return new OverlayUpdate($"{label} · {name} · Tiers {string.Join(" / ", badges)}", window.Bounds, candidate, badges,
+                            window.Handle);
                     }
                     status = result.Items.Any(item => item)
                         ? $"{label} · Panel de objetos"
@@ -156,6 +163,7 @@ internal sealed class LiveOverlay
                     return null;
                 previous = null;
                 detector.Clear();
+                history.ObserveClosed(window.Handle, Environment.TickCount64);
                 return new OverlayUpdate(status);
             }
             catch (Exception error) when (error is COMException or InvalidOperationException or
@@ -169,77 +177,36 @@ internal sealed class LiveOverlay
 
 }
 
-internal sealed class Overlay : Window
+internal sealed class Overlay
 {
-    private readonly Canvas surface = new();
-    private readonly Border[] badges;
-    private nint handle;
-
-    public Overlay()
-    {
-        WindowStyle = WindowStyle.None;
-        AllowsTransparency = true;
-        ShowActivated = false;
-        ShowInTaskbar = false;
-        ResizeMode = ResizeMode.NoResize;
-        Topmost = true;
-        Background = Brushes.Transparent;
-        IsHitTestVisible = false;
-        Content = surface;
-        badges = Enumerable.Range(0, 4).Select(_ =>
-        {
-            var badge = new Border
-            {
-                Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(8),
-                Background = Paint("#F0172436"), BorderThickness = new Thickness(1),
-                Child = new TextBlock { FontWeight = FontWeights.Bold, FontSize = 18 }
-            };
-            surface.Children.Add(badge);
-            return badge;
-        }).ToArray();
-        SourceInitialized += (_, _) =>
-        {
-            handle = new WindowInteropHelper(this).Handle;
-            const int exStyle = -20;
-            Native.SetWindowLongW(handle, exStyle, Native.GetWindowLongW(handle, exStyle) | 0x08000020 | 0x80);
-        };
-    }
+    private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
+    internal IReadOnlyList<Window> Windows => badges;
+    internal bool IsVisible => badges.Any(badge => badge.NativeVisible);
+    internal void Hide() { foreach (var badge in badges) badge.HideBadge(); }
+    internal void Close() { foreach (var badge in badges) badge.Close(); }
 
     internal void Render(OverlayUpdate update)
     {
         if (update.Bounds is not { } bounds || update.Layout is not { } layout || update.Labels is not { } labels)
         {
-            if (IsVisible) Hide();
+            Hide();
             return;
         }
 
-        handle = new WindowInteropHelper(this).EnsureHandle();
-        Native.SetWindowPos(handle, -1, bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x0010);
-        var dpi = VisualTreeHelper.GetDpi(this);
+        double scale = update.Target != 0 ? Math.Max(96u, Native.GetDpiForWindow(update.Target)) / 96.0 : 1;
         for (int index = 0; index < badges.Length; index++)
         {
             var badge = badges[index];
             string? label = index < labels.Length ? labels[index] : null;
-            badge.Visibility = label is not null ? Visibility.Visible : Visibility.Collapsed;
             if (label is null)
-                continue;
-            var text = (TextBlock)badge.Child;
-            text.Text = label;
-            badge.BorderBrush = text.Foreground = label switch
             {
-                "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")
-            };
-            badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                badge.HideBadge();
+                continue;
+            }
             var title = layout.Titles[index];
-            Canvas.SetLeft(badge, (title.X + title.Width / 2) * bounds.Width / dpi.DpiScaleX - badge.DesiredSize.Width / 2);
-            Canvas.SetTop(badge, Math.Max(0, title.Y * bounds.Height / dpi.DpiScaleY - badge.DesiredSize.Height - 3));
+            badge.Display(label, bounds.X + (title.X + title.Width / 2) * bounds.Width,
+                bounds.Y + title.Y * bounds.Height, scale);
         }
-        if (!IsVisible)
-        {
-            Show();
-        }
-        const uint showWithoutActivation = 0x0040 | 0x0010;
-        Native.SetWindowPos(handle, -1, bounds.X, bounds.Y, bounds.Width, bounds.Height, showWithoutActivation);
     }
 
     internal static Brush Paint(string hex)
@@ -247,5 +214,71 @@ internal sealed class Overlay : Window
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
         brush.Freeze();
         return brush;
+    }
+
+    private sealed class BadgeWindow : Window
+    {
+        private readonly TextBlock title = new() { FontWeight = FontWeights.Bold, FontSize = 18 };
+        private readonly Border badge;
+        private nint handle;
+        private Int32Rect placement;
+        internal bool NativeVisible => handle != 0 && Native.IsWindowVisible(handle);
+
+        internal BadgeWindow(int slot)
+        {
+            Title = $"Aumentos LoL · Carta {slot}";
+            WindowStyle = WindowStyle.None;
+            AllowsTransparency = true;
+            ShowActivated = false;
+            ShowInTaskbar = false;
+            ResizeMode = ResizeMode.NoResize;
+            Topmost = true;
+            Background = Brushes.Transparent;
+            IsHitTestVisible = false;
+            badge = new Border
+            {
+                Padding = new Thickness(10, 3, 10, 3), CornerRadius = new CornerRadius(6),
+                Background = Paint("#F0172436"), BorderThickness = new Thickness(1), Child = title
+            };
+            Content = badge;
+            SourceInitialized += (_, _) =>
+            {
+                handle = new WindowInteropHelper(this).Handle;
+                const int exStyle = -20;
+                Native.SetWindowLongW(handle, exStyle, Native.GetWindowLongW(handle, exStyle) | 0x080000A0);
+            };
+        }
+
+        internal void HideBadge()
+        {
+            if (IsVisible)
+                Hide();
+        }
+
+        internal void Display(string value, double center, double titleY, double dpiScale)
+        {
+            if (title.Text != value)
+            {
+                title.Text = value;
+                badge.BorderBrush = title.Foreground = value switch
+                {
+                    "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")
+                };
+            }
+            badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Width = badge.DesiredSize.Width;
+            Height = badge.DesiredSize.Height;
+            dpiScale = Math.Max(dpiScale, VisualTreeHelper.GetDpi(this).DpiScaleX);
+            int width = (int)Math.Ceiling(Width * dpiScale);
+            int height = (int)Math.Ceiling(Height * dpiScale);
+            var target = new Int32Rect((int)Math.Round(center - width / 2.0), (int)Math.Round(titleY) - height - 4, width, height);
+            if (IsVisible && NativeVisible && target == placement)
+                return;
+            if (!IsVisible)
+                Show();
+            const uint showWithoutActivation = 0x0040 | 0x0010;
+            Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation);
+            placement = target;
+        }
     }
 }

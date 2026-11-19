@@ -17,6 +17,7 @@ internal static class Program
         Native.SetProcessDpiAwarenessContext(-4);
         var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
         var ratings = new Ratings(assets);
+        CheckHistory(ratings);
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
@@ -109,6 +110,30 @@ internal static class Program
             var labels = full!.Value.Result.Cards.Select(card => ratings.Rate(Mode.Caos, "Janna", card!.Value)?.ToString()).ToArray();
             Console.WriteLine($"Tiers de Janna: {string.Join(" / ", labels)}");
         }
+        if (Option("--caos-four-live-shot") is { } fourLiveShot)
+        {
+            var image = Diagnostics.OpenBitmap(fourLiveShot);
+            var candidates = defaultLayouts.Find(Mode.Caos, 2560, 1440);
+            var visual = new DrawingVisual();
+            using (var drawing = visual.RenderOpen())
+            {
+                drawing.DrawImage(image, new Rect(0, 0, 2560, 1440));
+                // A missing button must not stop the live reader from recognizing the card titles.
+                drawing.DrawRectangle(Brushes.Black, null, new Rect(1080, 1080, 400, 145));
+            }
+            var frame = new RenderTargetBitmap(2560, 1440, 96, 96, PixelFormats.Pbgra32);
+            frame.Render(visual);
+            var capture = new FormatConvertedBitmap(frame, PixelFormats.Bgr32, null, 0);
+            using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+            var area = new Int32Rect(0, 0, 2560, 1440);
+            Check(candidates.All(layout => !detector.PanelVisible(capture, area, layout)), "señal del botón ausente");
+            var read = detector.ReadPanel(capture, area, candidates, Mode.Caos, null);
+            Check(read is { Layout.Titles.Length: 4 } && read.Value.Result.Cards.SequenceEqual(new int?[] { 2098, 1088, 2087, 2062 }),
+                "cuatro cartas con la señal del botón ausente");
+            var tiers = read!.Value.Result.Cards.Select(id => ratings.Rate(Mode.Caos, "Lux", id!.Value)).ToArray();
+            Check(tiers.SequenceEqual(new Tier?[] { Tier.B, Tier.B, Tier.A, Tier.S }), "tiers de Lux");
+            Console.WriteLine($"Cuatro cartas de Lux sin depender del botón: {string.Join(" / ", tiers)}");
+        }
         if (Option("--arena") is { } arenaPath)
         {
             samples.Add(CheckScreenshot(arenaPath, Mode.Arena, assets, ratings));
@@ -163,6 +188,37 @@ internal static class Program
         {
             int index = Array.IndexOf(args, key);
             return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
+        }
+    }
+
+    private static void CheckHistory(Ratings ratings)
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"AumentosHistory-{Guid.NewGuid():N}");
+        var history = new CardHistory(folder, ratings);
+        try
+        {
+            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], ["B", "B", "?", "S"], 0);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 1088, null, 2062], ["B", "B", "?", "S"], 300);
+            history.Observe(4, Mode.Caos, "Lux", [null, 1088, null, 2062], ["?", "B", "?", "S"], 500);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], ["B", "A", "?", "S"], 1000);
+            history.ObserveClosed(4, 2000);
+            history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], ["B", "A", "?", "S"], 3400);
+            history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180]);
+            history.Flush();
+            history.Flush();
+            var lines = File.ReadAllLines(history.FilePath);
+            Check(lines.Length == 11, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
+            Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\"")).Contains("\"Archimago\",\"A\",\"Partida\""),
+                "se guarda exactamente el tier de la carta cambiada");
+            Check(lines.Any(row => row.Contains("\"2\",\"1\",\"2098\"")) &&
+                lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Sin tier\",\"Captura · tier recalculado · image4.png\"")),
+                "selecciones nuevas y origen de captura");
+            Console.WriteLine("Historial de cartas verificado.");
+        }
+        finally
+        {
+            if (File.Exists(history.FilePath)) File.Delete(history.FilePath);
+            if (Directory.Exists(folder)) Directory.Delete(folder);
         }
     }
 
@@ -328,23 +384,24 @@ internal static class Program
             var titles = new[] { new Region(.1, .5, .15, .1), new Region(.4, .5, .15, .1), new Region(.7, .5, .15, .1) };
             var layout = new Calibration(bounds.Width, bounds.Height, marker, titles, new byte[720]);
             overlay.Render(new OverlayUpdate("Prueba", bounds, layout, ["S", "A", "?"]));
-            var handle = new WindowInteropHelper(overlay).Handle;
+            var first = overlay.Windows[0];
+            var handle = new WindowInteropHelper(first).Handle;
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(overlay.IsVisible && Native.IsWindowVisible(handle) && Native.Bounds(handle) == bounds &&
+            var placement = Native.Bounds(handle);
+            var titleCenter = bounds.X + (titles[0].X + titles[0].Width / 2) * bounds.Width;
+            Check(overlay.IsVisible && Native.IsWindowVisible(handle) && placement.Width < bounds.Width &&
+                Math.Abs(placement.X + placement.Width / 2.0 - titleCenter) <= 2 &&
+                placement.Y + placement.Height <= bounds.Y + titles[0].Y * bounds.Height &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
-                "overlay visible y sin capturar foco o clics");
-            var canvas = (Canvas)overlay.Content;
-            var firstBadge = (Border)canvas.Children[0];
-            var left = Canvas.GetLeft(firstBadge);
-            var top = Canvas.GetTop(firstBadge);
-            Check(firstBadge.ActualWidth > 0 && firstBadge.ActualHeight > 0 &&
-                left >= 0 && left + firstBadge.ActualWidth <= canvas.ActualWidth &&
-                top >= 0 && top + firstBadge.ActualHeight <= canvas.ActualHeight, "letra dentro de la superficie visible");
-            var rendered = new RenderTargetBitmap((int)Math.Ceiling(canvas.ActualWidth), (int)Math.Ceiling(canvas.ActualHeight),
+                "letra en una ventana nativa visible, alineada y sin capturar foco o clics");
+            var firstBadge = (Border)first.Content;
+            Check(overlay.Windows.Count(window => window.IsVisible) == 3 && firstBadge.ActualWidth > 0 && firstBadge.ActualHeight > 0,
+                "una ventana por letra");
+            var rendered = new RenderTargetBitmap((int)Math.Ceiling(firstBadge.ActualWidth), (int)Math.Ceiling(firstBadge.ActualHeight),
                 96, 96, PixelFormats.Pbgra32);
-            rendered.Render(canvas);
+            rendered.Render(firstBadge);
             var pixel = new byte[4];
-            rendered.CopyPixels(new Int32Rect((int)left + 6, (int)top + 8, 1, 1), pixel, 4, 0);
+            rendered.CopyPixels(new Int32Rect(6, 8, 1, 1), pixel, 4, 0);
             Check(pixel[3] > 100, "píxeles visibles del badge");
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");

@@ -52,6 +52,7 @@
     { "mode": "*", "champion": "Singed", "augment": "InfernalConduit", "tier": "S" },
     { "mode": "*", "champion": "Teemo", "augment": "InfernalConduit", "tier": "S" },
     { "mode": "Arena", "champion": "DrMundo", "augment": "SlowCooker", "tier": "S" },
+    { "mode": "Caos", "champion": "Lux", "augment": "Ability_SelfAOE_DoubleCast", "tier": "S" },
     { "mode": "Caos", "champion": "Jinx", "augment": "CriticalRhythm", "tier": "S" }
   ]
 }

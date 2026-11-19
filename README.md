@@ -24,6 +24,12 @@ Los tiers se calculan con reglas de sinergia. Dos o más cartas pueden tener la 
 
 En Arena, el overlay queda oculto cuando aparecen cartas de objetos.
 
+## Historial de aumentos
+
+Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CSV se guarda en `%LOCALAPPDATA%\AumentosLoL\historial-aumentos.csv` y se puede abrir en Excel o cualquier lector de CSV.
+
+Cada fila guarda la carta ofrecida, su posición, el tier mostrado, el campeón, el modo, el parche del catálogo y la fecha. Las opciones reconocidas al cambiar una carta se agregan a la misma selección. Las filas marcadas como **Captura** contienen tiers recalculados a partir de la imagen con las reglas vigentes al importarla.
+
 ## Construir y actualizar
 
 Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El script descarga el modelo español si falta y publica en `dist/win-x64`.

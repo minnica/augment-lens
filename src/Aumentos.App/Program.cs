@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -56,10 +57,13 @@ internal static class Program
             return 0;
         try
         {
-            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AumentosLoL");
             var ratings = new Ratings(assets);
             var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), Path.Combine(settings, "layouts.json"));
+            var history = new CardHistory(settings, ratings);
+            if (args.FirstOrDefault() == "--registrar-capturas")
+                return ImportCaptures(args, assets, ratings, layouts, history);
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var diagnostics = new Diagnostics(ratings, layouts, assets);
             var closing = false;
             diagnostics.Closing += (_, args) =>
@@ -73,7 +77,7 @@ internal static class Program
             var overlay = new Overlay();
             using var stop = new CancellationTokenSource();
             string previous = "";
-            var worker = new LiveOverlay(ratings, layouts, assets, app.Dispatcher, state =>
+            var worker = new LiveOverlay(ratings, layouts, history, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
@@ -89,6 +93,22 @@ internal static class Program
                 ?? (Icon)SystemIcons.Application.Clone();
             using var tray = new Forms.NotifyIcon { Icon = appIcon, Text = "Aumentos LoL", ContextMenuStrip = menu, Visible = true };
             menu.Items.Add("Diagnóstico y calibración", null, (_, _) => OpenDiagnostics());
+            menu.Items.Add("Abrir historial de aumentos", null, (_, _) =>
+            {
+                if (!File.Exists(history.FilePath))
+                {
+                    MessageBox.Show("El historial se crea al detectar aumentos en una partida.", "Historial de aumentos");
+                    return;
+                }
+                try
+                {
+                    using var viewer = Process.Start(new ProcessStartInfo(history.FilePath) { UseShellExecute = true });
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    MessageBox.Show($"Abre el archivo desde esta ruta:\n{history.FilePath}", "Historial de aumentos");
+                }
+            });
             var pause = new Forms.ToolStripMenuItem("Pausar overlay") { CheckOnClick = true };
             pause.CheckedChanged += (_, _) =>
             {
@@ -150,6 +170,40 @@ internal static class Program
         catch (Exception error)
         {
             MessageBox.Show(error.Message, "Aumentos LoL", MessageBoxButton.OK, MessageBoxImage.Error);
+            return 1;
+        }
+    }
+
+    private static int ImportCaptures(string[] args, string assets, Ratings ratings, LayoutStore layouts, CardHistory history)
+    {
+        try
+        {
+            if (args.Length <= 1 || (args.Length - 1) % 3 != 0)
+                throw new ArgumentException("Indica el modo, la clave del campeón y la ruta de cada captura.");
+            using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+            for (int index = 1; index < args.Length; index += 3)
+            {
+                var mode = Enum.Parse<Mode>(args[index], true);
+                var champion = ratings.Catalog.Champions.Single(item =>
+                    string.Equals(item.Key, args[index + 1], StringComparison.OrdinalIgnoreCase));
+                var file = args[index + 2];
+                var image = Diagnostics.OpenBitmap(file);
+                var bounds = new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight);
+                var options = layouts.Find(mode, bounds.Width, bounds.Height);
+                detector.Clear();
+                var read = detector.ReadPanel(image, bounds, options, mode, null);
+                if (read is not { Result: var result } || !result.CanShow(false))
+                    throw new InvalidDataException($"No se pudieron verificar los aumentos de {Path.GetFileName(file)}.");
+                history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards);
+                Console.WriteLine($"{champion.Name} · {Path.GetFileName(file)} · {result.Cards.Count(card => card.HasValue)} cartas");
+            }
+            history.Flush();
+            Console.WriteLine(history.FilePath);
+            return 0;
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(error.Message);
             return 1;
         }
     }
