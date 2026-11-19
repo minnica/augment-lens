@@ -267,9 +267,9 @@ internal sealed class Diagnostics : Window
                 return;
             }
             var prismatics = mode == Mode.Arena ? ratings.Prismatics.Identify(result) : null;
-            var shards = mode == Mode.Arena ? ArenaShardRatings.Identify(result) : null;
+            var shards = StatShardRatings.Identify(result);
             var legendaries = mode == Mode.Arena && prismatics is null ? ratings.Legendaries.Identify(result) : null;
-            var names = result.Cards.Select((id, index) => shards?[index] is { } shard ? ArenaShardRatings.Name(shard)
+            var names = result.Cards.Select((id, index) => shards?[index] is { } shard ? StatShardRatings.Name(shard)
                 : result.Items[index]
                 ? (prismatics ?? legendaries)?[index]?.Name ?? $"Objeto «{result.Texts[index]}»"
                 : id.HasValue ? ratings.Catalog.Augments.Single(card => card.Mode == mode.ToString() && card.Id == id.Value).Name

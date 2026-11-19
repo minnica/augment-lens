@@ -44,11 +44,11 @@ public sealed class OfferState
     internal readonly int?[] UpgradeLevels = new int?[4];
     internal readonly string[] Texts = new string[4];
     internal readonly bool[] ItemSlots = new bool[4];
-    internal readonly ArenaShard?[] ShardSlots = new ArenaShard?[4];
+    internal readonly StatShard?[] ShardSlots = new StatShard?[4];
 
     public int? this[int slot] => ids[slot];
     internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null,
-        ArenaShard? shard = null)
+        StatShard? shard = null)
     {
         ids[slot] = id;
         Samples[slot] = sample;
@@ -106,7 +106,7 @@ internal sealed class Detection : IDisposable
             var result = Scan(image, scan, layout, mode, panelConfirmed: true);
             if (!marker && result.Matched < 2)
                 continue;
-            if (layout == previous && result.CanShow(true))
+            if (layout == previous && (result.CanShow(true) || StatShardRatings.Identify(result) is not null))
                 return (layout, result);
             if (best is null || result.Matched > best.Value.Result.Matched)
                 best = (layout, result);
@@ -147,7 +147,7 @@ internal sealed class Detection : IDisposable
         var texts = new string[calibration.Titles.Length];
         var ids = new int?[calibration.Titles.Length];
         var items = new bool[calibration.Titles.Length];
-        var shards = mode == Mode.Arena ? new ArenaShard?[calibration.Titles.Length] : null;
+        var shards = new StatShard?[calibration.Titles.Length];
         var upgrades = mode == Mode.Arena ? new int?[calibration.Titles.Length] : null;
         long now = Environment.TickCount64;
         for (int index = 0; index < ids.Length; index++)
@@ -158,26 +158,28 @@ internal sealed class Detection : IDisposable
             var previousDescription = state.Descriptions[index];
             var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
             if (state.Samples[index] is not { } previous || Difference(previous, current, mode == Mode.Arena) >= 2.2 ||
-                (mode == Mode.Arena && state.RetryTitleAt[index] != 0 && now >= state.RetryTitleAt[index]) ||
+                (state.RetryTitleAt[index] != 0 && now >= state.RetryTitleAt[index]) ||
                 (description is not null && Difference(previousDescription!, description) >= 0.5))
             {
                 state.Set(index, null, null);
                 var text = ReadTitle(image, rect, PageSegMode.SingleLine);
                 var item = mode == Mode.Arena && ratings.IsArenaItem(text);
-                var shard = shards is not null && !item ? ArenaShardRatings.Recognize(text) : null;
+                var shard = item ? null : StatShardRatings.Recognize(text);
                 var candidates = item || shard.HasValue ? [] : ratings.FindTitle(mode, text);
-                if (candidates.Length != 1 && !item && !shard.HasValue)
+                if (!item && candidates.Length != 1 && (!shard.HasValue || mode == Mode.Caos))
                 {
                     var extra = Math.Min(rect.Y, rect.Height * 3 / 4);
                     var trim = rect.Width / 24;
                     var widerTitle = new Int32Rect(rect.X + trim, rect.Y - extra,
                         rect.Width - trim * 2, rect.Height + extra - rect.Height / 6);
                     var fallback = ReadTitle(image, widerTitle, PageSegMode.SingleBlock);
-                    item = mode == Mode.Arena && ratings.IsArenaItem(fallback);
-                    shard = shards is not null && !item ? ArenaShardRatings.Recognize(fallback) : null;
-                    var alternate = item || shard.HasValue ? [] : ratings.FindTitle(mode, fallback);
-                    if (item || shard.HasValue || alternate.Length > 0 || candidates.Length == 0)
+                    bool fallbackItem = mode == Mode.Arena && ratings.IsArenaItem(fallback);
+                    var fallbackShard = fallbackItem ? null : StatShardRatings.Recognize(fallback);
+                    var alternate = fallbackItem || fallbackShard.HasValue ? [] : ratings.FindTitle(mode, fallback);
+                    if (fallbackItem || fallbackShard.HasValue || (!shard.HasValue && (alternate.Length > 0 || candidates.Length == 0)))
                     {
+                        item = fallbackItem;
+                        shard = fallbackShard;
                         if (fallback.Length != 0)
                             text = fallback;
                         candidates = alternate;
@@ -219,14 +221,13 @@ internal sealed class Detection : IDisposable
                     detail = description ?? Signature(image, crop);
                     card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
                 }
-                state.RetryTitleAt[index] = mode == Mode.Arena && card is null && !item && !shard.HasValue ? now + 350 : 0;
+                state.RetryTitleAt[index] = card is null && !item && !shard.HasValue ? now + 350 : 0;
                 state.Set(index, card?.Id, current, text, item, detail, shard);
             }
             ids[index] = state[index];
             texts[index] = state.Texts[index];
             items[index] = state.ItemSlots[index];
-            if (shards is not null)
-                shards[index] = state.ShardSlots[index];
+            shards[index] = state.ShardSlots[index];
             if (upgrades is not null && ids[index] is { } id && ratings.ArenaAugment(id) is { } augment &&
                 augment.MaxLevel is not <= 1 &&
                 UpgradeLevelArea(image, rect) is { } levelArea)
@@ -434,7 +435,7 @@ internal sealed class Detection : IDisposable
     public void Dispose() => engine.Dispose();
 }
 
-internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items, ArenaShard?[]? Shards = null,
+internal record DetectionResult(bool PanelVisible, int?[] Cards, string[] Texts, bool[] Items, StatShard?[]? Shards = null,
     int?[]? UpgradeLevels = null)
 {
     internal int Matched => Cards.Count(id => id.HasValue) + Items.Count(item => item) + (Shards?.Count(shard => shard.HasValue) ?? 0);

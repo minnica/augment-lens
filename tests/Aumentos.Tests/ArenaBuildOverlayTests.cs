@@ -26,8 +26,9 @@ internal static class ArenaBuildOverlayTests
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             overlay.RenderContent(view);
             var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-            Check(blocks.Skip(2).SequenceEqual(["Daño rival estimado · 67% AD · 33% AP", "Rivales de rondas jugadas",
-                "Por comprar · 2", "Después", "Comprados · 4/6", "Referencia de prismáticos · OP.GG"]),
+            Check(blocks.Skip(2).SequenceEqual(["Daño rival estimado", "Rivales de rondas jugadas",
+                "Por comprar · 2", "Después", "Comprados · 4/6", "Referencia de prismáticos · OP.GG"]) &&
+                ReadText(panel.Children.OfType<StackPanel>().Single()).SequenceEqual(["67% AD", "33% AP"]),
                 "Arena muestra el daño rival junto a las compras y la referencia prismática");
             var next = panel.Children.OfType<Border>().Single();
             Check(next.BorderThickness.Left > 0 && next.Background is not null &&

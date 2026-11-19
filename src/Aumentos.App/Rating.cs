@@ -50,7 +50,7 @@ public sealed class Ratings
     public Catalog Catalog { get; }
     internal ArenaPrismaticRatings Prismatics { get; }
     internal ArenaLegendaryRatings Legendaries { get; }
-    internal ArenaShardRatings Shards { get; }
+    internal StatShardRatings Shards { get; }
     internal ArenaWikiMechanics? Wiki { get; }
     internal ArenaAugmentAffinity AugmentAffinity { get; }
     private readonly Dictionary<int, Augment> arenaAugments;
@@ -93,7 +93,7 @@ public sealed class Ratings
         }, StringComparer.OrdinalIgnoreCase);
         Prismatics = new ArenaPrismaticRatings(Catalog.ArenaPrismatics ?? [], profiles);
         Legendaries = new ArenaLegendaryRatings(Catalog.ArenaLegendaries ?? [], Catalog.Champions, profiles);
-        Shards = new ArenaShardRatings(Catalog.Champions, profiles);
+        Shards = new StatShardRatings(Catalog.Champions, profiles);
 
         var descriptions = Catalog.Augments.Where(card => card.Mode == "Arena")
             .GroupBy(card => MechanicKey(card.Key)).ToDictionary(group => group.Key, group => group.First().Description);

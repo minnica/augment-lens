@@ -12,7 +12,8 @@ namespace Aumentos;
 internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layout, string Patch);
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
-    string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null);
+    string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null,
+    bool HideStartingItems = false);
 
 internal sealed class BuildVisibility
 {
@@ -57,13 +58,16 @@ internal sealed class BuildOverlay : Window
     private const int HotkeyMessage = 0x0312;
     private const uint CtrlAltNoRepeat = 0x4003;
     private const uint KeyB = 0x42;
-    private const double PanelWidth = 320;
+    private const double ShopPanelWidth = 400;
+    private const double PrismaticPanelWidth = 320;
 
     private static readonly Brush Muted = Overlay.Paint("#B1C1D8");
     private static readonly Brush Accent = Overlay.Paint("#AAD1FF");
     private static readonly Brush PreviousPatch = Overlay.Paint("#FFD76D");
     private static readonly Brush PurchaseAccent = Overlay.Paint("#F6D28C");
     private static readonly Brush PurchaseSurface = Overlay.Paint("#30333A");
+    private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
+    private static readonly Brush MagicDamage = Overlay.Paint("#B9A7FA");
     private readonly StackPanel content = new();
     private readonly Border panel;
     private readonly BuildItemIcons? itemIcons;
@@ -90,7 +94,7 @@ internal sealed class BuildOverlay : Window
 
         panel = new Border
         {
-            Width = PanelWidth,
+            Width = ShopPanelWidth,
             Padding = new Thickness(16, 12, 16, 14),
             CornerRadius = new CornerRadius(9),
             BorderBrush = Overlay.Paint("#667C9F"),
@@ -162,7 +166,7 @@ internal sealed class BuildOverlay : Window
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
             displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected ||
-            displayed.EnemyDamage != view.EnemyDamage)
+            displayed.EnemyDamage != view.EnemyDamage || displayed.HideStartingItems != view.HideStartingItems)
             RenderContent(view);
         displayed = view;
 
@@ -179,7 +183,7 @@ internal sealed class BuildOverlay : Window
             int padding = bounds.Width / 24;
             int leftSpace = titles.Min(title => title.X) - padding - 2 * margin;
             int rightSpace = bounds.Width - titles.Max(title => title.X + title.Width) - padding - 2 * margin;
-            int desiredWidth = (int)Math.Ceiling(PanelWidth * dpi);
+            int desiredWidth = (int)Math.Ceiling(panel.Width * dpi);
             placeLeft = leftSpace >= desiredWidth || leftSpace >= rightSpace;
             maxWidth = Math.Min(maxWidth, Math.Max(1, placeLeft ? leftSpace : rightSpace));
         }
@@ -187,14 +191,15 @@ internal sealed class BuildOverlay : Window
         {
             int leftSpace = shop.X - shop.Width / 12 - 2 * margin;
             int rightSpace = bounds.Width - shop.X - shop.Width - 2 * margin;
-            int desiredWidth = (int)Math.Ceiling(PanelWidth * dpi);
-            placeLeft = rightSpace < desiredWidth && leftSpace > rightSpace && leftSpace >= desiredWidth * 3 / 4;
+            int desiredWidth = (int)Math.Ceiling(panel.Width * dpi);
+            int minimumWidth = (int)Math.Ceiling(240 * dpi);
+            placeLeft = rightSpace < desiredWidth && leftSpace > rightSpace && leftSpace >= minimumWidth;
             int sideSpace = placeLeft ? leftSpace : rightSpace;
-            if (sideSpace >= desiredWidth * 3 / 4)
+            if (sideSpace >= minimumWidth)
                 maxWidth = Math.Min(maxWidth, sideSpace);
         }
 
-        panel.Measure(new Size(PanelWidth, double.PositiveInfinity));
+        panel.Measure(new Size(panel.Width, double.PositiveInfinity));
         var desired = panel.DesiredSize;
         double scale = Math.Min(dpi, Math.Min(maxWidth / desired.Width, maxHeight / desired.Height));
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
@@ -216,6 +221,7 @@ internal sealed class BuildOverlay : Window
     internal void RenderContent(BuildDisplay view)
     {
         content.Children.Clear();
+        panel.Width = view.Prismatics is null ? ShopPanelWidth : PrismaticPanelWidth;
         if (view.Prismatics is { } prismatics)
         {
             RenderPrismatics(view.Champion, prismatics);
@@ -226,48 +232,49 @@ internal sealed class BuildOverlay : Window
         var mode = view.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
         var patch = build is null ? mode :
             $"{mode} · {(build.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(build.SourcePatch)}";
-        AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 17, Brushes.WhiteSmoke, bold: true);
+        AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 20, Brushes.WhiteSmoke, bold: true);
         AddLine(view.Plan is not null && build is not null ? $"{patch} · Base OP.GG" : patch,
-            12, build?.IsPrevious == true ? PreviousPatch : Muted);
+            14, build?.IsPrevious == true ? PreviousPatch : Muted);
 
-        var enemyDamage = view.EnemyDamage is { } mix
-            ? $"{mix.PhysicalPercent}% AD · {mix.MagicPercent}% AP"
-            : view.Mode == Mode.Arena && !view.ArenaRivalsDetected ? "esperando rivales" : "sin datos suficientes";
-        AddLine($"Daño rival estimado · {enemyDamage}", 12, Accent, bold: true, top: 5);
+        AddEnemyDamage(view);
 
         if (view.Mode == Mode.Arena && view.Plan is { } arenaPlan)
         {
-            AddLine(view.ArenaRivalsDetected ? "Rivales de rondas jugadas" : "Según tu inventario y campeón", 11, Muted);
-            AddArenaRoute(arenaPlan, view.ClientPatch ?? build?.ClientPatch ?? "");
+            AddLine(view.ArenaRivalsDetected ? "Rivales de rondas jugadas" : "Según tu inventario y campeón", 13, Muted);
+            AddPurchaseRoute(arenaPlan, view.ClientPatch ?? build?.ClientPatch ?? "");
             if (build?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Prismatic) is { } prismaticsGroup)
             {
-                AddLine("Referencia de prismáticos · OP.GG", 12, Accent, bold: true, top: 9);
+                AddLine("Referencia de prismáticos · OP.GG", 14, Accent, bold: true, top: 9);
                 AddItems(prismaticsGroup.Choices.SelectMany(choice => choice).DistinctBy(item => item.Id).Take(3).ToArray(),
                     build.SourcePatch, ordered: false);
             }
             return;
         }
 
+        if (view.Plan is { } plan)
+            AddPurchaseRoute(plan, view.ClientPatch ?? build?.ClientPatch ?? "");
+
         if (build is null || build.Groups.Length == 0)
         {
             if (view.Source is { } source)
-                AddLine(source.Status, 13, Brushes.WhiteSmoke, top: 9);
+                AddLine(source.Status, 14, Brushes.WhiteSmoke, top: 9);
             return;
         }
 
         foreach (var group in build.Groups)
         {
-            if (group.Section == OpGgBuildSection.Core && view.Plan is { } plan)
+            if (group.Section == OpGgBuildSection.Start && view.HideStartingItems)
+                continue;
+            if (group.Section == OpGgBuildSection.Core && view.Plan is not null)
             {
-                AddRoute(plan, build.ClientPatch);
                 if (group.Choices.ElementAtOrDefault(1) is { } alternative)
                 {
-                    AddLine("Núcleo alternativo · OP.GG", 11, Muted, top: 5);
+                    AddLine("Núcleo alternativo · OP.GG", 13, Muted, top: 5);
                     AddItems(alternative, build.SourcePatch, ordered: true);
                 }
                 continue;
             }
-            AddLine(SectionLabel(group.Section), 12, Accent, bold: true, top: 9);
+            AddLine(SectionLabel(group.Section), 14, Accent, bold: true, top: 9);
             if ((group.Section is OpGgBuildSection.Boots or OpGgBuildSection.Prismatic) &&
                 group.Choices.All(choice => choice.Length == 1))
             {
@@ -277,54 +284,79 @@ internal sealed class BuildOverlay : Window
             foreach (var (choice, index) in group.Choices.Take(2).Select((items, index) => (items, index)))
             {
                 if (index == 1)
-                    AddLine("Alternativa", 11, Muted, top: 4);
+                    AddLine("Alternativa", 13, Muted, top: 4);
                 AddItems(choice, build.SourcePatch, ordered: group.Section == OpGgBuildSection.Core);
             }
         }
     }
 
-    private void AddRoute(MayhemBuildPlan plan, string patch)
+    private void AddEnemyDamage(BuildDisplay view)
     {
-        AddLine("Ruta a 6 objetos", 12, Accent, bold: true, top: 9);
-        foreach (var row in plan.Steps.Chunk(3))
-            AddItems(row.Select(step => step.Item).ToArray(), patch, ordered: true,
-                details: row.Select(step => step.Detail).ToArray());
+        if (view.EnemyDamage is not { } mix)
+        {
+            var status = view.Mode == Mode.Arena && !view.ArenaRivalsDetected ? "esperando rivales" : "sin datos suficientes";
+            AddLine($"Daño rival estimado · {status}", 14, Accent, bold: true, top: 5);
+            return;
+        }
+
+        AddLine("Daño rival estimado", 14, Accent, bold: true, top: 5);
+        var distribution = new StackPanel { Margin = new Thickness(0, 3, 0, 1) };
+        var labels = new Grid();
+        labels.Children.Add(new TextBlock { Text = $"{mix.PhysicalPercent}% AD", Foreground = PhysicalDamage,
+            FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Left });
+        labels.Children.Add(new TextBlock { Text = $"{mix.MagicPercent}% AP", Foreground = MagicDamage,
+            FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right });
+        distribution.Children.Add(labels);
+
+        var bar = new Grid { Height = 9, Margin = new Thickness(0, 3, 0, 0) };
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(mix.PhysicalPercent, GridUnitType.Star) });
+        bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(mix.MagicPercent, GridUnitType.Star) });
+        var physical = new Border { Background = PhysicalDamage,
+            CornerRadius = mix.MagicPercent == 0 ? new CornerRadius(4) : new CornerRadius(4, 0, 0, 4) };
+        var magic = new Border { Background = MagicDamage,
+            CornerRadius = mix.PhysicalPercent == 0 ? new CornerRadius(4) : new CornerRadius(0, 4, 4, 0) };
+        bar.Children.Add(physical);
+        Grid.SetColumn(magic, 1);
+        bar.Children.Add(magic);
+        distribution.Children.Add(bar);
+        content.Children.Add(distribution);
     }
 
-    private void AddArenaRoute(MayhemBuildPlan plan, string patch)
+    private void AddPurchaseRoute(MayhemBuildPlan plan, string patch)
     {
         var byPurchase = plan.Steps.ToLookup(step => step.Owned);
         var purchased = byPurchase[true].ToArray();
         var pending = byPurchase[false].ToArray();
         if (pending.Length > 0)
         {
-            AddLine($"Por comprar · {pending.Length}", 12, Accent, bold: true, top: 9);
-            AddArenaPurchase(pending[0], patch, 1);
+            AddLine($"Por comprar · {pending.Length}", 14, Accent, bold: true, top: 9);
+            AddPurchase(pending[0], patch, 1);
             if (pending.Length > 1)
-                AddLine("Después", 12, Accent, bold: true, top: 8);
+                AddLine("Después", 14, Accent, bold: true, top: 8);
             for (int index = 1; index < pending.Length; index++)
-                AddArenaPurchase(pending[index], patch, index + 1);
+                AddPurchase(pending[index], patch, index + 1);
         }
         else if (purchased.Length == 6)
-            AddLine("Build completa", 14, Accent, bold: true, top: 9);
+            AddLine("Build completa", 16, Accent, bold: true, top: 9);
 
-        AddLine($"Comprados · {purchased.Length}/6", 12, Muted, bold: true, top: 9);
+        AddLine($"Comprados · {purchased.Length}/6", 14, Muted, bold: true, top: 9);
         foreach (var row in purchased.Chunk(3))
             AddItems(row.Select(step => step.Item).ToArray(), patch, ordered: false);
     }
 
-    private void AddArenaPurchase(BuildStep step, string patch, int position)
+    private void AddPurchase(BuildStep step, string patch, int position)
     {
         bool next = position == 1;
         var row = new DockPanel { Margin = next ? new Thickness(0) : new Thickness(0, 6, 0, 0) };
         if (!next)
         {
-            var order = new TextBlock { Text = $"{position}.", Width = 20, Foreground = Accent, FontSize = 12 };
+            var order = new TextBlock { Text = $"{position}.", Width = 22, Foreground = Accent, FontSize = 14 };
             DockPanel.SetDock(order, Dock.Left);
             row.Children.Add(order);
         }
 
-        var icon = new Image { Width = next ? 36 : 27, Height = next ? 36 : 27, Margin = new Thickness(0, 2, 8, 0),
+        double iconSize = next ? 50 : 34;
+        var icon = new Image { Width = iconSize, Height = iconSize, Margin = new Thickness(0, 2, 10, 0),
             VerticalAlignment = VerticalAlignment.Top };
         System.Windows.Automation.AutomationProperties.SetName(icon, step.Item.Name);
         DockPanel.SetDock(icon, Dock.Left);
@@ -334,17 +366,17 @@ internal sealed class BuildOverlay : Window
 
         var text = new StackPanel();
         if (next)
-            text.Children.Add(new TextBlock { Text = "Siguiente compra", FontSize = 11,
+            text.Children.Add(new TextBlock { Text = "Siguiente compra", FontSize = 13,
                 Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
-        text.Children.Add(new TextBlock { Text = step.Item.Name, FontSize = next ? 15 : 13, Foreground = Brushes.WhiteSmoke,
+        text.Children.Add(new TextBlock { Text = step.Item.Name, FontSize = next ? 20 : 15, Foreground = Brushes.WhiteSmoke,
             FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (step.Detail is { Length: > 0 } detail)
-            text.Children.Add(new TextBlock { Text = detail, FontSize = 11, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
+            text.Children.Add(new TextBlock { Text = detail, FontSize = 13, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
         row.Children.Add(text);
 
         if (next)
             content.Children.Add(new Border { Child = row, Background = PurchaseSurface, BorderBrush = PurchaseAccent,
-                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(8),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(10),
                 Margin = new Thickness(0, 4, 0, 0) });
         else
             content.Children.Add(row);
@@ -387,37 +419,32 @@ internal sealed class BuildOverlay : Window
         }
     }
 
-    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered, string?[]? details = null)
+    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered)
     {
         var row = new Grid { Margin = new Thickness(0, 4, 0, 1), HorizontalAlignment = HorizontalAlignment.Left };
-        double cellWidth = Math.Min(90, (PanelWidth - 34 - (ordered ? (items.Length - 1) * 12 : 0)) / items.Length);
+        const double arrowWidth = 16;
+        double cellWidth = Math.Min(112, (panel.Width - 34 - (ordered ? (items.Length - 1) * arrowWidth : 0)) / items.Length);
         for (int i = 0; i < items.Length; i++)
         {
             if (i > 0 && ordered)
             {
-                var arrow = new TextBlock { Text = "→", Foreground = Accent, FontSize = 12, Margin = new Thickness(0, 8, 0, 0) };
-                AddColumn(arrow, 12);
+                var arrow = new TextBlock { Text = "→", Foreground = Accent, FontSize = 14, Margin = new Thickness(0, 10, 0, 0) };
+                AddColumn(arrow, arrowWidth);
             }
             var item = items[i];
-            var image = new Image { Width = 32, Height = 32, Stretch = Stretch.UniformToFill };
+            var image = new Image { Width = 40, Height = 40, Stretch = Stretch.UniformToFill };
             System.Windows.Automation.AutomationProperties.SetName(image, item.Name);
             var tile = new StackPanel { Margin = new Thickness(2, 0, 2, 0) };
             tile.Children.Add(new Border
             {
-                Child = image, Width = 34, Height = 34, CornerRadius = new CornerRadius(3),
+                Child = image, Width = 42, Height = 42, CornerRadius = new CornerRadius(3),
                 BorderBrush = Accent, BorderThickness = new Thickness(1), Background = Overlay.Paint("#253851")
             });
             tile.Children.Add(new TextBlock
             {
-                Text = item.Name, FontSize = 10.5, Foreground = Brushes.WhiteSmoke,
+                Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
                 TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0)
             });
-            if (details?[i] is { } detail)
-                tile.Children.Add(new TextBlock
-                {
-                    Text = detail, FontSize = 10, Foreground = Muted, TextWrapping = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 2, 0, 2)
-                });
             AddColumn(tile, cellWidth);
             if (itemIcons is not null)
                 _ = SetIcon(image, itemIcons, patch, item.Id);

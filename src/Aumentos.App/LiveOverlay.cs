@@ -69,6 +69,7 @@ internal sealed class LiveOverlay
         (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
         MayhemBuildPlan? plan = null;
         EnemyDamageMix? enemyDamage = null;
+        bool hideStartingItems = false;
         long nextPoll = 0;
         long lastFrame = 0;
         long lastOffer = 0;
@@ -171,10 +172,12 @@ internal sealed class LiveOverlay
                                 enemyDamage = currentGame.Mode == Mode.Arena
                                     ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
                                     : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
+                                hideStartingItems = mayhemBuilds.HasStartingPurchase(match?.Mayhem, suggestion.Data);
                             }
                             build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
                                 currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
-                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage);
+                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
+                                HideStartingItems: hideStartingItems);
                         }
                     }
                 }
@@ -340,7 +343,7 @@ internal sealed class Overlay
                 continue;
             }
             var title = layout.Titles[index];
-            double gap = label.ArenaChoice is null ? 0 : 8 * scale;
+            double gap = label.ArenaChoice is null ? 0 : Math.Max(8 * scale, title.Height * bounds.Height / 3);
             badge.Display(label, bounds.X + (title.X + title.Width / 2) * bounds.Width,
                 bounds.Y + title.Y * bounds.Height - gap, scale, title.Width * bounds.Width);
         }
@@ -365,6 +368,8 @@ internal sealed class Overlay
         private readonly TextBlock popularityDetails = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap };
         private readonly Border badge;
         private CardComparison? displayed;
+        private (double Dpi, double MaxWidth) measuredAt;
+        private (int Width, int Height) measuredSize;
         private nint handle;
         private Int32Rect placement;
         internal bool NativeVisible => handle != 0 && Native.IsWindowVisible(handle);
@@ -380,6 +385,7 @@ internal sealed class Overlay
             Topmost = true;
             Background = Brushes.Transparent;
             IsHitTestVisible = false;
+            UseLayoutRounding = true;
             var panel = new StackPanel();
             panel.Children.Add(source);
             panel.Children.Add(localReason);
@@ -408,7 +414,8 @@ internal sealed class Overlay
 
         internal void Display(CardComparison value, double center, double titleY, double dpiScale, double cardWidth)
         {
-            if (displayed != value)
+            bool contentChanged = displayed != value;
+            if (contentChanged)
             {
                 displayed = value;
                 bool unread = value == CardComparison.Unread;
@@ -448,20 +455,31 @@ internal sealed class Overlay
                 };
             }
             dpiScale = Math.Max(dpiScale, VisualTreeHelper.GetDpi(this).DpiScaleX);
-            badge.MaxWidth = value.IsArenaAugment ? cardWidth / dpiScale : double.PositiveInfinity;
-            badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Width = badge.DesiredSize.Width;
-            Height = badge.DesiredSize.Height;
-            int width = (int)Math.Ceiling(Width * dpiScale);
-            int height = (int)Math.Ceiling(Height * dpiScale);
+            double maxWidth = value.IsArenaAugment || value.ArenaChoice is not null ? cardWidth : double.PositiveInfinity;
+            if (contentChanged || measuredAt != (dpiScale, maxWidth))
+            {
+                badge.MaxWidth = maxWidth / dpiScale;
+                badge.Measure(new Size(badge.MaxWidth, double.PositiveInfinity));
+                int pixelWidth = (int)Math.Ceiling(badge.DesiredSize.Width * dpiScale) + 1;
+                if (double.IsFinite(maxWidth))
+                    pixelWidth = Math.Min(pixelWidth, Math.Max(1, (int)Math.Floor(maxWidth)));
+
+                // A rounded window width can push the last word to a new line.
+                badge.Measure(new Size(pixelWidth / dpiScale, double.PositiveInfinity));
+                measuredSize = (pixelWidth, (int)Math.Ceiling(badge.DesiredSize.Height * dpiScale) + 1);
+                measuredAt = (dpiScale, maxWidth);
+            }
+            var (width, height) = measuredSize;
             var target = new Int32Rect((int)Math.Round(center - width / 2.0), (int)Math.Round(titleY) - height - 4, width, height);
             if (IsVisible && NativeVisible && target == placement)
                 return;
+            Width = width / dpiScale;
+            Height = height / dpiScale;
             if (!IsVisible)
                 Show();
             const uint showWithoutActivation = 0x0040 | 0x0010;
-            Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation);
-            placement = target;
+            if (Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation))
+                placement = target;
         }
     }
 }

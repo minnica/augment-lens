@@ -106,6 +106,18 @@ internal sealed class MayhemBuilds
                 equipped.Count(item => item.AttackDamage > 0 || item.Crit > 0), equipped.Count(item => item.AbilityPower > 0));
         }));
 
+    internal bool HasStartingPurchase(MayhemMatch? match, OpGgBuildSnapshot? build)
+    {
+        if (match is null)
+            return false;
+        if (match.Items.Any(IsFinished))
+            return true;
+
+        var starters = build?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Start);
+        return starters?.Choices.SelectMany(choice => choice)
+            .Any(item => items.ContainsKey(item.Id) && match.Items.Contains(item.Id)) == true;
+    }
+
     internal MayhemBuildPlan? Recommend(GameContext game, MayhemMatch? match, OpGgBuildSnapshot? build)
     {
         if (game.Mode != Mode.Caos || match is null || build is not { Mode: Mode.Caos } ||
@@ -113,7 +125,7 @@ internal sealed class MayhemBuilds
             !champions.TryGetValue(game.Champion, out var champion) || items.Count == 0)
             return null;
 
-        var owned = match.Items.Where(id => items.GetValueOrDefault(id)?.Finished == true)
+        var owned = match.Items.Where(IsFinished)
             .DistinctBy(BaseId).Take(6).ToArray();
         var steps = owned.Select(id => Step(id, "Comprado", owned: true)).ToList();
         if (steps.Count == 6)
@@ -166,6 +178,7 @@ internal sealed class MayhemBuilds
     }
 
     private BuildStep Step(int id, string? detail = null, bool owned = false) => new(new(id, items[id].Name), detail, owned);
+    private bool IsFinished(int id) => items.GetValueOrDefault(id)?.Finished == true;
 
     private bool CanAdd(int id, List<BuildStep> steps)
     {

@@ -42,7 +42,7 @@ internal static class Program
                     CardComparison?[]? comparisons = null;
                     CardComparison?[]? itemChoices = null;
                     ArenaPrismaticOffer? prismatics = null;
-                    var shards = mode == Mode.Arena ? ArenaShardRatings.Identify(result) : null;
+                    var shards = StatShardRatings.Identify(result);
                     if (args.Length == 4)
                     {
                         var champion = ratings.Catalog.Champions.Single(item =>
@@ -70,7 +70,7 @@ internal static class Program
                             augment.Mode == mode.ToString() && augment.Id == result.Cards[index]);
                         var label = result.Items[index] ? $"Objeto: {result.Texts[index]}" : card?.Name ?? $"? {result.Texts[index]}";
                         if (shards?[index] is { } shard)
-                            label = ArenaShardRatings.Name(shard);
+                            label = StatShardRatings.Name(shard);
                         if (itemChoices?[index] is { ArenaChoice: { } choice } choiceBadge)
                             label = $"{(shards is null ? "Objeto: " : "")}{choice.Name} · Tier local {choiceBadge.LocalText}{choice.TopLabel} · {choice.Reason}" +
                                 (choice.Recommended ? " · Recomendado" : "");
@@ -102,7 +102,7 @@ internal static class Program
                             Console.WriteLine($"{index + 1}. {entry.Rating.Name} · {entry.Rating.TierText} · {entry.Rating.Reason}" +
                                 (top.IsOffered(index) ? " · En oferta" : ""));
                     }
-                    Console.WriteLine(result.CanShow(false) || itemChoices is not null ? "Overlay visible" : "Overlay oculto");
+                    Console.WriteLine(result.CanShow(false) || shards is not null || itemChoices is not null ? "Overlay visible" : "Overlay oculto");
                     return result.Matched == result.Cards.Length ? 0 : 4;
                 }
                 return 0;

@@ -26,12 +26,17 @@ internal static class MayhemBuildTests
         var patch = ratings.Catalog.Patch;
         var build = new OpGgBuildSnapshot(Mode.Caos, "Zilean", patch, patch, DateTimeOffset.UtcNow,
         [
+            new(OpGgBuildSection.Start, [[new(1056, "Sortija de Doran"), new(2003, "Poción de Vida")], [new(1038, "Espadón")]]),
             new(OpGgBuildSection.Boots, [[new(3020, "Botas del Hechicero")], [new(3158, "Botas Jonias de la Lucidez")]]),
             new(OpGgBuildSection.Core,
                 [[new(6655, "Eco de Luden"), new(4645, "Lumbría"), new(3089, "Sombrero Mortífero de Rabadon")],
                  [new(6655, "Eco de Luden"), new(4646, "Descarga Tormentosa"), new(4645, "Lumbría")]])
         ]);
         var source = MayhemBuilds.Load(ratings, assets);
+        Check(!source.HasStartingPurchase(null, build) && !source.HasStartingPurchase(new([2003], []), build) &&
+            source.HasStartingPurchase(new([1056], []), build) && source.HasStartingPurchase(new([1038], []), build) &&
+            source.HasStartingPurchase(new([6655], []), null),
+            "los objetos iniciales se ocultan tras una pieza recomendada o un objeto terminado");
         var initial = source.Recommend(game, match!.Mayhem, build);
         Check(initial?.Steps.Select(step => step.Item.Id).SequenceEqual([6655, 3020, 4645, 3089, 3135, 3165]) == true &&
             initial.Steps[4].Detail == "2 rivales con compras de resistencia mágica" && initial.Steps[5].Detail == "Curación · Soraka",
