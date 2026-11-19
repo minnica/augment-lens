@@ -64,6 +64,8 @@ internal sealed class LiveOverlay
         WindowCapture? capture = null;
         GameContext? game = null;
         LiveMatch? match = null;
+        LiveMatch? confirmedMatch = null;
+        long lastMatchRead = 0;
         (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
         MayhemBuildPlan? plan = null;
         long nextPoll = 0;
@@ -84,8 +86,16 @@ internal sealed class LiveOverlay
                 var window = Paused ? null : GameWindow.Foreground(lastWindow);
                 if (window is not null)
                 {
-                    if (window.Handle != lastWindow?.Handle)
+                    if (window.Handle != lastWindow?.Handle || window.ProcessId != lastWindow?.ProcessId)
+                    {
+                        StopCapture();
                         buildVisibility.ObserveShop(open: false);
+                        history.ResetMatch();
+                        game = null;
+                        match = null;
+                        confirmedMatch = null;
+                        nextPoll = 0;
+                    }
                     lastWindow = window;
                 }
                 OverlayUpdate? result;
@@ -103,22 +113,36 @@ internal sealed class LiveOverlay
                     var now = Environment.TickCount64;
                     if (now >= nextPoll)
                     {
-                        LiveMatch? current;
-                        try { current = await live.ReadMatch(cancellation).ConfigureAwait(false); }
+                        try
+                        {
+                            var current = await live.ReadMatch(cancellation).ConfigureAwait(false);
+                            bool newMatch = current is not null && confirmedMatch is not null && current.IsNewSession(confirmedMatch);
+                            if (game != current?.Game || newMatch)
+                                StopCapture();
+                            if (newMatch)
+                                history.ResetMatch();
+                            if (current is not null)
+                                confirmedMatch = current.GameTime.HasValue || newMatch
+                                    ? current : current with { GameTime = confirmedMatch?.GameTime };
+                            game = current?.Game;
+                            match = current;
+                            lastMatchRead = Environment.TickCount64;
+                        }
                         catch (Exception error) when (error is HttpRequestException or JsonException or KeyNotFoundException
                             or InvalidOperationException or TaskCanceledException)
                         {
-                            current = null;
+                            if (Environment.TickCount64 - lastMatchRead >= 2500)
+                            {
+                                StopCapture();
+                                game = null;
+                                match = null;
+                            }
                         }
-                        if (game != current?.Game)
-                            StopCapture();
-                        game = current?.Game;
-                        match = current;
                         nextPoll = Environment.TickCount64 + 1000;
                     }
                     result = game is null
                         ? new OverlayUpdate("Esperando ARAM Caos o Arena…")
-                        : ReadOverlay(window, game);
+                        : ReadOverlay(window, game, match?.Arena is { InventoryKnown: true } arenaMatch ? arenaMatch.Items : null);
                     if (result is not null)
                     {
                         cardsVisible = result.Labels is not null;
@@ -180,7 +204,7 @@ internal sealed class LiveOverlay
             shop = null;
         }
 
-        OverlayUpdate? ReadOverlay(GameWindow window, GameContext current)
+        OverlayUpdate? ReadOverlay(GameWindow window, GameContext current, IReadOnlyList<int>? arenaItems)
         {
             if (!string.Equals(window.Patch, ratings.Catalog.Patch, StringComparison.Ordinal))
             {
@@ -248,7 +272,8 @@ internal sealed class LiveOverlay
                     {
                         previous = candidate;
                         var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
-                            source.Data, source.Loading, mayhem?.Data, arena?.Data, result.UpgradeLevels);
+                            source.Data, source.Loading, mayhem?.Data, arena?.Data,
+                            upgradeLevels: result.UpgradeLevels, arenaItems: arenaItems);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
@@ -313,7 +338,7 @@ internal sealed class Overlay
             var title = layout.Titles[index];
             double gap = label.ArenaChoice is null ? 0 : 8 * scale;
             badge.Display(label, bounds.X + (title.X + title.Width / 2) * bounds.Width,
-                bounds.Y + title.Y * bounds.Height - gap, scale);
+                bounds.Y + title.Y * bounds.Height - gap, scale, title.Width * bounds.Width);
         }
     }
 
@@ -326,14 +351,14 @@ internal sealed class Overlay
 
     private sealed class BadgeWindow : Window
     {
-        private readonly TextBlock source = new() { FontWeight = FontWeights.Bold, FontSize = 16 };
-        private readonly TextBlock local = new() { FontSize = 13, Foreground = Brushes.WhiteSmoke };
+        private readonly TextBlock source = new() { FontWeight = FontWeights.Bold, FontSize = 16, TextWrapping = TextWrapping.Wrap };
+        private readonly TextBlock local = new() { FontSize = 13, Foreground = Brushes.WhiteSmoke, TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock localReason = new()
         {
             FontSize = 12, Foreground = Brushes.WhiteSmoke, MaxWidth = 228, TextWrapping = TextWrapping.Wrap
         };
         private readonly TextBlock popularity = new() { FontSize = 12, Foreground = Brushes.WhiteSmoke };
-        private readonly TextBlock popularityDetails = new() { FontSize = 11 };
+        private readonly TextBlock popularityDetails = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap };
         private readonly Border badge;
         private CardComparison? displayed;
         private nint handle;
@@ -377,7 +402,7 @@ internal sealed class Overlay
                 Hide();
         }
 
-        internal void Display(CardComparison value, double center, double titleY, double dpiScale)
+        internal void Display(CardComparison value, double center, double titleY, double dpiScale, double cardWidth)
         {
             if (displayed != value)
             {
@@ -392,9 +417,7 @@ internal sealed class Overlay
                 }
                 else if (value.IsArenaAugment && value.Local != CardComparison.Missing)
                 {
-                    source.Text = value.Local == "Variable" ? "Valoración variable" : $"Tier local   {value.LocalText}" +
-                        (value.RecommendedUpgrade ? " · Mejora recomendada" :
-                            value.RecommendedAugment ? " · Recomendado" : "");
+                    source.Text = value.ArenaTitle;
                     local.Text = value.External is not null || value.Loading ? $"OP.GG   {value.ExternalText}" : "";
                     tier = value.Local;
                 }
@@ -403,13 +426,15 @@ internal sealed class Overlay
                     source.Text = unread ? "?" : $"OP.GG   {value.ExternalText}";
                     local.Text = unread ? "" : $"Estimación local   {value.Local}";
                 }
-                localReason.Text = value.LocalReason ?? "";
+                localReason.Text = value.DetailText;
                 localReason.Visibility = localReason.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 local.Visibility = local.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 popularity.Text = value.Mayhem?.Text ?? value.Arena?.Text ?? "";
                 popularity.Visibility = popularity.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 popularityDetails.Text = value.Mayhem is { IsPrevious: true } old ?
                     $"Parche anterior {old.Patch}" : value.Arena?.Details ?? "";
+                if (value.UsesWiki)
+                    popularityDetails.Text += (popularityDetails.Text.Length == 0 ? "" : " · ") + "Mecánica de LoL Wiki";
                 popularityDetails.Visibility = popularityDetails.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 popularityDetails.Foreground = value.Mayhem?.IsPrevious == true || value.Arena?.IsPrevious == true
                     ? Paint("#FFD76D") : Brushes.WhiteSmoke;
@@ -418,10 +443,11 @@ internal sealed class Overlay
                     "S" => Paint("#FFD76D"), "A" => Paint("#86EAC5"), "B" => Paint("#B6CAFF"), _ => Paint("#CFD7E3")
                 };
             }
+            dpiScale = Math.Max(dpiScale, VisualTreeHelper.GetDpi(this).DpiScaleX);
+            badge.MaxWidth = value.IsArenaAugment ? cardWidth / dpiScale : double.PositiveInfinity;
             badge.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Width = badge.DesiredSize.Width;
             Height = badge.DesiredSize.Height;
-            dpiScale = Math.Max(dpiScale, VisualTreeHelper.GetDpi(this).DpiScaleX);
             int width = (int)Math.Ceiling(Width * dpiScale);
             int height = (int)Math.Ceiling(Height * dpiScale);
             var target = new Int32Rect((int)Math.Round(center - width / 2.0), (int)Math.Round(titleY) - height - 4, width, height);

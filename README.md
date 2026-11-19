@@ -4,14 +4,14 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones d
 
 | Función | ARAM Caos | Arena |
 | --- | --- | --- |
-| Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | OP.GG, estimación local y GGEZ.GG |
+| Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | Tier local por campeón, objetos y nivel con mecánicas de LoL Wiki. Elección en OP.GG y GGEZ.GG |
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
 | Hechizos de OP.GG | En la selección de campeón | — |
 | Tiers de campeones de GGEZ.GG | — | En la selección de campeón |
 
 ## Iniciar en Windows
 
-1. Abre `dist/win-x64/Iniciar.cmd`. La carpeta contiene la app, el runtime y el modelo de español. También incluye `AumentosLoL.exe` para el inicio directo donde la política de Windows lo permita.
+1. Después de iniciar sesión en Windows, abre manualmente `dist/win-x64-wiki/Iniciar.cmd` para usar la versión con la Wiki de este equipo. Si vuelves a publicar con el destino predeterminado, abre `dist/win-x64/Iniciar.cmd`. Cada paquete incluye la app, el runtime y el modelo de español.
 2. Usa League en **ventana sin bordes** y déjalo en primer plano cuando quieras ver los paneles. Desde el icono de **Aumentos LoL** en la bandeja puedes abrir **Diagnóstico y calibración**, **Pausar overlay** o salir.
 
 ### Calibrar la lectura de aumentos
@@ -28,7 +28,7 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 | --- | --- |
 | S / S+ | Estimación local para una sinergia excepcional. En Arena se muestra S+ |
 | A | Estimación local para una mecánica afín al perfil del campeón |
-| B | Estimación local intermedia indicada en la tabla editorial |
+| B | Estimación local intermedia para la sinergia evaluada |
 | C | Estimación local para una mecánica con poca afinidad con el perfil |
 | Sin dato | La carta se reconoció y esa fuente carece de una valoración disponible para el campeón, modo y parche |
 | Variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
@@ -42,9 +42,13 @@ La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\op
 
 En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese campeón y el número de partidas que lo respalda, por ejemplo «59/760 partidas · 26.23». La muestra abarca todas las regiones que recoge la fuente. Se usa el parche vigente o el inmediatamente anterior de la misma temporada con la marca «parche ant.». El menú **Datos de GGEZ.GG** abre la página del último campeón de Arena que detectó la app. [Ejemplo en Arena de Elise](https://ggez.gg/champion/Elise/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
 
+**League of Legends Wiki** aporta las mecánicas de cartas de Arena. Cuando una mecánica ayuda a valorar tu oferta, aparece **Mecánica de LoL Wiki**. La app calcula la letra a partir de esa mecánica, las características de tu campeón y los objetos que el cliente confirma en tu inventario. Con Jax y la misma oferta, **Goliat** puede quedar primero si llevas Corazón de Acero y Égida de Fuego Solar. Con Espada del Rey Arruinado y Espadafuria de Guinsoo puede quedar primero **Tifón**, porque aplica sus efectos al impacto a un segundo rival. Cuando las dos opciones tienen igual respaldo, ambas conservan su letra. La comparación usa la copia de la Wiki incluida en la app. El menú **Mecánicas de League of Legends Wiki** abre la revisión que se usó. [Módulo de los colaboradores de League of Legends Wiki, revisión 4070515](https://wiki.leagueoflegends.com/en-us/Special:PermanentLink/4070515) · [Datos de la Wiki adaptados bajo CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
+
+**Nv. 2** y **Nv. 3** corresponden a la mejora ofrecida en esa posición. Si hay cifras comprobadas para el parche, el panel muestra qué cambia. Con **Hábil** en Jax, pasar de nivel 2 a 3 lleva la velocidad de ataque del 80 % al 130 % y elimina su límite. En algunas mejoras, como **Grandes jugadas Nv. 2** con Elise, la etiqueta **Tier del efecto base** indica que la letra valora la afinidad del efecto inicial.
+
 Al elegir un **objeto legendario o prismático de Arena**, o un **fragmento del yunque de estadísticas**, las cartas valoradas muestran el tier local y su motivo. Durante una oferta prismática, un panel lateral muestra los **cinco prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
 
-Las cartas de aumentos de Arena muestran **Recomendado** si todas tienen tier y una destaca por afinidad, o cuando existe un criterio específico para desempatar. Con Jax, **Bailarín de Tap** gana el empate ante **Goliat** para sostener ataques, y **Hábil** gana ante **Tifón** para atacar a un solo objetivo. Un desempate conserva la letra de cada carta. El overlay también lee el nivel de las mejoras compatibles. Por ejemplo, **¡Enciéndelos! Nv. 2** muestra el cambio de cuatro a cinco fuegos y el modificador de daño del 90 % al 100 %, y puede ganar el empate frente a **Cerbero** con Jax. El porcentaje de elección indica la frecuencia observada en la muestra de cada fuente.
+Las cartas de aumentos de Arena muestran **Recomendado** cuando la comparación de la oferta completa identifica una ganadora. Con Jax sin compras que cambien el desempate, **Bailarín de Tap** gana ante **Goliat** para sostener ataques y **Hábil** gana ante **Tifón** para atacar a un solo objetivo. **¡Enciéndelos! Nv. 2** muestra el cambio de cuatro a cinco fuegos y el modificador de daño del 90 % al 100 %, y puede ganar el empate frente a **Cerbero**. El porcentaje de elección indica la frecuencia observada en la muestra de cada fuente.
 
 En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global de la carta en la muestra de esa fuente. La app prioriza el archivo del parche actual y, si aún falta, usa el inmediatamente anterior de la misma temporada. En ese caso, debajo del porcentaje aparece «Parche anterior» con el número. La fuente se consulta en segundo plano y se comparte entre todos los campeones. La app vuelve a comprobar los archivos anteriores cada 15 minutos y los del parche actual cada 12 horas mientras se usa el modo. [Datos de ARAMMayhem.com · CC BY 4.0](https://arammayhem.com/data/)
 
@@ -62,7 +66,7 @@ Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u 
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 
-Puedes comprobar las recomendaciones desde una terminal con `dist\win-x64\Iniciar.cmd --verificar-build Caos Kennen` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
+Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada por OP.GG con `.\dist\win-x64-wiki\Iniciar.cmd --verificar-build Caos Kennen` o `.\dist\win-x64-wiki\Iniciar.cmd --verificar-build Arena Elise`.
 
 ## Selección de campeón
 
@@ -78,27 +82,44 @@ Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CS
 
 Cada fila guarda la carta ofrecida, su posición, el campeón, el modo, el parche y la fecha. La columna `tier` contiene la estimación local y `opgg` contiene la valoración o popularidad mostrada. Las columnas `arammayhem_popularidad_global_pct` y `arammayhem_parche` guardan el porcentaje de ARAMMayhem.com y el parche de sus datos. Las columnas `ggez_*` guardan el porcentaje de elección, cuántas veces se eligió el aumento, el tamaño de la muestra y el parche de GGEZ.GG. Las filas previas a cada integración llevan sus columnas nuevas vacías. Una carta nueva o una valoración que cambie en pantalla se registra en la misma selección. Las filas marcadas como **Captura** contienen los valores recalculados con los datos vigentes al importarla.
 
-Para comprobar una imagen con un campeón concreto, ejecuta `dist\win-x64\Iniciar.cmd --verificar Caos "ruta\captura.png" Lux`. Para agregar sus cartas al historial como captura, usa `dist\win-x64\Iniciar.cmd --registrar-capturas Caos Lux "ruta\captura.png"`. En Arena usa `Arena` y la clave del campeón correspondiente.
+Desde la raíz del proyecto, comprueba una imagen de Arena con `.\dist\win-x64-wiki\Iniciar.cmd --verificar Arena .\evidencias\image4.png Elise`. Para agregar sus cartas al historial, cierra primero el overlay desde **Salir** en la bandeja y ejecuta `.\dist\win-x64-wiki\Iniciar.cmd --registrar-capturas Arena Elise .\evidencias\image4.png`. Para otra captura, cambia el archivo, la clave del campeón y el modo (`Arena` o `Caos`).
+
+En Arena, `arena_nivel_aumento` conserva el nivel leído, `arena_fuente_mecanica` identifica la Wiki cuando intervino y `arena_motivo` guarda la explicación mostrada. Al importar una captura se pueden recuperar el campeón indicado y los niveles visibles. La sinergia por objetos se calcula durante la partida con el inventario del cliente local.
 
 ## Construir y actualizar
 
 Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El script descarga el modelo español si falta y publica en `dist/win-x64`.
 
+Para preparar una versión mientras se usa la anterior, puedes publicar en otra carpeta con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-wiki`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
+
 Para actualizar el catálogo, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar. El overlay se suspende si detecta que el parche del juego difiere del catálogo.
 
-Ejecuta `dotnet build AumentosLoL.slnx -c Release` y luego `dotnet tests/Aumentos.Tests/bin/Release/net10.0-windows10.0.19041.0/Aumentos.Tests.dll`. La suite verifica la comparación de fuentes, el historial, el contenido de las builds y la lectura de los datos de selección de campeón. Puedes agregar estas opciones al segundo comando para comprobar la detección y los paneles.
+Después de regenerar el catálogo, ejecuta `powershell -File scripts/Get-ArenaWikiMechanics.ps1` para vincularlo con la revisión pública más reciente. Con `-Revision 4070515` puedes reproducir la revisión incluida, del 29 de septiembre de 2026. El generador conserva los textos, la atribución y la licencia de la Wiki, y vincula títulos en inglés con IDs y claves del catálogo en español. Comprueba las reglas de `ArenaAugmentAffinity.cs` al cambiar de revisión. Las cifras que muestra el overlay provienen de los datos del parche del catálogo. [Módulo de mecánicas de Arena](https://wiki.leagueoflegends.com/en-us/Module:ArenaAugmentData/data) · [Datos del parche 16.23](https://raw.communitydragon.org/16.23/cdragon/arena/es_mx.json)
+
+Ejecuta estos comandos en PowerShell desde la raíz del proyecto. Usan el SDK de .NET 10 del sistema o el incluido en AugmentLens en este equipo.
+
+```powershell
+$sdk = (Get-Command dotnet -ErrorAction SilentlyContinue).Source
+if (!$sdk) { $sdk = "$env:LOCALAPPDATA\AugmentLens\dotnet\dotnet.exe" }
+& $sdk build .\AumentosLoL.slnx -c Release
+& $sdk .\tests\Aumentos.Tests\bin\Release\net10.0-windows10.0.19041.0\Aumentos.Tests.dll
+```
+
+La suite verifica las fuentes, el historial, las builds, la selección de campeón y la afinidad de los aumentos por inventario y nivel. Agrega estas opciones al comando que ejecuta las pruebas para comprobar la detección de cartas y los paneles.
 
 - `--caos evidencias/captura.png --arena evidencias/image.png --items evidencias/image2.png` reproduce los paneles de referencia de aumentos y de objetos.
 - `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
 - `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
 - `--arena-draft-shot "ruta\seleccion.png" --arena-champion-overlay-smoke` comprueba la fila de Valentía de la captura de referencia y el panel de campeones.
 - `--arena-jax-upgrade-shot "ruta\fuegos.png"` comprueba el nivel 2 de **¡Enciéndelos!** en la carta central de la captura de referencia.
+- `--arena-level-shot evidencias/image4.png` comprueba dos mejoras de nivel 2 en la misma oferta, incluida la relectura independiente de cada posición.
 - `--arena-build-snapshot "ruta\allgamedata.json" --arena-build-overlay-smoke` comprueba la ruta con un registro de Arena que incluya rivales confirmados y el panel de tienda.
 - `--live` comprueba la API local durante una partida de ARAM Caos o Arena.
 
 ## Hallazgos para futuras sesiones
 
-- En la revisión de **26.23**, el catálogo de Arena tiene **282 aumentos** y **173 campeones**. **99** aumentos tienen tier para todos, **4** para algunos perfiles, **10** muestran **Variable** con su condición y **169** carecen de regla local. Una carta reconocida puede tener datos de elección aunque siga pendiente en `ratings.json`.
+- En **26.23**, la estimación base cubre **25,782 de 48,786** combinaciones de 173 campeones y 282 cartas de Arena (**52.85 %**). Antes de incorporar la Wiki cubría **17,131** (**35.11 %**). El recuento usa un inventario vacío y el efecto base de cada carta. **148** cartas tienen letra para todos los campeones, **5** para algunos, **10** muestran **Variable** y **119** siguen sin letra base. Las **153** cartas con alguna letra incluyen 148 para Jax, 151 para Cho’Gath y 150 para Tristana. Los objetos y niveles pueden cambiar la valoración de una oferta concreta.
+- La revisión **4070515** de LoL Wiki vinculó mecánicas con **241** cartas del catálogo. Para comprobar niveles usa los datos de Arena del parche, incluidos los ajustes específicos del modo. Este catálogo identifica el máximo de **260** cartas y tiene cambios numéricos comprobados para **19**. Por ejemplo, **Ritmo Crítico** llega a Nv. 2 y **Hábil** a Nv. 3. Las cifras de la carta **En las Cuerdas** incluyen cuatro pulsos del efecto. [Datos específicos del modo Arena](https://raw.communitydragon.org/16.23/game/maps/modespecificdata/cherry.bin.json)
 - En el catálogo actual, **Abrecaminos** (221), **Putrificador Quimtech** (347) y **Abrazo Demoniaco** (383) comparten título con objetos que tienen prioridad en la detección. Las dos versiones de **¡Estadísticas sobre Estadísticas!** (227 y 228) siguen ambiguas en Arena. **¡Estadísticas!** (226) es la carta distinta de dos yunques.
 - Para ampliar los tiers, actualiza el catálogo, revisa mecánicas y etiquetas de cartas en los datos públicos del cliente y asigna reglas por perfil. Esto se puede hacer con el catálogo y pruebas de regresión sin jugar con todos los campeones. Conserva capturas limpias para comprobar OCR, rerolls y cierres de panel. Una captura con el propio overlay encima puede tapar parte de un título al volver a leerla. [Catálogo es-MX de Arena, parche 16.23](https://raw.communitydragon.org/16.23/plugins/rcp-be-lol-game-data/global/es_mx/v1/cherry-augments.json)
 - Las tres recompensas de Ivern y las mejoras de aumentos de Arena tienen casos de regresión propios. Para el parpadeo de Ivern, usa `--arena-ivern-shot "ruta\ivern.png"`. Para validar la posición **Top #5** sobre el Manto de la Noche Estrellada de Cho’Gath, usa `--arena-prismatic-rank-shot "ruta\prismaticos.png"`.

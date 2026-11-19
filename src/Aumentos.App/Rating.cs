@@ -13,7 +13,13 @@ namespace Aumentos;
 public enum Mode { Caos, Arena }
 public enum Tier { S, A, B, C }
 public record Champion(string Key, string Name, string[] Roles);
-public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases, int? AnvilCount = null);
+public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases,
+    int? AnvilCount = null, int? MaxLevel = null, string[]? UpgradeEffects = null)
+{
+    internal string? EffectAt(int? level) =>
+        level is >= 2 && UpgradeEffects is not null && level - 2 < UpgradeEffects.Length
+            ? UpgradeEffects[level.Value - 2] : null;
+}
 public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems,
     ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null, ArenaItem[]? ArenaEquipment = null);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
@@ -45,6 +51,9 @@ public sealed class Ratings
     internal ArenaPrismaticRatings Prismatics { get; }
     internal ArenaLegendaryRatings Legendaries { get; }
     internal ArenaShardRatings Shards { get; }
+    internal ArenaWikiMechanics? Wiki { get; }
+    internal ArenaAugmentAffinity AugmentAffinity { get; }
+    private readonly Dictionary<int, Augment> arenaAugments;
 
     public Ratings(string assetPath)
     {
@@ -64,6 +73,8 @@ public sealed class Ratings
             if (group.Select(card => card.Id).Distinct().Count() != group.Count())
                 throw new InvalidDataException($"IDs de aumentos duplicados en {group.Key}.");
         }
+        arenaAugments = Catalog.Augments.Where(card => card.Mode == nameof(Mode.Arena)).ToDictionary(card => card.Id);
+        Wiki = ArenaWikiMechanics.Load(assetPath, Catalog);
         names = groups.ToDictionary(group => group.Key, group => group.SelectMany(card =>
             new[] { card.Name }.Concat(card.Aliases ?? []).Select(name => (card, Normalize(name))))
             .Distinct().ToArray());
@@ -111,6 +122,7 @@ public sealed class Ratings
             foreach (var card in cards)
                 overrides.Add((Enum.Parse<Mode>(card.Mode), rule.Champion.ToLowerInvariant(), card.Id), Enum.Parse<Tier>(rule.Tier));
         }
+        AugmentAffinity = new ArenaAugmentAffinity(this);
     }
 
     public static T Read<T>(string path) =>
@@ -176,7 +188,20 @@ public sealed class Ratings
     internal string? DefaultReason(Mode mode, int augment) =>
         mode == Mode.Arena ? arenaDefaults.GetValueOrDefault(augment)?.Reason : null;
 
+    internal Augment? ArenaAugment(int id) => arenaAugments.GetValueOrDefault(id);
+
+    internal bool HasOverride(Mode mode, string champion, int augment) =>
+        overrides.ContainsKey((mode, champion.ToLowerInvariant(), augment));
+
     public Tier? Rate(Mode mode, string champion, int augment)
+    {
+        var editorial = RateEditorial(mode, champion, augment);
+        if (editorial.HasValue || mode != Mode.Arena || VariableReason(mode, augment) is not null || !profiles.ContainsKey(champion))
+            return editorial;
+        return AugmentAffinity.Evaluate(champion, augment)?.Tier;
+    }
+
+    internal Tier? RateEditorial(Mode mode, string champion, int augment)
     {
         if (VariableReason(mode, augment) is not null || !profiles.TryGetValue(champion, out var profile)
             || !affinities.TryGetValue((mode, augment), out var tags))

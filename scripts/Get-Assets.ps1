@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Patch = '16.23',
     [string]$ChampionVersion = "$Patch.1",
     [switch]$SkipCatalog,
@@ -64,6 +64,8 @@ $itemCatalog = "{`n  `"patch`": `"$Patch`",`n  `"source`": `"$itemSource`",`n  `
 if ($OnlyMayhemItems) { return }
 
 $arena = (Get-Json "$cdn/cdragon/arena/es_mx.json").augments
+$arenaModeSource = "$cdn/game/maps/modespecificdata/cherry.bin.json"
+$arenaMode = Get-Json $arenaModeSource
 $names = Get-Json "$localized/cherry-augments.json"
 $lists = Get-Json "$localized/augment-lists.json"
 $kiwi = @($lists | Where-Object modeName -eq 'KIWI')
@@ -92,6 +94,96 @@ $cards += @(Get-ListedCards $kiwi[0] 'Caos' @())
 if (!$arena.Count -or !$kiwi[0].augmentList.Count) { throw 'El catálogo de un modo quedó vacío.' }
 $duplicates = $cards | Group-Object { "$($_.mode)/$($_.id)" } | Where-Object Count -gt 1
 if ($duplicates) { throw "IDs duplicados: $($duplicates.Name -join ', ')." }
+
+# Entries from the common augment list can be missing from the localized Arena export.
+# In that case the mode-specific overrides take precedence over the root spell defaults.
+function Get-SharedArenaValues($card) {
+    $augment = $arenaMode.("Maps/ModeSpecificData/Augments/" + $card.key)
+    if ($augment.AugmentPlatformId -ne $card.id -or !$augment.RootSpell) { return }
+    $spell = $arenaMode.($augment.RootSpell).mSpell
+    $values = @{}
+    foreach ($datum in @($spell.DataValues) + @($spell.DataValuesModeOverride.cherry.SpellDataValues)) {
+        if ($datum.name) { $values[$datum.name] = $datum.values }
+    }
+    $values
+}
+
+# Only give numeric details for fields with confirmed units and meaning.
+$upgradeStats = @{
+    Deft = [ordered]@{ AttackSpeed = 'Velocidad de ataque', 100, ' %' }
+    LightemUp = [ordered]@{
+        NumberOfFireworks = 'Fuegos artificiales', 1, ''
+        FireworkDamageMod = 'Daño', 100, ' %'
+    }
+    Clothesline = [ordered]@{
+        Healthcoefficient = 'Vida máxima', 100, ' %'
+        ADcoefficient = 'Daño de ataque', 100, ' %'
+        APcoefficient = 'Poder de habilidad', 100, ' %'
+    }
+    LightningStrikes = [ordered]@{
+        AttackSpeedCap = 'Límite de ataques/s', 1, ''
+        TotalASValue = 'Velocidad de ataque', 100, ' %'
+    }
+    VeilOfWarding = [ordered]@{ Cooldown = 'Enfriamiento', 1, ' s' }
+    CriticalRhythm = [ordered]@{ MaxStack = 'Máximo de acumulaciones', 1, '' }
+    BigBrain = [ordered]@{ ShieldBaseTooltip = 'Escudo por punto de poder de habilidad', 1, '' }
+    ShadowRunner = [ordered]@{
+        MSAmount = 'Velocidad de movimiento', 1, ''
+        BuffDuration = 'Duración', 1, ' s'
+    }
+    Tormentor = [ordered]@{ PercentMaxHPDamagePer5Seconds = 'Quemadura de vida máxima en 5 s', 100, ' %' }
+    IceCold = [ordered]@{ ExtraSlowAmount = 'Ralentización adicional', 1, '' }
+    HeavyHitter = [ordered]@{ HealthPercent = 'Porcentaje de tu vida máxima por ataque', 100, ' %' }
+    Repulsor = [ordered]@{ KnockbackDistance = 'Distancia de empuje', 1, '' }
+    SlapAround = [ordered]@{ AdaptiveForce = 'Fuerza adaptable por inmovilización', 1, '' }
+    ScopiestWeapons = [ordered]@{
+        MeleeRangeIncrease = 'Alcance cuerpo a cuerpo', 1, ''
+        RangedRangeIncrease = 'Alcance a distancia', 1, ''
+    }
+    TapDancer = [ordered]@{ MSPerHit = 'Velocidad de movimiento al impacto', 1, '' }
+    Goliath = [ordered]@{
+        HealthAmp = 'Vida', 100, ' %'
+        AFAmp = 'Fuerza adaptable', 100, ' %'
+    }
+    JeweledGauntlet = [ordered]@{ CritDamage = 'Daño crítico de habilidades', 100, ' %' }
+    FanTheHammer = [ordered]@{ Cooldown = 'Enfriamiento por dirección', 1, ' s' }
+    Deathtouch = [ordered]@{ OnHitDamageRatio = 'Daño al impacto del Poder Maldito', 100, ' %' }
+}
+$mexicanSpanish = [System.Globalization.CultureInfo]::GetCultureInfo('es-MX')
+function Get-ArenaUpgradeEffects($card, $entry, $values, [int]$maximum) {
+    $fields = $upgradeStats[$card.key]
+    if (!$fields -or $maximum -lt 2) { return }
+    $tooltipMultiplier = 1
+    if ($card.key -eq 'Clothesline') {
+        $calculation = $entry.calculations.BurnDamageTooltip
+        if ($calculation.mModifiedGameCalculation -ne 'BurnDamage' -or $calculation.mMultiplier.mNumber -le 0) { return }
+        $tooltipMultiplier = $calculation.mMultiplier.mNumber
+    }
+
+    foreach ($level in 2..$maximum) {
+        $changes = foreach ($field in $fields.GetEnumerator()) {
+            $series = $values.($field.Key)
+            if ($series.Count -le $level -or $null -eq $series[$level - 1] -or $null -eq $series[$level]) { continue }
+            $label, $scale, $unit = $field.Value
+            $previous = ($series[$level - 1] * $scale * $tooltipMultiplier).ToString('0.##', $mexicanSpanish)
+            $current = ($series[$level] * $scale * $tooltipMultiplier).ToString('0.##', $mexicanSpanish)
+            if ($previous -ne $current) { "$label de $previous$unit a $current$unit" }
+        }
+        if ($changes) { $changes -join ' · ' } else { $null }
+    }
+}
+
+$arenaById = @{}
+foreach ($entry in $arena) { $arenaById[$entry.id] = $entry }
+foreach ($card in $cards | Where-Object mode -eq 'Arena') {
+    $entry = $arenaById[$card.id]
+    $values = if ($entry.dataValues.MaxLevel) { $entry.dataValues } else { Get-SharedArenaValues $card }
+    $levels = $values.MaxLevel
+    if (!$levels.Count -or $levels[0] -lt 1 -or $levels[0] -ne [Math]::Floor($levels[0])) { continue }
+    $card['maxLevel'] = [int]$levels[0]
+    $effects = @(Get-ArenaUpgradeEffects $card $entry $values $card.maxLevel)
+    if ($effects | Where-Object { $_ }) { $card['upgradeEffects'] = $effects }
+}
 
 $sharedTitles = @($cards | Where-Object mode -eq 'Caos' | Group-Object name | Where-Object Count -gt 1)
 if ($sharedTitles.Count) {
@@ -154,7 +246,7 @@ if (!$arenaEquipment.Count) { throw 'No se encontraron datos del inventario de A
 $catalog = [ordered]@{
     patch=$Patch
     locale='es_MX'
-    sources=[ordered]@{ champions="Data Dragon $ChampionVersion"; augments=$cdn; arenaItems=$arenaItemSource }
+    sources=[ordered]@{ champions="Data Dragon $ChampionVersion"; augments=$cdn; arenaItems=$arenaItemSource; arenaAugmentOverrides=$arenaModeSource }
     champions=@($champions | Sort-Object id | ForEach-Object {
         [ordered]@{ key=$_.id; name=$_.name; roles=@($_.tags) }
     })

@@ -124,7 +124,7 @@ internal static class ComparisonTests
             cards.Select(card => card?.RecommendedUpgrade).SequenceEqual([false, false, true]) &&
             cards[2]?.LocalReason == "Límite de ataques/s de 3.5 a 10",
             "la mejora de Golpes Relampagueantes desempata por su efecto en la velocidad de ataque");
-        Check(Compare([3, 2, 2])[0]?.RecommendedUpgrade == true &&
+        Check(Compare([3, 2, 2])[0] is { UpgradeLevel: null, RecommendedUpgrade: false } &&
             Compare([2, null, 2]).All(badge => badge?.RecommendedUpgrade == false) &&
             Compare(null).All(badge => badge is { RecommendedUpgrade: false, LocalReason: null }),
             "la recomendación cambia con el nivel y exige una oferta de mejoras completa");

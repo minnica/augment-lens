@@ -78,19 +78,16 @@ internal static class Program
                         {
                             if (comparison.IsArenaAugment && comparison.Local != CardComparison.Missing)
                             {
-                                label += comparison.Local == "Variable" ? " · Valoración variable" :
-                                    $" · Tier local {comparison.LocalText}";
-                                if (comparison.RecommendedUpgrade)
-                                    label += " · Mejora recomendada";
-                                if (comparison.RecommendedAugment)
-                                    label += " · Recomendado";
-                                if (comparison.LocalReason is { } reason)
-                                    label += $" · {reason}";
+                                label += $" · {comparison.ArenaTitle.Replace("   ", " ")}";
                                 if (comparison.External is not null)
                                     label += $" · OP.GG {comparison.ExternalText}";
                             }
                             else
                                 label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
+                            if (comparison.DetailText.Length > 0)
+                                label += $" · {comparison.DetailText.Replace("\n", " · ")}";
+                            if (comparison.UsesWiki)
+                                label += $" · Mecánica de {ArenaWikiMechanics.Attribution}";
                             if (comparison.Mayhem is { } popularity)
                                 label += $" · {popularity.Text} · {(popularity.IsPrevious ? "Parche anterior" : "Parche")} {popularity.Patch}";
                             if (comparison.Arena is { } arenaPopularity)
@@ -186,6 +183,10 @@ internal static class Program
                 OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
             menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
                 OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
+            if (ratings.Wiki is { } wiki)
+                menu.Items.Add($"Mecánicas de {ArenaWikiMechanics.Attribution}", null, (_, _) =>
+                    OpenProviderPage($"https://wiki.leagueoflegends.com/en-us/Special:PermanentLink/{wiki.SourceRevision}",
+                        ArenaWikiMechanics.Attribution));
             menu.Items.Add("Tier de campeones de Arena", null, (_, _) =>
                 OpenProviderPage(ArenaChampionTierSource.Address.AbsoluteUri, ArenaChampionTierSource.Attribution));
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
@@ -358,7 +359,7 @@ internal static class Program
                     throw new InvalidDataException($"No se pudieron verificar los aumentos de {Path.GetFileName(file)}.");
                 var (source, mayhem, arena) = CaptureSources(new GameContext(mode, champion.Key), opgg, aramMayhem, ggez);
                 history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards,
-                    source.Data, mayhem?.Data, arena?.Data);
+                    source.Data, mayhem?.Data, arena?.Data, result.UpgradeLevels);
                 Console.WriteLine($"{champion.Name} · {Path.GetFileName(file)} · {result.Cards.Count(card => card.HasValue)} cartas");
             }
             history.Flush();

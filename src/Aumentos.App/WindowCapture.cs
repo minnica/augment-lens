@@ -17,7 +17,7 @@ using WinRT;
 
 namespace Aumentos;
 
-internal record GameWindow(nint Handle, Int32Rect Bounds, Int32Rect Frame, string? Patch)
+internal record GameWindow(nint Handle, Int32Rect Bounds, Int32Rect Frame, string? Patch, uint ProcessId)
 {
     public static GameWindow? Foreground(GameWindow? previous = null)
     {
@@ -30,7 +30,7 @@ internal record GameWindow(nint Handle, Int32Rect Bounds, Int32Rect Frame, strin
             using var process = Process.GetProcessById((int)id);
             if (process.ProcessName != "League of Legends")
                 return null;
-            string? version = previous?.Handle == handle ? previous.Patch : null;
+            string? version = previous?.Handle == handle && previous.ProcessId == id ? previous.Patch : null;
             if (version is null)
             {
                 try
@@ -42,7 +42,7 @@ internal record GameWindow(nint Handle, Int32Rect Bounds, Int32Rect Frame, strin
                 catch (System.ComponentModel.Win32Exception) { }
             }
             var frame = Native.Bounds(handle);
-            return new GameWindow(handle, Native.ClientBounds(handle, frame), frame, version ?? LeaguePatch.Installed());
+            return new GameWindow(handle, Native.ClientBounds(handle, frame), frame, version ?? LeaguePatch.Installed(), id);
         }
         catch (ArgumentException) { return null; }
         catch (InvalidOperationException) { return null; }

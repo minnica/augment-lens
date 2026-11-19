@@ -21,7 +21,11 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 11);
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
+        CheckHistory(ratings, legacyColumns: 18);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
+        ArenaWikiMechanicsTests.Run(ratings, assets);
+        ArenaAugmentAffinityTests.Run(ratings);
+        ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"));
         ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
             Option("--arena-prismatic-rank-shot"));
@@ -290,11 +294,17 @@ internal static class Program
             var headerSuffix = legacyColumns >= 12 ? ",opgg" : "";
             var rowSuffix = legacyColumns >= 12 ? ",A" : "";
             var savedSuffix = legacyColumns >= 12 ? ",\"A\"" : "";
-            if (legacyColumns == 14)
+            if (legacyColumns >= 14)
             {
                 headerSuffix += ",arammayhem_popularidad_global_pct,arammayhem_parche";
                 rowSuffix += ",24.6,26.21";
                 savedSuffix += ",\"24.6\",\"26.21\"";
+            }
+            if (legacyColumns == 18)
+            {
+                headerSuffix += ",ggez_eleccion_pct,ggez_veces_elegido,ggez_partidas,ggez_parche";
+                rowSuffix += ",2.5,25,1000,26.22";
+                savedSuffix += ",\"2.5\",\"25\",\"1000\",\"26.22\"";
             }
             File.WriteAllLines(history.FilePath, [
                 "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen" + headerSuffix,
@@ -311,23 +321,32 @@ internal static class Program
             history.Observe(4, Mode.Caos, "Lux", [2098, 2087, null, 2062], reroll, 3400);
             var ggez = new GgezArenaSnapshot("Elise", ratings.Catalog.Patch, ratings.Catalog.Patch,
                 DateTimeOffset.UtcNow, 100, new() { [1034] = new(10, 10) });
-            history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180], ggez: ggez);
+            history.Import(DateTimeOffset.Now, Mode.Arena, "Elise", "image4.png", [364, 1034, 180], ggez: ggez,
+                upgradeLevels: [null, 2, 2]);
             history.Flush();
             history.Flush();
             var lines = File.ReadAllLines(history.FilePath);
-            Check(lines[0].EndsWith(",ggez_eleccion_pct,ggez_veces_elegido,ggez_partidas,ggez_parche") &&
-                lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\"" + savedSuffix + new string(',', 18 - legacyColumns)),
+            Check(lines[0].EndsWith(",ggez_parche,arena_nivel_aumento,arena_fuente_mecanica,arena_motivo") &&
+                lines[1].EndsWith("\"Texto, con coma\",\"B\",\"Partida\"" + savedSuffix + new string(',', 21 - legacyColumns)),
                 "la columna nueva conserva los valores del historial anterior");
             Check(lines.Length == 12, "historial sin duplicados entre fotogramas y con reroll y segunda selección");
             Check(lines.Single(row => row.Contains("\"1\",\"2\",\"2087\""))
-                .EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\",\"12.5\",\"26.22\",\"\",\"\",\"\",\"\""),
+                .EndsWith("\"Archimago\",\"A\",\"Partida\",\"S\",\"12.5\",\"26.22\",\"\",\"\",\"\",\"\",\"\",\"\",\"\""),
                 "se guardan las valoraciones y el parche de la popularidad global");
             Check(lines.Single(row => row.Contains("\"1034\",\"Velo del Centinela\""))
-                .EndsWith($"\"10\",\"10\",\"100\",\"{LeaguePatch.Public(ratings.Catalog.Patch)}\""),
-                "se guardan porcentaje y muestra de Arena");
+                .Contains($"\"10\",\"10\",\"100\",\"{LeaguePatch.Public(ratings.Catalog.Patch)}\",\"2\""),
+                "se guardan porcentaje, muestra y nivel de Arena");
             Check(lines.Any(row => row.Contains("\"2\",\"1\",\"2098\"")) &&
                 lines.Any(row => row.Contains("\"Reemplazar Aumento\",\"Variable\",\"Captura · tier recalculado · image4.png\"")),
                 "selecciones nuevas y origen de captura");
+            history.ResetMatch();
+            history.Observe(4, Mode.Arena, "Jax", [87], [new("A", IsArenaAugment: true,
+                LocalReason: "Efectos al impacto", UsesWiki: true)], 4000);
+            history.Flush();
+            var last = File.ReadLines(history.FilePath).Last();
+            Check(last.Contains("\"1\",\"1\",\"87\"") &&
+                last.EndsWith("\"\",\"League of Legends Wiki\",\"Efectos al impacto\""),
+                "la partida nueva reinicia la selección y guarda el fundamento de la valoración");
             Console.WriteLine("Historial de cartas verificado.");
         }
         finally

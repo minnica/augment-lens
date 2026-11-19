@@ -48,7 +48,7 @@ public sealed class OfferState
 
     public int? this[int slot] => ids[slot];
     internal void Set(int slot, int? id, byte[]? sample, string text = "", bool item = false, byte[]? description = null,
-        ArenaShard? shard = null, int? upgradeLevel = null)
+        ArenaShard? shard = null)
     {
         ids[slot] = id;
         Samples[slot] = sample;
@@ -56,7 +56,7 @@ public sealed class OfferState
         Texts[slot] = text;
         ItemSlots[slot] = item;
         ShardSlots[slot] = shard;
-        UpgradeLevels[slot] = upgradeLevel;
+        UpgradeLevels[slot] = null;
     }
 
     public void Clear()
@@ -154,7 +154,7 @@ internal sealed class Detection : IDisposable
         {
             var rect = Relative(calibration.Titles[index], scan, calibration);
             var current = Signature(image, rect);
-            var descriptions = mode == Mode.Arena ? UpgradeLevelArea(image, rect) : DescriptionArea(image, rect);
+            var descriptions = mode == Mode.Caos ? DescriptionArea(image, rect) : null;
             var previousDescription = state.Descriptions[index];
             var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
             if (state.Samples[index] is not { } previous || Difference(previous, current, mode == Mode.Arena) >= 2.2 ||
@@ -212,7 +212,6 @@ internal sealed class Detection : IDisposable
                 }
                 var card = candidates is [var unique] ? unique : null;
                 byte[]? detail = null;
-                int? upgradeLevel = null;
                 if (mode == Mode.Caos && candidates.Length > 1 && descriptions is { } crop &&
                     candidates.All(candidate => candidate.AnvilCount.HasValue) &&
                     candidates.Select(candidate => candidate.AnvilCount).Distinct().Count() == candidates.Length)
@@ -220,25 +219,30 @@ internal sealed class Detection : IDisposable
                     detail = description ?? Signature(image, crop);
                     card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
                 }
-                if (mode == Mode.Arena && card is not null && ArenaUpgradeRatings.Supports(card.Id) &&
-                    descriptions is { } levelArea)
-                {
-                    detail = description ?? Signature(image, levelArea);
-                    var level = Regex.Match(Ratings.Normalize(ReadTitle(image, levelArea, PageSegMode.SparseText,
-                        minimumScale: 2)), @"\bnv\s*([23])\b");
-                    if (level.Success)
-                        upgradeLevel = level.Groups[1].Value[0] - '0';
-                }
                 state.RetryTitleAt[index] = mode == Mode.Arena && card is null && !item && !shard.HasValue ? now + 350 : 0;
-                state.Set(index, card?.Id, current, text, item, detail, shard, upgradeLevel);
+                state.Set(index, card?.Id, current, text, item, detail, shard);
             }
             ids[index] = state[index];
             texts[index] = state.Texts[index];
             items[index] = state.ItemSlots[index];
             if (shards is not null)
                 shards[index] = state.ShardSlots[index];
-            if (upgrades is not null)
+            if (upgrades is not null && ids[index] is { } id && ratings.ArenaAugment(id) is { } augment &&
+                augment.MaxLevel is not <= 1 &&
+                UpgradeLevelArea(image, rect) is { } levelArea)
+            {
+                var glyphs = new Int32Rect(levelArea.X + levelArea.Width / 4, levelArea.Y + levelArea.Height / 5,
+                    levelArea.Width / 2, levelArea.Height * 3 / 5);
+                var levelSample = Signature(image, glyphs);
+                if (state.Descriptions[index] is not { } previousLevel ||
+                    Difference(previousLevel, levelSample, compensateLighting: true) >= 0.65)
+                {
+                    state.Descriptions[index] = levelSample;
+                    state.UpgradeLevels[index] = ParseArenaUpgradeLevel(ReadTitle(image, levelArea,
+                        PageSegMode.SparseText, minimumScale: levelArea.Height < 50 ? 3 : 2, keepLines: true), augment.MaxLevel);
+                }
                 upgrades[index] = state.UpgradeLevels[index];
+            }
         }
         return new DetectionResult(true, ids, texts, items, shards, upgrades);
     }
@@ -262,6 +266,23 @@ internal sealed class Detection : IDisposable
         int bottom = Math.Min(image.PixelHeight, title.Y + title.Height * 3);
         int inset = title.Width / 4;
         return top < bottom ? new Int32Rect(title.X + inset, top, title.Width - 2 * inset, bottom - top) : null;
+    }
+
+    internal static int? ParseArenaUpgradeLevel(string text, int? maximum = null)
+    {
+        int? detected = null;
+        foreach (var line in text.Split('\n'))
+        {
+            var label = Regex.Match(Ratings.Normalize(line), @"^(?:nv|niv|nivel) ?([23])$",
+                RegexOptions.CultureInvariant);
+            if (!label.Success)
+                continue;
+            int level = label.Groups[1].Value[0] - '0';
+            if (maximum.HasValue && level > maximum || detected.HasValue && detected != level)
+                return null;
+            detected = level;
+        }
+        return detected;
     }
 
     private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)
@@ -302,7 +323,8 @@ internal sealed class Detection : IDisposable
         return samples > 0 && blue >= samples * 0.65;
     }
 
-    internal string ReadTitle(BitmapSource image, Int32Rect rect, PageSegMode segmentation, int minimumScale = 1)
+    internal string ReadTitle(BitmapSource image, Int32Rect rect, PageSegMode segmentation, int minimumScale = 1,
+        bool keepLines = false)
     {
         var gray = GrayCrop(image, rect);
         int scale = Math.Clamp(64 / gray.PixelHeight, minimumScale, 4);
@@ -339,7 +361,8 @@ internal sealed class Detection : IDisposable
         encoder.Save(stream);
         using var pix = Pix.LoadFromMemory(stream.ToArray());
         using var page = engine.Process(pix, segmentation);
-        return (page.GetText() ?? "").Trim().ReplaceLineEndings(" ");
+        var text = (page.GetText() ?? "").Trim();
+        return text.ReplaceLineEndings(keepLines ? "\n" : " ");
     }
 
     private static int Percentile(int[] histogram, int target)

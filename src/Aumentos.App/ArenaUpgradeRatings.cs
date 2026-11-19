@@ -7,8 +7,6 @@ internal static class ArenaUpgradeRatings
 {
     internal const int LightEmUp = 51;
     internal const int Cerberus = 323;
-    internal static bool Supports(int id) => id is 22 or LightEmUp or 52 or 1328;
-
     internal static void Apply(Ratings ratings, GameContext game, int?[] ids, int?[] levels, CardComparison?[] badges)
     {
         var fireworks = Array.IndexOf(ids, LightEmUp);
@@ -53,7 +51,6 @@ internal static class ArenaUpgradeRatings
     {
         (52, 2) => new(3, "Límite de ataques/s de 3.5 a 10"),
         (1328, 2) => new(2, "Duplica el máximo de acumulaciones"),
-        (1328, 3) => new(4, "Aumenta el límite y las acumulaciones de críticos"),
         (22, 2) => new(1, "Velocidad de ataque adicional desde el inicio"),
         (22, 3) => new(2, "Velocidad de ataque adicional desde el inicio"),
         _ => null

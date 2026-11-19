@@ -21,11 +21,26 @@ internal sealed record ArenaPopularity(decimal Percent, int GamesPicked, int Sam
 internal sealed record CardComparison(string Local, OpGgCard? External = null, bool Loading = false,
     MayhemPopularity? Mayhem = null, ArenaPopularity? Arena = null, string? ExternalPreviousPatch = null,
     ArenaChoiceRating? ArenaChoice = null, bool IsArenaAugment = false, string? LocalReason = null,
-    bool RecommendedUpgrade = false, bool RecommendedAugment = false)
+    bool RecommendedUpgrade = false, bool RecommendedAugment = false, bool UsesWiki = false,
+    int? UpgradeLevel = null, string? UpgradeEffect = null)
 {
     internal static readonly CardComparison Unread = new("?");
     internal const string Missing = "Sin dato";
     internal string LocalText => ArenaChoice?.TierText ?? (Local == "S" && IsArenaAugment ? "S+" : Local);
+    internal string ArenaTitle => (Local == "Variable" ? "Valoración variable" : $"Tier local   {LocalText}") +
+        (UpgradeLevel is { } level ? $" · Nv. {level}" : "") +
+        (RecommendedUpgrade ? " · Mejora recomendada" : RecommendedAugment ? " · Recomendado" : "");
+    internal string DetailText
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(UpgradeEffect) || LocalReason?.Contains(UpgradeEffect, StringComparison.OrdinalIgnoreCase) == true)
+                return LocalReason ?? "";
+            if (string.IsNullOrEmpty(LocalReason) || UpgradeEffect.StartsWith(LocalReason, StringComparison.OrdinalIgnoreCase))
+                return UpgradeEffect;
+            return $"{LocalReason}\n{UpgradeEffect}";
+        }
+    }
     internal string ExternalText => External?.PickPercent is { } pick
         ? $"Elección {pick.ToString("0.##", CultureInfo.GetCultureInfo("es-MX"))} %" +
             (ExternalPreviousPatch is { } patch ? $" · parche ant. {patch}" : "")
@@ -33,7 +48,7 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
 
     internal static CardComparison?[] ForOffer(Ratings ratings, GameContext game, int?[] ids,
         bool[] items, OpGgSnapshot? snapshot, bool loading = false, AramMayhemSnapshot? mayhem = null,
-        GgezArenaSnapshot? ggez = null, int?[]? upgradeLevels = null)
+        GgezArenaSnapshot? ggez = null, int?[]? upgradeLevels = null, IReadOnlyList<int>? arenaItems = null)
     {
         var external = snapshot?.Mode == game.Mode && snapshot.Patch == ratings.Catalog.Patch &&
             string.Equals(snapshot.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ? snapshot.Cards : null;
@@ -44,13 +59,22 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
         var championStats = game.Mode == Mode.Arena && ggez?.ClientPatch == ratings.Catalog.Patch &&
             string.Equals(ggez.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ? ggez : null;
         var arenaPatch = championStats is null ? "" : LeaguePatch.Public(championStats.SourcePatch);
+        int? LevelAt(int? id, int slot)
+        {
+            if (id is null || items[slot] || upgradeLevels is null || slot >= upgradeLevels.Length ||
+                upgradeLevels[slot] is not (2 or 3) || ratings.ArenaAugment(id.Value) is not { } card)
+                return null;
+            var level = upgradeLevels[slot];
+            return card.MaxLevel < level ? null : level;
+        }
+        var levels = game.Mode == Mode.Arena && upgradeLevels is not null ? ids.Select(LevelAt).ToArray() : null;
         var badges = ids.Select((id, i) =>
         {
             if (items[i]) return null;
             if (!id.HasValue) return Unread;
             var variable = ratings.VariableReason(game.Mode, id.Value);
             var local = variable is not null ? "Variable" :
-                ratings.Rate(game.Mode, game.Champion, id.Value)?.ToString() ?? Missing;
+                ratings.RateEditorial(game.Mode, game.Champion, id.Value)?.ToString() ?? Missing;
             var popularity = global is not null && global.Picks.TryGetValue(id.Value, out var percent)
                 ? new MayhemPopularity(percent, global.Patch, previous) : null;
             var arena = championStats is not null && championStats.Picks.TryGetValue(id.Value, out var pick)
@@ -59,18 +83,20 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
             var published = external?.GetValueOrDefault(id.Value);
             return new CardComparison(local, published, loading, popularity, arena,
                 published is null ? null : externalPrevious, IsArenaAugment: game.Mode == Mode.Arena,
-                LocalReason: variable ?? ratings.DefaultReason(game.Mode, id.Value));
+                LocalReason: variable ?? ratings.DefaultReason(game.Mode, id.Value), UpgradeLevel: levels?[i],
+                UpgradeEffect: levels?[i] is { } level ? ratings.ArenaAugment(id.Value)?.EffectAt(level) : null);
         }).ToArray();
         if (game.Mode == Mode.Arena)
         {
-            var isUpgrade = upgradeLevels?.Any(level => level.HasValue) == true;
+            var isUpgrade = levels?.Any(level => level.HasValue) == true;
             var jax = game.Champion.Equals("Jax", StringComparison.OrdinalIgnoreCase);
             if (jax)
-                DescribeJaxChoices(ids, upgradeLevels, badges);
+                DescribeJaxChoices(ids, levels, badges);
             if (isUpgrade)
-                ArenaUpgradeRatings.Apply(ratings, game, ids, upgradeLevels!, badges);
+                ArenaUpgradeRatings.Apply(ratings, game, ids, levels!, badges);
             else
                 RecommendArenaAugment(jax, ids, badges);
+            ratings.AugmentAffinity.Apply(game, ids, levels, arenaItems, badges);
         }
         return badges;
     }

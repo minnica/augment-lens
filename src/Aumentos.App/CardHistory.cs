@@ -13,7 +13,8 @@ internal sealed class CardHistory
     private const string OriginalHeader = "fecha,modo,campeon,parche,partida,seleccion,posicion,id_aumento,aumento,tier,origen";
     private const string HeaderWithOpGg = OriginalHeader + ",opgg";
     private const string HeaderWithMayhem = HeaderWithOpGg + ",arammayhem_popularidad_global_pct,arammayhem_parche";
-    private const string Header = HeaderWithMayhem + ",ggez_eleccion_pct,ggez_veces_elegido,ggez_partidas,ggez_parche";
+    private const string HeaderWithGgez = HeaderWithMayhem + ",ggez_eleccion_pct,ggez_veces_elegido,ggez_partidas,ggez_parche";
+    private const string Header = HeaderWithGgez + ",arena_nivel_aumento,arena_fuente_mecanica,arena_motivo";
     private readonly Ratings ratings;
     private readonly Dictionary<(Mode, int), string> names;
     private readonly List<string> pending = [];
@@ -57,11 +58,20 @@ internal sealed class CardHistory
             closedSince ??= now;
     }
 
+    internal void ResetMatch()
+    {
+        window = 0;
+        selection = 0;
+        closedSince = null;
+        Array.Clear(slots);
+    }
+
     internal void Import(DateTimeOffset date, Mode mode, string champion, string reference, int?[] cards,
-        OpGgSnapshot? snapshot = null, AramMayhemSnapshot? mayhem = null, GgezArenaSnapshot? ggez = null)
+        OpGgSnapshot? snapshot = null, AramMayhemSnapshot? mayhem = null, GgezArenaSnapshot? ggez = null,
+        int?[]? upgradeLevels = null)
     {
         var labels = CardComparison.ForOffer(ratings, new GameContext(mode, champion), cards, new bool[cards.Length],
-            snapshot, mayhem: mayhem, ggez: ggez);
+            snapshot, mayhem: mayhem, ggez: ggez, upgradeLevels: upgradeLevels);
         CaptureRows(date, mode, champion, "", null, cards, labels, $"Captura · tier recalculado · {reference}", remember: false);
     }
 
@@ -87,7 +97,10 @@ internal sealed class CardHistory
                 comparison.Mayhem?.Percent.ToString(CultureInfo.InvariantCulture) ?? "", comparison.Mayhem?.Patch ?? "",
                 comparison.Arena?.Percent.ToString("0.##", CultureInfo.InvariantCulture) ?? "",
                 comparison.Arena?.GamesPicked.ToString(CultureInfo.InvariantCulture) ?? "",
-                comparison.Arena?.SampleGames.ToString(CultureInfo.InvariantCulture) ?? "", comparison.Arena?.Patch ?? ""
+                comparison.Arena?.SampleGames.ToString(CultureInfo.InvariantCulture) ?? "", comparison.Arena?.Patch ?? "",
+                comparison.UpgradeLevel?.ToString(CultureInfo.InvariantCulture) ?? "",
+                comparison.UsesWiki ? ArenaWikiMechanics.Attribution : "",
+                comparison.IsArenaAugment ? comparison.DetailText.Replace("\n", " · ") : ""
             }.Select(CsvField)));
         }
     }
@@ -153,6 +166,7 @@ internal sealed class CardHistory
                     OriginalHeader => 11,
                     HeaderWithOpGg => 12,
                     HeaderWithMayhem => 14,
+                    HeaderWithGgez => 18,
                     _ => throw new IOException("Columnas de historial desconocidas.")
                 };
                 var extraColumns = new string(',', Header.Count(character => character == ',') + 1 - oldColumns);

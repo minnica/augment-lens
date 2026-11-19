@@ -15,8 +15,13 @@ internal record GameContext(Mode Mode, string Champion);
 internal sealed record MayhemOpponent(string Champion, int[] Items);
 internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
 internal sealed record ArenaOpponent(string Champion, int[] Items);
-internal sealed record ArenaMatch(int[] Items, ArenaOpponent[] Opponents);
-internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null);
+internal sealed record ArenaMatch(int[] Items, ArenaOpponent[] Opponents, bool InventoryKnown = true);
+internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
+    double? GameTime = null)
+{
+    internal bool IsNewSession(LiveMatch previous) =>
+        Game != previous.Game || (GameTime is { } time && previous.GameTime is { } earlier && time + 5 < earlier);
+}
 
 internal sealed class LiveGame : IDisposable
 {
@@ -62,16 +67,17 @@ internal sealed class LiveGame : IDisposable
     internal async Task<LiveMatch?> ReadMatch(CancellationToken cancellation)
     {
         using var game = await ReadJson("gamestats", cancellation).ConfigureAwait(false);
-        var mode = ParseMode(game.RootElement.GetProperty("gameMode").GetString());
+        var mode = ParseMode(Identity(game.RootElement, "gameMode"));
         if (mode is null)
             return null;
+        var gameTime = ReadGameTime(game.RootElement);
         if (mode == Mode.Arena)
         {
             try
             {
                 using var snapshot = await ReadJson("allgamedata", cancellation).ConfigureAwait(false);
                 if (ParseArenaMatch(snapshot.RootElement) is { } arena)
-                    return arena;
+                    return arena with { GameTime = arena.GameTime ?? gameTime };
             }
             catch (Exception error) when (!cancellation.IsCancellationRequested &&
                 error is HttpRequestException or JsonException or TaskCanceledException) { }
@@ -79,7 +85,8 @@ internal sealed class LiveGame : IDisposable
 
         using var name = await ReadJson("activeplayername", cancellation).ConfigureAwait(false);
         using var players = await ReadJson("playerlist", cancellation).ConfigureAwait(false);
-        return ParseMatch(mode.Value, players.RootElement, name.RootElement.GetString());
+        return ParseMatch(mode.Value, players.RootElement, name.RootElement.GetString()) is { } match
+            ? match with { GameTime = gameTime } : null;
     }
 
     internal static Mode? ParseMode(string? mode) => mode switch
@@ -93,16 +100,22 @@ internal sealed class LiveGame : IDisposable
     {
         if (string.IsNullOrWhiteSpace(active) || players.ValueKind != JsonValueKind.Array)
             return null;
-        foreach (var player in players.EnumerateArray())
+        var roster = players.EnumerateArray().Where(player => player.ValueKind == JsonValueKind.Object).ToArray();
+        if (mode == Mode.Arena)
         {
-            if (Identity(player, "riotId") != active && Identity(player, "summonerName") != active)
-                continue;
-            if (ChampionKey(player) is not { } champion)
+            var aliases = ArenaAliases(roster);
+            if (!aliases.TryGetValue(active, out int current) || ChampionKey(roster[current]) is not { } champion)
+                return null;
+            var items = ReadItems(roster[current]);
+            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null));
+        }
+
+        foreach (var player in roster)
+        {
+            if (Identity(player, "riotId") != active && Identity(player, "summonerName") != active ||
+                ChampionKey(player) is not { } champion)
                 continue;
             var game = new GameContext(mode, champion);
-            if (mode == Mode.Arena)
-                return new(game, Arena: new(ReadItems(player) ?? [], []));
-
             var team = Identity(player, "team");
             if (team is not ("ORDER" or "CHAOS") || ReadItems(player) is not { } owned)
                 return new(game);
@@ -127,20 +140,17 @@ internal sealed class LiveGame : IDisposable
             return null;
 
         var roster = players.EnumerateArray().Where(player => player.ValueKind == JsonValueKind.Object).ToArray();
-        var aliases = roster.SelectMany((player, index) => PlayerNames(player).Select(name => (name, index)))
-            .GroupBy(alias => alias.name, StringComparer.OrdinalIgnoreCase)
-            .Where(group => group.Select(alias => alias.index).Distinct().Count() == 1)
-            .ToDictionary(group => group.Key, group => group.First().index, StringComparer.OrdinalIgnoreCase);
-        int current = PlayerNames(active).Select(name => aliases.GetValueOrDefault(name, -1))
-            .FirstOrDefault(index => index >= 0, -1);
-        if (current < 0 || ChampionKey(roster[current]) is not { } champion)
+        var aliases = ArenaAliases(roster);
+        var identity = ArenaIdentity(active);
+        if (identity is null || !aliases.TryGetValue(identity, out int current) ||
+            ChampionKey(roster[current]) is not { } champion)
             return null;
 
         var context = new GameContext(Mode.Arena, champion);
-        var items = ReadItems(roster[current]) ?? [];
+        var items = ReadItems(roster[current]);
         if (!snapshot.TryGetProperty("events", out var eventData) || eventData.ValueKind != JsonValueKind.Object ||
             !eventData.TryGetProperty("Events", out var events) || events.ValueKind != JsonValueKind.Array)
-            return new(context, Arena: new(items, []));
+            return CreateMatch([]);
 
         var kills = ReadArenaKills(events, aliases).ToArray();
         var teams = Enumerable.Range(0, roster.Length).ToArray();
@@ -153,7 +163,7 @@ internal sealed class LiveGame : IDisposable
             .Select(kill => TeamOf(kill.Killer)).ToHashSet();
         int ownTeam = TeamOf(current);
         if (conflicting.Contains(ownTeam))
-            return new(context, Arena: new(items, []));
+            return CreateMatch([]);
 
         var lastSeen = new Dictionary<int, double>();
         foreach (var kill in kills)
@@ -173,7 +183,10 @@ internal sealed class LiveGame : IDisposable
             .Where(player => player.Champion is not null)
             .Select(player => new ArenaOpponent(player.Champion!, player.Items ?? []))
             .ToArray();
-        return new(context, Arena: new(items, opponents));
+        return CreateMatch(opponents);
+
+        LiveMatch CreateMatch(ArenaOpponent[] rivals) => new(context,
+            Arena: new(items ?? [], rivals, items is not null), GameTime: ReadGameTime(game));
 
         int TeamOf(int index)
         {
@@ -206,9 +219,33 @@ internal sealed class LiveGame : IDisposable
         }
     }
 
+    private static Dictionary<string, int> ArenaAliases(JsonElement[] roster) => roster
+        .SelectMany((player, index) => PlayerNames(player).Select(name => (name, index)))
+        .GroupBy(alias => alias.name, StringComparer.OrdinalIgnoreCase)
+        .Where(group => group.Select(alias => alias.index).Distinct().Count() == 1)
+        .ToDictionary(group => group.Key, group => group.First().index, StringComparer.OrdinalIgnoreCase);
+
     private static IEnumerable<string> PlayerNames(JsonElement player) =>
-        new[] { Identity(player, "riotId"), Identity(player, "summonerName"), Identity(player, "riotIdGameName") }
+        new[] { ArenaIdentity(player), Identity(player, "summonerName"), Identity(player, "riotIdGameName") }
             .OfType<string>().Where(name => !string.IsNullOrWhiteSpace(name));
+
+    private static string? ArenaIdentity(JsonElement player)
+    {
+        var riotId = Identity(player, "riotId");
+        if (!string.IsNullOrWhiteSpace(riotId))
+            return riotId;
+        var name = Identity(player, "riotIdGameName");
+        var tag = Identity(player, "riotIdTagLine");
+        if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(tag))
+            return $"{name}#{tag}";
+        var summoner = Identity(player, "summonerName");
+        return string.IsNullOrWhiteSpace(summoner) ? name : summoner;
+    }
+
+    private static double? ReadGameTime(JsonElement game) =>
+        game.ValueKind == JsonValueKind.Object && game.TryGetProperty("gameTime", out var elapsed) &&
+        elapsed.ValueKind == JsonValueKind.Number && elapsed.TryGetDouble(out var seconds) &&
+        double.IsFinite(seconds) && seconds >= 0 ? seconds : null;
 
     private static string? ChampionKey(JsonElement player)
     {

@@ -4,7 +4,8 @@
     "sources":  {
                     "champions":  "Data Dragon 16.23.1",
                     "augments":  "https://raw.communitydragon.org/16.23",
-                    "arenaItems":  "https://raw.communitydragon.org/16.23/plugins/rcp-be-lol-game-data/global/es_mx/v1/items.json"
+                    "arenaItems":  "https://raw.communitydragon.org/16.23/plugins/rcp-be-lol-game-data/global/es_mx/v1/items.json",
+                    "arenaAugmentOverrides":  "https://raw.communitydragon.org/16.23/game/maps/modespecificdata/cherry.bin.json"
                 },
     "champions":  [
                       {
@@ -1355,14 +1356,16 @@
                          "id":  1,
                          "key":  "AcceleratingSorcery",
                          "name":  "Hechicería Aceleradora",
-                         "description":  "Usar habilidades te otorga \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e que se acumula.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eEsto se reinicia en cada combate.\u003c/rules\u003e"
+                         "description":  "Usar habilidades te otorga \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e que se acumula.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eEsto se reinicia en cada combate.\u003c/rules\u003e",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  2,
                          "key":  "ApexInventor",
                          "name":  "Inventor Supremo",
-                         "description":  "Obtienes \u003cscaleBonus\u003e@ItemHaste@ de Aceleración de Objetos\u003c/scaleBonus\u003e (equivalente a un @TooltipCDR@% de la reducción de enfriamiento del objeto).\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLa aceleración de objetos reduce el enfriamiento %i:cooldown% de las habilidades de todos los objetos.\u003c/rules\u003e"
+                         "description":  "Obtienes \u003cscaleBonus\u003e@ItemHaste@ de Aceleración de Objetos\u003c/scaleBonus\u003e (equivalente a un @TooltipCDR@% de la reducción de enfriamiento del objeto).\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLa aceleración de objetos reduce el enfriamiento %i:cooldown% de las habilidades de todos los objetos.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -1376,1148 +1379,1333 @@
                          "id":  4,
                          "key":  "BacktoBasics",
                          "name":  "De Vuelta a lo Básico",
-                         "description":  "Obtienes un aumento de daño de habilidad, \u003chealing\u003ecuración\u003c/healing\u003e, \u003cshield\u003eescudos\u003c/shield\u003e y \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e, pero \u003ckeywordMajor\u003eno puedes usar tu habilidad definitiva\u003c/keywordMajor\u003e."
+                         "description":  "Obtienes un aumento de daño de habilidad, \u003chealing\u003ecuración\u003c/healing\u003e, \u003cshield\u003eescudos\u003c/shield\u003e y \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e, pero \u003ckeywordMajor\u003eno puedes usar tu habilidad definitiva\u003c/keywordMajor\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  5,
                          "key":  "BannerofCommand",
                          "name":  "Estandarte de Mando",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEstandarte de Mando\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eEstandarte de Mando\u003c/spellName\u003e potencia a tu aliado durante un breve periodo de tiempo\u003c/rules\u003e."
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEstandarte de Mando\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eEstandarte de Mando\u003c/spellName\u003e potencia a tu aliado durante un breve periodo de tiempo\u003c/rules\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  6,
                          "key":  "BladeWaltz",
                          "name":  "Baile de Duelista",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eVals de las Cuchillas\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eVals de las Cuchillas\u003c/spellName\u003e te hace inalcanzable mientras te desplazas hacia los enemigos y les infliges daño @TotalHits@ veces.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eVals de las Cuchillas\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eVals de las Cuchillas\u003c/spellName\u003e te hace inalcanzable mientras te desplazas hacia los enemigos y les infliges daño @TotalHits@ veces.\u003c/rules\u003e",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  7,
                          "key":  "BluntForce",
                          "name":  "Fuerza Bruta",
-                         "description":  "Obtienes un \u003cscaleAD\u003e@ADAmp*100@% de Daño de Ataque %i:scaleAD%\u003c/scaleAD\u003e."
+                         "description":  "Obtienes un \u003cscaleAD\u003e@ADAmp*100@% de Daño de Ataque %i:scaleAD%\u003c/scaleAD\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  9,
                          "key":  "BuffBuddies",
                          "name":  "Compañeros de Mejora",
-                         "description":  "Obtienes \u003cfont color = \u0027#f30c1a\u0027\u003eBlasón de Cenizas\u003c/font\u003e y \u003cfont color = \u0027#1542ea\u0027\u003eBlasón de Perspicacia\u003c/font\u003e.\u003cbr\u003e\u003cbr\u003eTe otorga aceleración de habilidad y regeneración de recursos, y hace que tus ataques \u003ckeywordMajor\u003equemen\u003c/keywordMajor\u003e y apliquen \u003cstatus\u003eralentización\u003c/status\u003e a los campeones enemigos."
+                         "description":  "Obtienes \u003cfont color = \u0027#f30c1a\u0027\u003eBlasón de Cenizas\u003c/font\u003e y \u003cfont color = \u0027#1542ea\u0027\u003eBlasón de Perspicacia\u003c/font\u003e.\u003cbr\u003e\u003cbr\u003eTe otorga aceleración de habilidad y regeneración de recursos, y hace que tus ataques \u003ckeywordMajor\u003equemen\u003c/keywordMajor\u003e y apliquen \u003cstatus\u003eralentización\u003c/status\u003e a los campeones enemigos.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  10,
                          "key":  "CannonFodder",
                          "name":  "Carne de Cañón",
-                         "description":  "Entras en combate disparándote desde un cañón."
+                         "description":  "Entras en combate disparándote desde un cañón.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  11,
                          "key":  "CantTouchThis",
                          "name":  "A Que No Me Alcanzas",
-                         "description":  "Lanzar tu \u003cattention\u003edefinitiva\u003c/attention\u003e te vuelve \u003ckeywordMajor\u003einvulnerable\u003c/keywordMajor\u003e durante un breve periodo."
+                         "description":  "Lanzar tu \u003cattention\u003edefinitiva\u003c/attention\u003e te vuelve \u003ckeywordMajor\u003einvulnerable\u003c/keywordMajor\u003e durante un breve periodo.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  12,
                          "key":  "Castle",
                          "name":  "Enroque",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEnroque\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eEnroque:\u003c/spellName\u003e Te permite cambiar de lugar con tu aliado, lo que les otorga a ambos \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y un \u003cshield\u003eescudo\u003c/shield\u003e.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEnroque\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eEnroque:\u003c/spellName\u003e Te permite cambiar de lugar con tu aliado, lo que les otorga a ambos \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y un \u003cshield\u003eescudo\u003c/shield\u003e.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  13,
                          "key":  "CelestialBody",
                          "name":  "Cuerpo Celestial",
-                         "description":  "Obtienes \u003cscaleHealth\u003e@Health@ de Vida\u003c/scaleHealth\u003e, pero infliges un @DamageReduction*100@% menos de daño."
+                         "description":  "Obtienes \u003cscaleHealth\u003e@Health@ de Vida\u003c/scaleHealth\u003e, pero infliges un @DamageReduction*100@% menos de daño.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  14,
                          "key":  "Chauffeur",
                          "name":  "Chofer",
-                         "description":  "Te vinculas a tu aliado y no puedes moverte por tu cuenta. \u003cbr\u003e\u003cbr\u003eTu \u003cspeed\u003evelocidad de movimiento adicional\u003c/speed\u003e también se otorga a tu aliado, y obtienes \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e y \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e."
+                         "description":  "Te vinculas a tu aliado y no puedes moverte por tu cuenta. \u003cbr\u003e\u003cbr\u003eTu \u003cspeed\u003evelocidad de movimiento adicional\u003c/speed\u003e también se otorga a tu aliado, y obtienes \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e y \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  15,
                          "key":  "CircleofDeath",
                          "name":  "Círculo de la Muerte",
-                         "description":  "Tus \u003chealing\u003ecuraciones\u003c/healing\u003e y tu \u003chealing\u003eregeneración de vida\u003c/healing\u003e infligen parte de la vida recuperada como \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e al campeón enemigo más cercano."
+                         "description":  "Tus \u003chealing\u003ecuraciones\u003c/healing\u003e y tu \u003chealing\u003eregeneración de vida\u003c/healing\u003e infligen parte de la vida recuperada como \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e al campeón enemigo más cercano.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  16,
                          "key":  "ComboMaster",
                          "name":  "Maestro de los Combos",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003eElectrocutar\u003c/spellName\u003e y \u003cspellName\u003eFase Veloz\u003c/spellName\u003e."
+                         "description":  "Obtienes las runas clave \u003cspellName\u003eElectrocutar\u003c/spellName\u003e y \u003cspellName\u003eFase Veloz\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  17,
                          "key":  "ContractKiller",
                          "name":  "Asesino a Sueldo",
-                         "description":  "En cada ronda, marcas a un campeón enemigo. \u003cbr\u003e\u003cbr\u003eEse campeón recibe un @DamageAmp*100@% de daño adicional y otorga \u003cgold\u003e+%i:goldCoins%@Gold@ de oro\u003c/gold\u003e al ser asesinado."
+                         "description":  "En cada ronda, marcas a un campeón enemigo. \u003cbr\u003e\u003cbr\u003eEse campeón recibe un @DamageAmp*100@% de daño adicional y otorga \u003cgold\u003e+%i:goldCoins%@Gold@ de oro\u003c/gold\u003e al ser asesinado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  18,
                          "key":  "CourageoftheColossus",
                          "name":  "Valor del Coloso",
-                         "description":  "Obtienes \u003cshield\u003e@TotalShield@ de escudo\u003c/shield\u003e tras \u003cstatus\u003einmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e a un campeón enemigo.\u003cbr\u003e"
+                         "description":  "Obtienes \u003cshield\u003e@TotalShield@ de escudo\u003c/shield\u003e tras \u003cstatus\u003einmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e a un campeón enemigo.\u003cbr\u003e",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  19,
                          "key":  "Dashing",
                          "name":  "Destellante",
-                         "description":  "Tus habilidades de desplazamiento, salto o teletransportación obtienen \u003cscaleAbilityHaste\u003e@Haste@ de Aceleración de Habilidad\u003c/scaleAbilityHaste\u003e."
+                         "description":  "Tus habilidades de desplazamiento, salto o teletransportación obtienen \u003cscaleAbilityHaste\u003e@Haste@ de Aceleración de Habilidad\u003c/scaleAbilityHaste\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  20,
                          "key":  "DawnbringersResolve",
                          "name":  "Determinación de los Portadores del Amanecer",
-                         "description":  "Si tu vida cae por debajo de un \u003cscaleHealth\u003e@HealthThreshold*100@%\u003c/scaleHealth\u003e, te \u003chealing\u003ecuras @HealCalc@ a lo largo de @HealDuration@ seg\u003c/healing\u003e."
+                         "description":  "Si tu vida cae por debajo de un \u003cscaleHealth\u003e@HealthThreshold*100@%\u003c/scaleHealth\u003e, te \u003chealing\u003ecuras @HealCalc@ a lo largo de @HealDuration@ seg\u003c/healing\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  21,
                          "key":  "DefensiveManeuvers",
                          "name":  "Maniobras Defensivas",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eManiobras Defensivas\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eManiobras Defensivas\u003c/spellName\u003e lanza los hechizos de invocador \u003cspellName\u003eBarrera\u003c/spellName\u003e y \u003cspellName\u003eCuración\u003c/spellName\u003e a tu equipo.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eManiobras Defensivas\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eManiobras Defensivas\u003c/spellName\u003e lanza los hechizos de invocador \u003cspellName\u003eBarrera\u003c/spellName\u003e y \u003cspellName\u003eCuración\u003c/spellName\u003e a tu equipo.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  22,
                          "key":  "Deft",
                          "name":  "Hábil",
-                         "description":  "Obtienes un \u003cspeed\u003e@AttackSpeed*100@% de Velocidad de Ataque %i:scaleAS%\u003c/speed\u003e."
+                         "description":  "Obtienes un \u003cspeed\u003e@AttackSpeed*100@% de Velocidad de Ataque %i:scaleAS%\u003c/speed\u003e.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Velocidad de ataque de 60 % a 80 %","Velocidad de ataque de 80 % a 130 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  23,
                          "key":  "DemonsDance",
                          "name":  "Danza del Demonio",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003eSobre la Marcha\u003c/spellName\u003e y \u003cspellName\u003eAliento del Agónico\u003c/spellName\u003e.\u003cbr\u003e"
+                         "description":  "Obtienes las runas clave \u003cspellName\u003eSobre la Marcha\u003c/spellName\u003e y \u003cspellName\u003eAliento del Agónico\u003c/spellName\u003e.\u003cbr\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  24,
                          "key":  "DieAnotherDay",
                          "name":  "Morir Otro Día",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eOtro día para morir\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eOtro día para morir\u003c/spellName\u003e crea un área donde no puede morir ninguna unidad durante 4 seg.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eOtro día para morir\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eOtro día para morir\u003c/spellName\u003e crea un área donde no puede morir ninguna unidad durante 4 seg.\u003c/rules\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  25,
                          "key":  "DiveBomber",
                          "name":  "Bombardero en Picada",
-                         "description":  "La primera muerte de tu equipo en cada ronda explota, lo que inflige \u003ctrueDamage\u003emucho daño verdadero\u003c/trueDamage\u003e."
+                         "description":  "La primera muerte de tu equipo en cada ronda explota, lo que inflige \u003ctrueDamage\u003emucho daño verdadero\u003c/trueDamage\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  26,
                          "key":  "DontBlink",
                          "name":  "No Parpadees",
-                         "description":  "Obtienes un @BonusDamagePerMSDifference*1000@% de daño adicional por cada \u003cspeed\u003e10 de Velocidad de Movimiento\u003c/speed\u003e que tengas más que el objetivo."
+                         "description":  "Obtienes un @BonusDamagePerMSDifference*1000@% de daño adicional por cada \u003cspeed\u003e10 de Velocidad de Movimiento\u003c/speed\u003e que tengas más que el objetivo.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  27,
                          "key":  "Earthwake",
                          "name":  "Estela Terrestre",
-                         "description":  "Tus habilidades de desplazamiento, salto o teleportación dejan una estela que detona después de 1 seg."
+                         "description":  "Tus habilidades de desplazamiento, salto o teleportación dejan una estela que detona después de 1 seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  28,
                          "key":  "Erosion",
                          "name":  "Erosión",
-                         "description":  "Infligir daño a los enemigos les aplica una acumulación de reducción de \u003cscaleArmor\u003eArmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eResistencia Mágica\u003c/scaleMR\u003e durante @ShredDuration@ seg. "
+                         "description":  "Infligir daño a los enemigos les aplica una acumulación de reducción de \u003cscaleArmor\u003eArmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eResistencia Mágica\u003c/scaleMR\u003e durante @ShredDuration@ seg. ",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  29,
                          "key":  "EtherealWeapon",
                          "name":  "Arma Etérea",
-                         "description":  "Tus habilidades aplican efectos {{ Item_Keyword_OnHit }}."
+                         "description":  "Tus habilidades aplican efectos {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  30,
                          "key":  "Eureka",
                          "name":  "Eureka",
-                         "description":  "Obtienes \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e equivalente a un \u003cscaleAP\u003e@APToHasteConversion*100@% de tu Poder de Habilidad\u003c/scaleAP\u003e."
+                         "description":  "Obtienes \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e equivalente a un \u003cscaleAP\u003e@APToHasteConversion*100@% de tu Poder de Habilidad\u003c/scaleAP\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  32,
                          "key":  "Executioner",
                          "name":  "Ejecutor",
-                         "description":  "Infliges un @BonusDamage*100@% de Daño adicional a los enemigos que estén por debajo del @HealthThreshold*100@% de Vida. Restablece tus habilidades básicas si consigues un derribo."
+                         "description":  "Infliges un @BonusDamage*100@% de Daño adicional a los enemigos que estén por debajo del @HealthThreshold*100@% de Vida. Restablece tus habilidades básicas si consigues un derribo.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  33,
                          "key":  "ExtendoArm",
                          "name":  "Extendo-Brazo",
-                         "description":  "Dispara un gancho de Blitzcrank cada 12 seg a un campeón enemigo cercano \u003ckeywordMajor\u003ede forma automática\u003c/keywordMajor\u003e."
+                         "description":  "Dispara un gancho de Blitzcrank cada 12 seg a un campeón enemigo cercano \u003ckeywordMajor\u003ede forma automática\u003c/keywordMajor\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  34,
                          "key":  "FallenAegis",
                          "name":  "Égida Caída",
-                         "description":  "Inicias el combate con un \u003cabilityName\u003eEscudo Negro\u003c/abilityName\u003e durante @ShieldDuration@ seg.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eEl \u003cattention\u003eEscudo Negro\u003c/attention\u003e \u003cshield\u003ebloquea el daño mágico\u003c/shield\u003e y aplica efectos \u003cstatus\u003einmovilizadores\u003c/status\u003e.\u003c/rules\u003e"
+                         "description":  "Inicias el combate con un \u003cabilityName\u003eEscudo Negro\u003c/abilityName\u003e durante @ShieldDuration@ seg.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eEl \u003cattention\u003eEscudo Negro\u003c/attention\u003e \u003cshield\u003ebloquea el daño mágico\u003c/shield\u003e y aplica efectos \u003cstatus\u003einmovilizadores\u003c/status\u003e.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  35,
                          "key":  "FeeltheBurn",
                          "name":  "Siente el Ardor",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eSiente el Ardor\u003c/spellName\u003e\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eSiente el Ardor\u003c/spellName\u003e lanza \u003cspellName\u003eIgnición\u003c/spellName\u003e y \u003cspellName\u003eExtenuación\u003c/spellName\u003e sobre todos los campeones enemigos cercanos.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eSiente el Ardor\u003c/spellName\u003e\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eSiente el Ardor\u003c/spellName\u003e lanza \u003cspellName\u003eIgnición\u003c/spellName\u003e y \u003cspellName\u003eExtenuación\u003c/spellName\u003e sobre todos los campeones enemigos cercanos.\u003c/rules\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  36,
                          "key":  "Firebrand",
                          "name":  "Espada de Fuego",
-                         "description":  "Tus ataques aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e {{ Item_Keyword_OnHit }} que se acumula indefinidamente, lo que inflige daño prolongado."
+                         "description":  "Tus ataques aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e {{ Item_Keyword_OnHit }} que se acumula indefinidamente, lo que inflige daño prolongado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  37,
                          "key":  "FirstAidKit",
                          "name":  "Botiquín",
-                         "description":  "Obtienes un \u003chealing\u003e@HealShieldAmp*100@% de poder de curaciones y escudos\u003c/healing\u003e."
+                         "description":  "Obtienes un \u003chealing\u003e@HealShieldAmp*100@% de poder de curaciones y escudos\u003c/healing\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  38,
                          "key":  "FromBeginningToEnd",
                          "name":  "De Principio a Fin",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003ePrimer Golpe\u003c/spellName\u003e y \u003cspellName\u003eCosecha Oscura\u003c/spellName\u003e."
+                         "description":  "Obtienes las runas clave \u003cspellName\u003ePrimer Golpe\u003c/spellName\u003e y \u003cspellName\u003eCosecha Oscura\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  39,
                          "key":  "FrostWraith",
                          "name":  "Espectro de Hielo",
-                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e \u003cstatus\u003eCada @Cooldown@ seg, inmoviliza\u003c/status\u003e a los enemigos cercanos durante @RootDuration@ seg.\u003cbr\u003e"
+                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e \u003cstatus\u003eCada @Cooldown@ seg, inmoviliza\u003c/status\u003e a los enemigos cercanos durante @RootDuration@ seg.\u003cbr\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  41,
                          "key":  "Goliath",
                          "name":  "Goliat",
-                         "description":  "Te vuelves grande, por lo que obtienes un \u003cscaleHealth\u003e@HealthAmp*100@% de Vida\u003c/scaleHealth\u003e y un \u003cscaleAF\u003e@AFAmp*100@% de Fuerza Adaptable\u003c/scaleAF\u003e."
+                         "description":  "Te vuelves grande, por lo que obtienes un \u003cscaleHealth\u003e@HealthAmp*100@% de Vida\u003c/scaleHealth\u003e y un \u003cscaleAF\u003e@AFAmp*100@% de Fuerza Adaptable\u003c/scaleAF\u003e.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Vida de 15 % a 30 % · Fuerza adaptable de 10 % a 20 %","Vida de 30 % a 50 % · Fuerza adaptable de 20 % a 30 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  42,
                          "key":  "GuiltyPleasure",
                          "name":  "Placer Culposo",
-                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e a campeones enemigos \u003chealing\u003ete cura\u003c/healing\u003e."
+                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e a campeones enemigos \u003chealing\u003ete cura\u003c/healing\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  43,
                          "key":  "NowYouSeeMe",
                          "name":  "Ahora me ves",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eAhora me ves\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eAhora me ves\u003c/spellName\u003e te teletransporta de regreso a la posición inicial de tu última habilidad de movimiento.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eAhora me ves\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eAhora me ves\u003c/spellName\u003e te teletransporta de regreso a la posición inicial de tu última habilidad de movimiento.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  44,
                          "key":  "IceCold",
                          "name":  "Frío como el Hielo",
-                         "description":  "Tus efectos de \u003cstatus\u003eralentización\u003c/status\u003e reducen la \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e en @ExtraSlowAmount@ adicionales."
+                         "description":  "Tus efectos de \u003cstatus\u003eralentización\u003c/status\u003e reducen la \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e en @ExtraSlowAmount@ adicionales.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Ralentización adicional de 75 a 150"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  45,
                          "key":  "InfernalConduit",
                          "name":  "Conducto Infernal",
-                         "description":  "Tus habilidades aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente e inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e prolongado.\u003cbr\u003e\u003cbr\u003eLos efectos de tu \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e reducen los enfriamientos de tus habilidades básicas."
+                         "description":  "Tus habilidades aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente e inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e prolongado.\u003cbr\u003e\u003cbr\u003eLos efectos de tu \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e reducen los enfriamientos de tus habilidades básicas.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  46,
                          "key":  "InfernalSoul",
                          "name":  "Alma Infernal",
-                         "description":  "Obtienes el Alma de Dragón Infernal, que inflige daño adicional cuando impactas a los enemigos con habilidades o ataques."
+                         "description":  "Obtienes el Alma de Dragón Infernal, que inflige daño adicional cuando impactas a los enemigos con habilidades o ataques.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  47,
                          "key":  "ItsCritical",
                          "name":  "Es Crítico",
-                         "description":  "Obtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e."
+                         "description":  "Obtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  48,
                          "key":  "JeweledGauntlet",
                          "name":  "Guantelete Deslumbrante",
-                         "description":  "Tus habilidades pueden \u003ccrit\u003einfligir golpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritGranted@ de Probabilidad de Golpe Crítico\u003c/crit\u003e."
+                         "description":  "Tus habilidades pueden \u003ccrit\u003einfligir golpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritGranted@ de Probabilidad de Golpe Crítico\u003c/crit\u003e.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Daño crítico de habilidades de 140 % a 150 %","Daño crítico de habilidades de 150 % a 160 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  49,
                          "key":  "JuiceBox",
                          "name":  "Juguito",
-                         "description":  "En cada ronda, todos los integrantes de tu equipo obtienen @JuiceCount@ juguito."
+                         "description":  "En cada ronda, todos los integrantes de tu equipo obtienen @JuiceCount@ juguito.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  50,
                          "key":  "KeystoneConjurer",
                          "name":  "Conjurador de Runas Clave",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003eInvocación: Aery\u003c/spellName\u003e y \u003cspellName\u003eCometa Arcano\u003c/spellName\u003e."
+                         "description":  "Obtienes las runas clave \u003cspellName\u003eInvocación: Aery\u003c/spellName\u003e y \u003cspellName\u003eCometa Arcano\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  51,
                          "key":  "LightemUp",
                          "name":  "¡Enciéndelos!",
-                         "description":  "Cada cuarto ataque inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional {{ Item_Keyword_OnHit }}."
+                         "description":  "Cada cuarto ataque inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Fuegos artificiales de 4 a 5 · Daño de 90 % a 100 %","Fuegos artificiales de 5 a 6 · Daño de 100 % a 110 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  52,
                          "key":  "LightningStrikes",
                          "name":  "Golpes Relampagueantes",
-                         "description":  "Obtienes un \u003cattackSpeed\u003e@TotalASValue*100@% de Velocidad de Ataque\u003c/attackSpeed\u003e. \u003cbr\u003e\u003cbr\u003eA los @Breakpoint1@ \u003cattackSpeed\u003eataques por seg\u003c/attackSpeed\u003e, inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional {{ Item_Keyword_OnHit }}."
+                         "description":  "Obtienes un \u003cattackSpeed\u003e@TotalASValue*100@% de Velocidad de Ataque\u003c/attackSpeed\u003e. \u003cbr\u003e\u003cbr\u003eA los @Breakpoint1@ \u003cattackSpeed\u003eataques por seg\u003c/attackSpeed\u003e, inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Límite de ataques/s de 3.5 a 10 · Velocidad de ataque de 20 % a 30 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  53,
                          "key":  "MadScientist",
                          "name":  "Científico Loco",
-                         "description":  "En cada ronda, te harás grande (\u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e y \u003cscaleHealth\u003evida\u003c/scaleHealth\u003e) o pequeño (\u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e)."
+                         "description":  "En cada ronda, te harás grande (\u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e y \u003cscaleHealth\u003evida\u003c/scaleHealth\u003e) o pequeño (\u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e).",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  54,
                          "key":  "MasterofDuality",
                          "name":  "Maestro de la Dualidad",
-                         "description":  "Tus ataques te otorgan \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e {{ Item_Keyword_OnHit }} y tus habilidades te otorgan \u003cscaleAD\u003edaño de ataque\u003c/scaleAD\u003e hasta el final de la ronda."
+                         "description":  "Tus ataques te otorgan \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e {{ Item_Keyword_OnHit }} y tus habilidades te otorgan \u003cscaleAD\u003edaño de ataque\u003c/scaleAD\u003e hasta el final de la ronda.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  56,
                          "key":  "MindtoMatter",
                          "name":  "De Mente a Materia",
-                         "description":  "Tu \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e aumenta en una cantidad igual a la mitad de tu \u003cscaleMana\u003emaná\u003c/scaleMana\u003e."
+                         "description":  "Tu \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e aumenta en una cantidad igual a la mitad de tu \u003cscaleMana\u003emaná\u003c/scaleMana\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  57,
                          "key":  "MountainSoul",
                          "name":  "Alma de las Montañas",
-                         "description":  "Obtienes el Alma de la Montaña, lo que te otorga un \u003cshield\u003eescudo\u003c/shield\u003e tras estar fuera de combate durante un breve periodo de tiempo."
+                         "description":  "Obtienes el Alma de la Montaña, lo que te otorga un \u003cshield\u003eescudo\u003c/shield\u003e tras estar fuera de combate durante un breve periodo de tiempo.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  58,
                          "key":  "MysticPunch",
                          "name":  "Golpe Místico",
-                         "description":  "{{ Item_Keyword_OnHit }}, reduce el enfriamiento de tus habilidades en @CooldownRefund@ seg %i:scaleCooldown%."
+                         "description":  "{{ Item_Keyword_OnHit }}, reduce el enfriamiento de tus habilidades en @CooldownRefund@ seg %i:scaleCooldown%.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  60,
                          "key":  "OceanSoul",
                          "name":  "Alma de los Océanos",
-                         "description":  "Obtienes el Alma de los Océanos, la cual te otorga una gran regeneración de \u003chealing\u003evida\u003c/healing\u003e y \u003cscaleMana\u003emaná\u003c/scaleMana\u003e tras infligir daño a los enemigos."
+                         "description":  "Obtienes el Alma de los Océanos, la cual te otorga una gran regeneración de \u003chealing\u003evida\u003c/healing\u003e y \u003cscaleMana\u003emaná\u003c/scaleMana\u003e tras infligir daño a los enemigos.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  61,
                          "key":  "OkBoomerang",
                          "name":  "OK, Bumerán",
-                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e lanza un búmeran a un enemigo cercano cada @Cooldown@ seg."
+                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e lanza un búmeran a un enemigo cercano cada @Cooldown@ seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  62,
                          "key":  "OmniSoul",
                          "name":  "Omnialma",
-                         "description":  "Obtienes @SoulsToAdd@ \u003cattention\u003eAlmas de Dragón\u003c/attention\u003e aleatorias."
+                         "description":  "Obtienes @SoulsToAdd@ \u003cattention\u003eAlmas de Dragón\u003c/attention\u003e aleatorias.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  63,
                          "key":  "OutlawsGrit",
                          "name":  "Agallas del Forajido",
-                         "description":  "Tras usar una habilidad de desplazamiento, salto o teleportación, obtienes \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e."
+                         "description":  "Tras usar una habilidad de desplazamiento, salto o teleportación, obtienes \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  64,
                          "key":  "Perseverance",
                          "name":  "Perseverancia",
-                         "description":  "Obtienes una \u003chealing\u003eregen. de vida\u003c/healing\u003e considerablemente mayor, que aumenta aún más cuando te queda poca \u003cscaleHealth\u003evida\u003c/scaleHealth\u003e."
+                         "description":  "Obtienes una \u003chealing\u003eregen. de vida\u003c/healing\u003e considerablemente mayor, que aumenta aún más cuando te queda poca \u003cscaleHealth\u003evida\u003c/scaleHealth\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  65,
                          "key":  "PhenomenalEvil",
                          "name":  "Maldad Fenomenal",
-                         "description":  "Obtienes \u003cscaleAP\u003e@APPerProc@ de Poder de Habilidad\u003c/scaleAP\u003e de forma permanente cuando impactas a un enemigo con una habilidad.\u003cbr\u003e\u003cbr\u003eSi lo obtienes después de la ronda @RoundCounterForBonusAP@, obtienes \u003cscaleAP\u003e@BonusAPForLatePick@ de Poder de Habilidad\u003c/scaleAP\u003e."
+                         "description":  "Obtienes \u003cscaleAP\u003e@APPerProc@ de Poder de Habilidad\u003c/scaleAP\u003e de forma permanente cuando impactas a un enemigo con una habilidad.\u003cbr\u003e\u003cbr\u003eSi lo obtienes después de la ronda @RoundCounterForBonusAP@, obtienes \u003cscaleAP\u003e@BonusAPForLatePick@ de Poder de Habilidad\u003c/scaleAP\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  66,
                          "key":  "QuantumComputing",
                          "name":  "Computación Cuántica",
-                         "description":  "Periódicamente, \u003ckeywordMajor\u003eautolanzas\u003c/keywordMajor\u003e un gran corte a tu alrededor que inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e. \u003cbr\u003e\u003cbr\u003eLos enemigos alcanzados por el borde exterior quedan \u003cstatus\u003eralentizados\u003c/status\u003e, reciben \u003cphysicalDamage\u003edaño\u003c/physicalDamage\u003e adicional y te \u003chealing\u003ecuran\u003c/healing\u003e."
+                         "description":  "Periódicamente, \u003ckeywordMajor\u003eautolanzas\u003c/keywordMajor\u003e un gran corte a tu alrededor que inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e. \u003cbr\u003e\u003cbr\u003eLos enemigos alcanzados por el borde exterior quedan \u003cstatus\u003eralentizados\u003c/status\u003e, reciben \u003cphysicalDamage\u003edaño\u003c/physicalDamage\u003e adicional y te \u003chealing\u003ecuran\u003c/healing\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  67,
                          "key":  "RabbleRousing",
                          "name":  "Alboroto",
-                         "description":  "Usar una habilidad te restaura \u003chealing\u003e@HealAmount@ de Vida\u003c/healing\u003e."
+                         "description":  "Usar una habilidad te restaura \u003chealing\u003e@HealAmount@ de Vida\u003c/healing\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  68,
                          "key":  "Recursion",
                          "name":  "Recursividad",
-                         "description":  "Obtienes @AbilityHaste@ de Aceleración de Habilidad."
+                         "description":  "Obtienes @AbilityHaste@ de Aceleración de Habilidad.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  69,
                          "key":  "Repulsor",
                          "name":  "Repulsión",
-                         "description":  "Al caer por debajo de un @HealthThreshold1*100@% o un @HealthThreshold2*100@% de Vida, los enemigos cercanos son \u003cstatus\u003elanzados hacia atrás\u003c/status\u003e."
+                         "description":  "Al caer por debajo de un @HealthThreshold1*100@% o un @HealthThreshold2*100@% de Vida, los enemigos cercanos son \u003cstatus\u003elanzados hacia atrás\u003c/status\u003e.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  [
+                                                "Distancia de empuje de 750 a 1250"
+                                            ]
                      },
                      {
                          "mode":  "Arena",
                          "id":  70,
                          "key":  "RestlessRestoration",
                          "name":  "Restauración Inquieta",
-                         "description":  "Te \u003chealing\u003ecuras\u003c/healing\u003e constantemente mientras te mueves."
+                         "description":  "Te \u003chealing\u003ecuras\u003c/healing\u003e constantemente mientras te mueves.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  72,
                          "key":  "SearingDawn",
                          "name":  "Amanecer Abrasador",
-                         "description":  "Tus habilidades marcan a los enemigos, lo que hace que reciban \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional del siguiente ataque o habilidad de tu aliado."
+                         "description":  "Tus habilidades marcan a los enemigos, lo que hace que reciban \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional del siguiente ataque o habilidad de tu aliado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  73,
                          "key":  "ShadowRunner",
                          "name":  "Movimiento Sombrío",
-                         "description":  "Tras usar una habilidad de desplazamiento, salto o teletransportación, o salir del \u003cstealth\u003esigilo\u003c/stealth\u003e, obtienes \u003cspeed\u003e@spell.Augment_ShadowRunner:MSAmount@ de Velocidad de Movimiento\u003c/speed\u003e durante @spell.Augment_ShadowRunner:BuffDuration@ seg."
+                         "description":  "Tras usar una habilidad de desplazamiento, salto o teletransportación, o salir del \u003cstealth\u003esigilo\u003c/stealth\u003e, obtienes \u003cspeed\u003e@spell.Augment_ShadowRunner:MSAmount@ de Velocidad de Movimiento\u003c/speed\u003e durante @spell.Augment_ShadowRunner:BuffDuration@ seg.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Velocidad de movimiento de 200 a 400 · Duración de 2 s a 3 s"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  74,
                          "key":  "ShrinkRay",
                          "name":  "Rayo Encogedor",
-                         "description":  "Tus ataques reducen el daño y el tamaño del objetivo en un @DamageReduction*100@% {{ Item_Keyword_OnHit }}."
+                         "description":  "Tus ataques reducen el daño y el tamaño del objetivo en un @DamageReduction*100@% {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  75,
                          "key":  "SlowCooker",
                          "name":  "Cocción Lenta",
-                         "description":  "Cada segundo, aplica una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente a los campeones enemigos cercanos, la cual aumenta con tu \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e."
+                         "description":  "Cada segundo, aplica una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente a los campeones enemigos cercanos, la cual aumenta con tu \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  76,
                          "key":  "SonicBoom",
                          "name":  "Explosión Sónica",
-                         "description":  "Potenciar, \u003chealing\u003ecurar\u003c/healing\u003e u otorgar un \u003cshield\u003eescudo\u003c/shield\u003e a tus aliados inflige daño y \u003cstatus\u003eralentiza\u003c/status\u003e a los enemigos a su alrededor."
+                         "description":  "Potenciar, \u003chealing\u003ecurar\u003c/healing\u003e u otorgar un \u003cshield\u003eescudo\u003c/shield\u003e a tus aliados inflige daño y \u003cstatus\u003eralentiza\u003c/status\u003e a los enemigos a su alrededor.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  77,
                          "key":  "SoulSiphon",
                          "name":  "Sifón del Alma",
-                         "description":  "Te \u003clifeSteal\u003ecuras un @HealPercentage*100@% del daño infligido\u003c/lifeSteal\u003e con tus \u003ccrit\u003egolpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e."
+                         "description":  "Te \u003clifeSteal\u003ecuras un @HealPercentage*100@% del daño infligido\u003c/lifeSteal\u003e con tus \u003ccrit\u003egolpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  78,
                          "key":  "SpiritLink",
                          "name":  "Vínculo Espiritual",
-                         "description":  "{{Cherry_SpiritLink@TeamSize@_Summary}}"
+                         "description":  "{{Cherry_SpiritLink@TeamSize@_Summary}}",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  79,
                          "key":  "SymphonyofWar",
                          "name":  "Sinfonía de Guerra",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003eCadencia Letal\u003c/spellName\u003e y \u003cspellName\u003eConquistador\u003c/spellName\u003e."
+                         "description":  "Obtienes las runas clave \u003cspellName\u003eCadencia Letal\u003c/spellName\u003e y \u003cspellName\u003eConquistador\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  80,
                          "key":  "TankItOrLeaveIt",
                          "name":  "Tanque o ¿Tan Qué?",
-                         "description":  "Puedes lograr una \u003ccrit\u003edefensa crítica\u003c/crit\u003e con tu \u003ccrit\u003eprobabilidad de golpe crítico (máx.: @MaxChance*100@% de probabilidad)\u003c/crit\u003e, lo que te da la oportunidad de reducir el daño recibido. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e."
+                         "description":  "Puedes lograr una \u003ccrit\u003edefensa crítica\u003c/crit\u003e con tu \u003ccrit\u003eprobabilidad de golpe crítico (máx.: @MaxChance*100@% de probabilidad)\u003c/crit\u003e, lo que te da la oportunidad de reducir el daño recibido. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  81,
                          "key":  "TapDancer",
                          "name":  "Bailarín de Tap",
-                         "description":  "Tus ataques te otorgan \u003cspeed\u003e@MSPerHit@ de Velocidad de Movimiento\u003c/speed\u003e {{ Item_Keyword_OnHit }}. \u003cbr\u003e\u003cbr\u003eObtienes \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e equivalente a un @MSToASConversion*10000@% de tu \u003cspeed\u003eVelocidad de Movimiento\u003c/speed\u003e."
+                         "description":  "Tus ataques te otorgan \u003cspeed\u003e@MSPerHit@ de Velocidad de Movimiento\u003c/speed\u003e {{ Item_Keyword_OnHit }}. \u003cbr\u003e\u003cbr\u003eObtienes \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e equivalente a un @MSToASConversion*10000@% de tu \u003cspeed\u003eVelocidad de Movimiento\u003c/speed\u003e.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Velocidad de movimiento al impacto de 8 a 10"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  82,
                          "key":  "TheBrutalizer",
                          "name":  "El Brutalizador",
-                         "description":  "Obtienes \u003cscaleAD\u003e@AD@ de Daño de Ataque\u003c/scaleAD\u003e, @AbilityHaste@ de Aceleración de Habilidad y \u003cscaleLethality\u003e@Lethality@ de Letalidad\u003c/scaleLethality\u003e."
+                         "description":  "Obtienes \u003cscaleAD\u003e@AD@ de Daño de Ataque\u003c/scaleAD\u003e, @AbilityHaste@ de Aceleración de Habilidad y \u003cscaleLethality\u003e@Lethality@ de Letalidad\u003c/scaleLethality\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  84,
                          "key":  "ThreadtheNeedle",
                          "name":  "Enhebrar la Aguja",
-                         "description":  "Obtienes un @PercentPen*100@% de \u003carmorPen\u003e%i:scaleAPen% Penetración de Armadura\u003c/armorPen\u003e y de \u003cmagicPen\u003e%i:scaleMPen% Penetración de Magia\u003c/magicPen\u003e."
+                         "description":  "Obtienes un @PercentPen*100@% de \u003carmorPen\u003e%i:scaleAPen% Penetración de Armadura\u003c/armorPen\u003e y de \u003cmagicPen\u003e%i:scaleMPen% Penetración de Magia\u003c/magicPen\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  85,
                          "key":  "Tormentor",
                          "name":  "Atormentador",
-                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e campeones enemigos aplica una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que inflige daño prolongado. Este efecto se acumula indefinidamente."
+                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e o \u003cstatus\u003eanclar\u003c/status\u003e campeones enemigos aplica una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que inflige daño prolongado. Este efecto se acumula indefinidamente.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Quemadura de vida máxima en 5 s de 3 % a 4 %","Quemadura de vida máxima en 5 s de 4 % a 6 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  86,
                          "key":  "TrueshotProdigy",
                          "name":  "Prodigio de Tiros Certeros",
-                         "description":  "Al dañar a un campeón lejano, le disparas una \u003cabilityName\u003eDescarga de Tiros Certeros\u003c/abilityName\u003e."
+                         "description":  "Al dañar a un campeón lejano, le disparas una \u003cabilityName\u003eDescarga de Tiros Certeros\u003c/abilityName\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  87,
                          "key":  "Typhoon",
                          "name":  "Tifón",
-                         "description":  "Tus ataques disparan un proyectil a un objetivo adicional que inflige daño reducido y aplica efectos {{ Item_Keyword_OnHit }}."
+                         "description":  "Tus ataques disparan un proyectil a un objetivo adicional que inflige daño reducido y aplica efectos {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  88,
                          "key":  "UltimateRevolution",
                          "name":  "Revolución Definitiva",
-                         "description":  "Una vez por ronda, restablece tu \u003cattention\u003edefinitiva\u003c/attention\u003e después de lanzarla."
+                         "description":  "Una vez por ronda, restablece tu \u003cattention\u003edefinitiva\u003c/attention\u003e después de lanzarla.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  89,
                          "key":  "Vanish",
                          "name":  "Desaparecer",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eDesaparecer\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eDesaparecer\u003c/spellName\u003e te vuelve \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e.\u003c/rules\u003e"
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eDesaparecer\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eDesaparecer\u003c/spellName\u003e te vuelve \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  90,
                          "key":  "Vengeance",
                          "name":  "Venganza",
-                         "description":  "{{ Cherry_Vengeance@TeamSize@_Summary }}"
+                         "description":  "{{ Cherry_Vengeance@TeamSize@_Summary }}",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  92,
                          "key":  "Vulnerability",
                          "name":  "Vulnerabilidad",
-                         "description":  "Los efectos de tus objetos y el daño prolongado pueden infligir \u003ccrit\u003egolpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e."
+                         "description":  "Los efectos de tus objetos y el daño prolongado pueden infligir \u003ccrit\u003egolpes críticos\u003c/crit\u003e. \u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  93,
                          "key":  "WarmupRoutine",
                          "name":  "Rutina de Calentamiento",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eRutina de Calentamiento\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003eCanaliza tu bailarín interior para aumentar tu daño un 2% cada segundo. Este efecto se acumula hasta alcanzar un aumento máximo de un @MaxStacks@%."
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eRutina de Calentamiento\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003eCanaliza tu bailarín interior para aumentar tu daño un 2% cada segundo. Este efecto se acumula hasta alcanzar un aumento máximo de un @MaxStacks@%.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  94,
                          "key":  "WillingSacrifice",
                          "name":  "Sacrificio Voluntario",
-                         "description":  "Cuando la Vida de un campeón aliado cae por debajo del \u003cscaleHealth\u003e@AllyHealthThreshold*100@%\u003c/scaleHealth\u003e, intercambias parte de tu vida para otorgarle un \u003cshield\u003eescudo\u003c/shield\u003e."
+                         "description":  "Cuando la Vida de un campeón aliado cae por debajo del \u003cscaleHealth\u003e@AllyHealthThreshold*100@%\u003c/scaleHealth\u003e, intercambias parte de tu vida para otorgarle un \u003cshield\u003eescudo\u003c/shield\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  96,
                          "key":  "WisdomofAges",
                          "name":  "Sabiduría Ancestral",
-                         "description":  "Obtienes 1 nivel ahora y 1 nivel adicional cada dos rondas. \u003cbr\u003e\u003cbr\u003eSe elimina tu límite de nivel.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSi lo obtienes después de la ronda @RoundCounterForBonus@, obtienes @BonusForLatePick@ niveles adicionales.\u003c/rules\u003e"
+                         "description":  "Obtienes 1 nivel ahora y 1 nivel adicional cada dos rondas. \u003cbr\u003e\u003cbr\u003eSe elimina tu límite de nivel.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSi lo obtienes después de la ronda @RoundCounterForBonus@, obtienes @BonusForLatePick@ niveles adicionales.\u003c/rules\u003e",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  97,
                          "key":  "WitchfulThinking",
                          "name":  "Mentalidad Mágica",
-                         "description":  "Obtienes \u003cscaleAP\u003e@AP@ de Poder de Habilidad %i:scaleAP%\u003c/scaleAP\u003e."
+                         "description":  "Obtienes \u003cscaleAP\u003e@AP@ de Poder de Habilidad %i:scaleAP%\u003c/scaleAP\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  98,
                          "key":  "WithHaste",
                          "name":  "Rápido",
-                         "description":  "Obtienes \u003cspeed\u003eVelocidad de Movimiento\u003c/speed\u003e equivalente a un @AbilityHasteToMSConversion*100@% de tu Aceleración de Habilidad."
+                         "description":  "Obtienes \u003cspeed\u003eVelocidad de Movimiento\u003c/speed\u003e equivalente a un @AbilityHasteToMSConversion*100@% de tu Aceleración de Habilidad.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  102,
                          "key":  "DontChase",
                          "name":  "No Perseguir",
-                         "description":  "Obtienes Fantasma y dejas un rastro de gas venenoso detrás de ti, el cual inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos en él."
+                         "description":  "Obtienes Fantasma y dejas un rastro de gas venenoso detrás de ti, el cual inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos en él.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  103,
                          "key":  "BreadAndButter",
                          "name":  "Pan y mantequilla",
-                         "description":  "Tu @spell1KeyBind@ obtiene @QAbilityHaste@ de Aceleración de Habilidad."
+                         "description":  "Tu @spell1KeyBind@ obtiene @QAbilityHaste@ de Aceleración de Habilidad.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  104,
                          "key":  "Minionmancer",
                          "name":  "Súbditomante",
-                         "description":  "Tus invocaciones aumentan un @MinionAmp*100@% su Vida, tamaño y daño."
+                         "description":  "Tus invocaciones aumentan un @MinionAmp*100@% su Vida, tamaño y daño.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  105,
                          "key":  "Homeguard",
                          "name":  "Milicia",
-                         "description":  "Obtienes un \u003cspeed\u003e@spell.Augment_Homeguard:MovementSpeed*100@% de Velocidad de Movimiento\u003c/speed\u003e; se deshabilita durante @spell.Augment_Homeguard:DisableCooldown@ segundos tras recibir daño."
+                         "description":  "Obtienes un \u003cspeed\u003e@spell.Augment_Homeguard:MovementSpeed*100@% de Velocidad de Movimiento\u003c/speed\u003e; se deshabilita durante @spell.Augment_Homeguard:DisableCooldown@ segundos tras recibir daño.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  107,
                          "key":  "TwiceThrice",
                          "name":  "Dos Veces Tres Veces",
-                         "description":  "Cada @ProcCadence@ ataques, tus efectos {{ Item_Keyword_OnHit }} se activan una segunda vez."
+                         "description":  "Cada @ProcCadence@ ataques, tus efectos {{ Item_Keyword_OnHit }} se activan una segunda vez.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  108,
                          "key":  "SelfDestruct",
                          "name":  "Autodestrucción",
-                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e: Cada @BombDelay@ seg, te colocas una bomba que explota, lo que inflige \u003ctrueDamage\u003emucho daño verdadero\u003c/trueDamage\u003e y \u003cstatus\u003elanza por el aire\u003c/status\u003e a los enemigos cercanos."
+                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e: Cada @BombDelay@ seg, te colocas una bomba que explota, lo que inflige \u003ctrueDamage\u003emucho daño verdadero\u003c/trueDamage\u003e y \u003cstatus\u003elanza por el aire\u003c/status\u003e a los enemigos cercanos.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  109,
                          "key":  "Oathsworn",
                          "name":  "Juramentados",
-                         "description":  "Reemplaza \u003cspellName\u003eHuida\u003c/spellName\u003e con \u003cspellName\u003eLlamada del Destino\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eLlamada del Destino\u003c/spellName\u003e hace que tu aliado se vuelva inalcanzable por hasta 4 seg. Tu aliado puede lanzarse y \u003cstatus\u003elanza a los enemigos hacia atrás\u003c/status\u003e.\u003c/rules\u003e\u003cbr\u003e"
+                         "description":  "Reemplaza \u003cspellName\u003eHuida\u003c/spellName\u003e con \u003cspellName\u003eLlamada del Destino\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eLlamada del Destino\u003c/spellName\u003e hace que tu aliado se vuelva inalcanzable por hasta 4 seg. Tu aliado puede lanzarse y \u003cstatus\u003elanza a los enemigos hacia atrás\u003c/status\u003e.\u003c/rules\u003e\u003cbr\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  110,
                          "key":  "Clothesline",
                          "name":  "En las Cuerdas",
-                         "description":  "Hay un rayo que te une a tu equipo y que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e constante a los enemigos que lo toquen."
+                         "description":  "Hay un rayo que te une a tu equipo y que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e constante a los enemigos que lo toquen.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Vida máxima de 2 % a 2.6 % · Daño de ataque de 28 % a 32 % · Poder de habilidad de 16 % a 24 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  112,
                          "key":  "UltimateUnstoppable",
                          "name":  "Definitiva Imparable",
-                         "description":  "Tras usar tu definitiva, te vuelves inmune al \u003cstatus\u003econtrol de masas\u003c/status\u003e durante @UnstoppableDuration@ seg (@Cooldown@ seg de enfriamiento)."
+                         "description":  "Tras usar tu definitiva, te vuelves inmune al \u003cstatus\u003econtrol de masas\u003c/status\u003e durante @UnstoppableDuration@ seg (@Cooldown@ seg de enfriamiento).",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  113,
                          "key":  "SkilledSniper",
                          "name":  "Francotirador Experto",
-                         "description":  "Impactar a un enemigo a largo alcance con una \u003ckeywordMajor\u003ehabilidad que no sea tu definitiva\u003c/keywordMajor\u003e reduce considerablemente su enfriamiento. "
+                         "description":  "Impactar a un enemigo a largo alcance con una \u003ckeywordMajor\u003ehabilidad que no sea tu definitiva\u003c/keywordMajor\u003e reduce considerablemente su enfriamiento. ",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  115,
                          "key":  "ScopiestWeapons",
                          "name":  "De Más Largo Alcance",
-                         "description":  "Obtiene @RangeIncrease@ de alcance de ataque."
+                         "description":  "Obtiene @RangeIncrease@ de alcance de ataque.",
+                         "maxLevel":  3,
+                         "upgradeEffects":  ["Alcance cuerpo a cuerpo de 150 a 225 · Alcance a distancia de 90 a 135","Alcance cuerpo a cuerpo de 225 a 300 · Alcance a distancia de 135 a 180"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  116,
                          "key":  "Flashy",
                          "name":  "Llamativo",
-                         "description":  "Tu \u003cspellName\u003eDestello\u003c/spellName\u003e tiene @MaxAmmo@ Cargas y un enfriamiento de @FlashCooldown@ seg."
+                         "description":  "Tu \u003cspellName\u003eDestello\u003c/spellName\u003e tiene @MaxAmmo@ Cargas y un enfriamiento de @FlashCooldown@ seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  118,
                          "key":  "CriticalHealing",
                          "name":  "Curación Crítica",
-                         "description":  "Tus \u003chealing\u003ecuraciones\u003c/healing\u003e y \u003cshield\u003eescudos\u003c/shield\u003e pueden asestar \u003ccrit\u003egolpes críticos\u003c/crit\u003e e infligir @CriticalHealCalc@ de daño adicional.\u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e. "
+                         "description":  "Tus \u003chealing\u003ecuraciones\u003c/healing\u003e y \u003cshield\u003eescudos\u003c/shield\u003e pueden asestar \u003ccrit\u003egolpes críticos\u003c/crit\u003e e infligir @CriticalHealCalc@ de daño adicional.\u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e%i:scaleCrit% @CritChance*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e. ",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  120,
                          "key":  "ServeBeyondDeath",
                          "name":  "Servir Más Allá de la Muerte",
-                         "description":  "La primera vez que hubieras muerto en cada ronda, vuelves a tener \u003cscaleHealth\u003evida completa\u003c/scaleHealth\u003e que \u003cstatus\u003edecae\u003c/status\u003e con el tiempo. \u003cbr\u003e\u003cbr\u003e\u003ckeywordMajor\u003eDerribar\u003c/keywordMajor\u003e a un campeón enemigo mientras tu vida está \u003cstatus\u003edecayendo\u003c/status\u003e interrumpe el \u003cstatus\u003edeterioro\u003c/status\u003e."
+                         "description":  "La primera vez que hubieras muerto en cada ronda, vuelves a tener \u003cscaleHealth\u003evida completa\u003c/scaleHealth\u003e que \u003cstatus\u003edecae\u003c/status\u003e con el tiempo. \u003cbr\u003e\u003cbr\u003e\u003ckeywordMajor\u003eDerribar\u003c/keywordMajor\u003e a un campeón enemigo mientras tu vida está \u003cstatus\u003edecayendo\u003c/status\u003e interrumpe el \u003cstatus\u003edeterioro\u003c/status\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  123,
                          "key":  "SummonersRoulette",
                          "name":  "Ruleta del Invocador",
-                         "description":  "Tus \u003cattention\u003ehechizos de invocador\u003c/attention\u003e se reemplazan por otros aleatorios. \u003cbr\u003e\u003cbr\u003eAl usar un \u003cattention\u003ehechizo de invocador\u003c/attention\u003e, este es reemplazado por otro aleatorio con un enfriamiento de @Cooldown@ seg."
+                         "description":  "Tus \u003cattention\u003ehechizos de invocador\u003c/attention\u003e se reemplazan por otros aleatorios. \u003cbr\u003e\u003cbr\u003eAl usar un \u003cattention\u003ehechizo de invocador\u003c/attention\u003e, este es reemplazado por otro aleatorio con un enfriamiento de @Cooldown@ seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  125,
                          "key":  "RaidBoss",
                          "name":  "Jefe de Incursión",
-                         "description":  "Comienzas cada ronda encarcelado. Mientras estés encarcelado, tienes una gran reducción de daño. Además, acumulas tamaño y poder a lo largo del tiempo. \u003cbr\u003e\u003cbr\u003eAl escapar, \u003cstatus\u003elanzas hacia atrás\u003c/status\u003e a los enemigos y obtienes un \u003cshield\u003eescudo\u003c/shield\u003e."
+                         "description":  "Comienzas cada ronda encarcelado. Mientras estés encarcelado, tienes una gran reducción de daño. Además, acumulas tamaño y poder a lo largo del tiempo. \u003cbr\u003e\u003cbr\u003eAl escapar, \u003cstatus\u003elanzas hacia atrás\u003c/status\u003e a los enemigos y obtienes un \u003cshield\u003eescudo\u003c/shield\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  129,
                          "key":  "Marksmage",
                          "name":  "Tirador Mágico",
-                         "description":  "Tus ataques infligen \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional igual a un \u003cscaleAP\u003e@APRatio*100@% del Poder de Habilidad\u003c/scaleAP\u003e."
+                         "description":  "Tus ataques infligen \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional igual a un \u003cscaleAP\u003e@APRatio*100@% del Poder de Habilidad\u003c/scaleAP\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  133,
                          "key":  "MagicMissile",
                          "name":  "Misil Mágico",
-                         "description":  "Infligir daño con una habilidad dispara @NumberOfMissiles@ misiles mágicos, cada uno de los cuales inflige un \u003ctrueDamage\u003eporcentaje de la vida máxima del objetivo como daño verdadero\u003c/trueDamage\u003e."
+                         "description":  "Infligir daño con una habilidad dispara @NumberOfMissiles@ misiles mágicos, cada uno de los cuales inflige un \u003ctrueDamage\u003eporcentaje de la vida máxima del objetivo como daño verdadero\u003c/trueDamage\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  134,
                          "key":  "DrawYourSword",
                          "name":  "Desenvaina tu Espada",
-                         "description":  "Ahora eres un campeón cuerpo a cuerpo. \u003cbr\u003e\u003cbr\u003eObtienes \u003cphysicalDamage\u003edaño de ataque\u003c/physicalDamage\u003e, \u003chealing\u003evida\u003c/healing\u003e, \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e, \u003clifesteal\u003erobo de vida\u003c/lifesteal\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e según el alcance de ataque que hayas perdido."
+                         "description":  "Ahora eres un campeón cuerpo a cuerpo. \u003cbr\u003e\u003cbr\u003eObtienes \u003cphysicalDamage\u003edaño de ataque\u003c/physicalDamage\u003e, \u003chealing\u003evida\u003c/healing\u003e, \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e, \u003clifesteal\u003erobo de vida\u003c/lifesteal\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e según el alcance de ataque que hayas perdido.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  135,
                          "key":  "Spellwake",
                          "name":  "Estela de Hechizos",
-                         "description":  "Al impactar a los enemigos con habilidades, se crea una explosión que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e desde ti hasta el lugar donde los impactaste."
+                         "description":  "Al impactar a los enemigos con habilidades, se crea una explosión que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e desde ti hasta el lugar donde los impactaste.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  136,
                          "key":  "SlapAround",
                          "name":  "A Bofetadas",
-                         "description":  "Cada vez que \u003cstatus\u003einmovilizas\u003c/status\u003e o \u003cstatus\u003eanclas\u003c/status\u003e a un enemigo, obtienes \u003cscaleAF\u003e@AdaptiveForce@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e durante el resto de la ronda."
+                         "description":  "Cada vez que \u003cstatus\u003einmovilizas\u003c/status\u003e o \u003cstatus\u003eanclas\u003c/status\u003e a un enemigo, obtienes \u003cscaleAF\u003e@AdaptiveForce@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e durante el resto de la ronda.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Fuerza adaptable por inmovilización de 15 a 25"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  138,
                          "key":  "Goredrink",
                          "name":  "Beber Sangre",
-                         "description":  "Obtienes un \u003clifeSteal\u003e@Omnivamp*100@% de Omnivampirismo\u003c/lifeSteal\u003e."
+                         "description":  "Obtienes un \u003clifeSteal\u003e@Omnivamp*100@% de Omnivampirismo\u003c/lifeSteal\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  141,
                          "key":  "AllForYou",
                          "name":  "Todo para ti",
-                         "description":  "Las \u003chealing\u003ecuraciones\u003c/healing\u003e y los \u003cshield\u003eescudos\u003c/shield\u003e son más fuertes cuando los usas en un aliado."
+                         "description":  "Las \u003chealing\u003ecuraciones\u003c/healing\u003e y los \u003cshield\u003eescudos\u003c/shield\u003e son más fuertes cuando los usas en un aliado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  149,
                          "key":  "Impassable",
                          "name":  "Infranqueable",
-                         "description":  "Obtienes los efectos de las runas clave \u003cspellName\u003eRéplica\u003c/spellName\u003e y \u003cspellName\u003eAumento Glacial\u003c/spellName\u003e."
+                         "description":  "Obtienes los efectos de las runas clave \u003cspellName\u003eRéplica\u003c/spellName\u003e y \u003cspellName\u003eAumento Glacial\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  150,
                          "key":  "BreadAndJam",
                          "name":  "Pan y mermelada",
-                         "description":  "Tu @spell2KeyBind@ obtiene @WAbilityHaste@ de Aceleración de Habilidad."
+                         "description":  "Tu @spell2KeyBind@ obtiene @WAbilityHaste@ de Aceleración de Habilidad.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  151,
                          "key":  "BreadAndCheese",
                          "name":  "Pan y queso",
-                         "description":  "Tu @spell3KeyBind@ obtiene @EAbilityHaste@ de Aceleración de Habilidad."
+                         "description":  "Tu @spell3KeyBind@ obtiene @EAbilityHaste@ de Aceleración de Habilidad.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  152,
                          "key":  "Quest_SteelYourHeart",
                          "name":  "Misión: Endurece tu corazón",
-                         "description":  "Requisito: Posee Corazón de Acero con @StackThreshold@+ acumulaciones. \u003cbr\u003e\u003cbr\u003eRecompensa: Multiplica las acumulaciones de Corazón de Acero en @StackMultiplication@. Aumenta tu \u003chealing\u003eRegeneración de Vida\u003c/healing\u003e en un @StacktoRegenConversion*100@% de tus acumulaciones de Corazón de Acero."
+                         "description":  "Requisito: Posee Corazón de Acero con @StackThreshold@+ acumulaciones. \u003cbr\u003e\u003cbr\u003eRecompensa: Multiplica las acumulaciones de Corazón de Acero en @StackMultiplication@. Aumenta tu \u003chealing\u003eRegeneración de Vida\u003c/healing\u003e en un @StacktoRegenConversion*100@% de tus acumulaciones de Corazón de Acero.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  154,
                          "key":  "Quest_UrfsChampion",
                          "name":  "Misión: Campeón de Urf",
-                         "description":  "Requisito: Realiza @TakedownsNeeded@ derribos.\u003cbr\u003e\u003cbr\u003eRecompensa: Espátula Dorada"
+                         "description":  "Requisito: Realiza @TakedownsNeeded@ derribos.\u003cbr\u003e\u003cbr\u003eRecompensa: Espátula Dorada",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  156,
                          "key":  "Quest_WoogletsWitchcap",
                          "name":  "Misión: Sombrero de Wooglet",
-                         "description":  "Inmediato: Obtienes una \u003cattention\u003eVara Innecesariamente Grande\u003c/attention\u003e.\u003cbr\u003e\u003cbr\u003eRequisito: Tener \u003cattention\u003eSombrero Mortífero de Rabadon\u003c/attention\u003e y \u003cattention\u003eReloj de Arena de Zhonya\u003c/attention\u003e.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes \u003cattention\u003eSombrero de Wooglet\u003c/attention\u003e."
+                         "description":  "Inmediato: Obtienes una \u003cattention\u003eVara Innecesariamente Grande\u003c/attention\u003e.\u003cbr\u003e\u003cbr\u003eRequisito: Tener \u003cattention\u003eSombrero Mortífero de Rabadon\u003c/attention\u003e y \u003cattention\u003eReloj de Arena de Zhonya\u003c/attention\u003e.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes \u003cattention\u003eSombrero de Wooglet\u003c/attention\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  165,
                          "key":  "Restart",
                          "name":  "Reiniciar",
-                         "description":  "Tus habilidades (excepto la definitiva) se restablecen \u003ckeywordMajor\u003ede manera automática\u003c/keywordMajor\u003e cada @CoolDown@ seg."
+                         "description":  "Tus habilidades (excepto la definitiva) se restablecen \u003ckeywordMajor\u003ede manera automática\u003c/keywordMajor\u003e cada @CoolDown@ seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  171,
                          "key":  "Dematerialize",
                          "name":  "Desmaterializar",
-                         "description":  "Obtienes \u003cscaleAF\u003e@AdaptiveForce@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e al lograr un derribo, una vez por campeón en cada ronda.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSi obtienes este Aumento después de la ronda @RoundCounterForBonus@, obtienes \u003cscaleAF\u003e@BonusForLatePick@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e.\u003c/rules\u003e"
+                         "description":  "Obtienes \u003cscaleAF\u003e@AdaptiveForce@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e al lograr un derribo, una vez por campeón en cada ronda.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSi obtienes este Aumento después de la ronda @RoundCounterForBonus@, obtienes \u003cscaleAF\u003e@BonusForLatePick@ de fuerza adaptable %i:miniAdaptiveForce%\u003c/scaleAF\u003e.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  172,
                          "key":  "MirrorImage",
                          "name":  "Imagen Especular",
-                         "description":  "Cuando tu Vida cae por debajo de un \u003cscaleHealth\u003e@HealthThreshold*100@%\u003c/scaleHealth\u003e, te vuelves \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e durante unos segundos y creas cuatro clones de ti."
+                         "description":  "Cuando tu Vida cae por debajo de un \u003cscaleHealth\u003e@HealthThreshold*100@%\u003c/scaleHealth\u003e, te vuelves \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e durante unos segundos y creas cuatro clones de ti.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  174,
                          "key":  "LaserEyes",
                          "name":  "Ojos Láser",
-                         "description":  "Hay un láser en la dirección a la que estés mirando que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e continuo."
+                         "description":  "Hay un láser en la dirección a la que estés mirando que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e continuo.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  175,
                          "key":  "ParasiticRelationship",
                          "name":  "Relación Parasitaria",
-                         "description":  "{{ Cherry_ParasiticRelationship@TeamSize@_Summary }}"
+                         "description":  "{{ Cherry_ParasiticRelationship@TeamSize@_Summary }}",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  177,
                          "key":  "NestingDoll",
                          "name":  "Matryoshka",
-                         "description":  "Obtienes \u003cattention\u003erevivir\u003c/attention\u003e @BonusLives@ veces adicionales y comienzas a revivir después de morir.\u003cbr\u003e\u003cbr\u003eAl \u003cattention\u003erevivir\u003c/attention\u003e, \u003cstatus\u003elanzas hacia atrás\u003c/status\u003e a los enemigos a tu alrededor y regresas con un tamaño reducido y menos \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e."
+                         "description":  "Obtienes \u003cattention\u003erevivir\u003c/attention\u003e @BonusLives@ veces adicionales y comienzas a revivir después de morir.\u003cbr\u003e\u003cbr\u003eAl \u003cattention\u003erevivir\u003c/attention\u003e, \u003cstatus\u003elanzas hacia atrás\u003c/status\u003e a los enemigos a tu alrededor y regresas con un tamaño reducido y menos \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  180,
                          "key":  "BigBrain",
                          "name":  "Grandes jugadas",
-                         "description":  "Al inicio de cada ronda, obtienes\u003cshield\u003e @ShieldBaseTooltip@ de Escudo \u003c/shield\u003epor cada \u003cscaleAP\u003e%i:scaleAP% @AP@ de Poder de Habilidad\u003c/scaleAP\u003e."
+                         "description":  "Al inicio de cada ronda, obtienes\u003cshield\u003e @ShieldBaseTooltip@ de Escudo \u003c/shield\u003epor cada \u003cscaleAP\u003e%i:scaleAP% @AP@ de Poder de Habilidad\u003c/scaleAP\u003e.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Escudo por punto de poder de habilidad de 3 a 4"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  181,
                          "key":  "HeavyHitter",
                          "name":  "Puño Pesado",
-                         "description":  "Tus ataques infligen \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional igual al @HealthPercent*100@% de tu \u003cscaleHealth\u003eVida Máxima.\u003c/scaleHealth\u003e"
+                         "description":  "Tus ataques infligen \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional igual al @HealthPercent*100@% de tu \u003cscaleHealth\u003eVida Máxima.\u003c/scaleHealth\u003e",
+                         "maxLevel":  2,
+                         "upgradeEffects":  [
+                                                "Porcentaje de tu vida máxima por ataque de 3.5 % a 5 %"
+                                            ]
                      },
                      {
                          "mode":  "Arena",
                          "id":  192,
                          "key":  "Quest_AngelofRetribution",
                          "name":  "Misión: Ángel de la Retribución",
-                         "description":  "Requisito: \u003chealing\u003eCura\u003c/healing\u003e o evita @RequirementAmount@ de daño a los aliados.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes un \u003cattackSpeed\u003e@AttackSpeed*100@% de Velocidad de Ataque\u003c/attackSpeed\u003e, y tus ataques infligen \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional equivalente a un \u003chealing\u003e@HealPowerToDamageConversion*100@% de tu poder de curaciones y escudos\u003c/healing\u003e."
+                         "description":  "Requisito: \u003chealing\u003eCura\u003c/healing\u003e o evita @RequirementAmount@ de daño a los aliados.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes un \u003cattackSpeed\u003e@AttackSpeed*100@% de Velocidad de Ataque\u003c/attackSpeed\u003e, y tus ataques infligen \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional equivalente a un \u003chealing\u003e@HealPowerToDamageConversion*100@% de tu poder de curaciones y escudos\u003c/healing\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  193,
                          "key":  "CenterOfTheUniverse",
                          "name":  "Centro del Universo",
-                         "description":  "Las estrellas te orbitan, lo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos que atraviesan."
+                         "description":  "Las estrellas te orbitan, lo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos que atraviesan.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  194,
                          "key":  "FeyMagic",
                          "name":  "Magia Mística",
-                         "description":  "Infligir daño con tu \u003cattention\u003edefinitiva\u003c/attention\u003e aplica \u003cstatus\u003epolimorfia\u003c/status\u003e a los enemigos durante unos seg."
+                         "description":  "Infligir daño con tu \u003cattention\u003edefinitiva\u003c/attention\u003e aplica \u003cstatus\u003epolimorfia\u003c/status\u003e a los enemigos durante unos seg.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  195,
                          "key":  "GiantSlayer",
                          "name":  "Verdugo de Gigantes",
-                         "description":  "Te encoges a un tamaño diminuto, obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y daño adicional a campeones según cuánto más grandes sean que tú."
+                         "description":  "Te encoges a un tamaño diminuto, obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y daño adicional a campeones según cuánto más grandes sean que tú.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  198,
                          "key":  "HolyFire",
                          "name":  "Fuego Sagrado",
-                         "description":  "Las \u003chealing\u003ecuraciones\u003c/healing\u003e y los \u003cshield\u003eescudos\u003c/shield\u003e aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente a un enemigo cercano y le inflige un \u003cmagicDamage\u003eporcentaje de su vida máxima como daño mágico\u003c/magicDamage\u003e durante unos segundos."
+                         "description":  "Las \u003chealing\u003ecuraciones\u003c/healing\u003e y los \u003cshield\u003eescudos\u003c/shield\u003e aplican una \u003ckeywordMajor\u003eQuemadura\u003c/keywordMajor\u003e que se acumula infinitamente a un enemigo cercano y le inflige un \u003cmagicDamage\u003eporcentaje de su vida máxima como daño mágico\u003c/magicDamage\u003e durante unos segundos.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  200,
                          "key":  "BloodBrother",
                          "name":  "Hermano de Sangre",
-                         "description":  "Obtienes la pasiva \u003cspellName\u003eHemorragia\u003c/spellName\u003e de Darius.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLos ataques y las habilidades que infligen daño causan \u003ckeywordMajor\u003eHemorragia\u003c/keywordMajor\u003e al objetivo, lo que inflige \u003cphysicalDamage\u003e@BleedDamagePerStack@ de daño físico\u003c/physicalDamage\u003e a lo largo de @BleedDuration@ seg; se puede acumular hasta @MaxStacks@ veces.\u003cbr\u003e\u003cbr\u003eDraven obtiene \u003cscaleAD\u003e@NoxianMightBonusAD@ de Daño de Ataque\u003c/scaleAD\u003e al obtener @MaxStacks@ acumulaciones de \u003ckeywordMajor\u003eHemorragia\u003c/keywordMajor\u003e.\u003c/rules\u003e\u003cbr\u003e\u003cbr\u003e"
+                         "description":  "Obtienes la pasiva \u003cspellName\u003eHemorragia\u003c/spellName\u003e de Darius.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLos ataques y las habilidades que infligen daño causan \u003ckeywordMajor\u003eHemorragia\u003c/keywordMajor\u003e al objetivo, lo que inflige \u003cphysicalDamage\u003e@BleedDamagePerStack@ de daño físico\u003c/physicalDamage\u003e a lo largo de @BleedDuration@ seg; se puede acumular hasta @MaxStacks@ veces.\u003cbr\u003e\u003cbr\u003eDraven obtiene \u003cscaleAD\u003e@NoxianMightBonusAD@ de Daño de Ataque\u003c/scaleAD\u003e al obtener @MaxStacks@ acumulaciones de \u003ckeywordMajor\u003eHemorragia\u003c/keywordMajor\u003e.\u003c/rules\u003e\u003cbr\u003e\u003cbr\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  204,
                          "key":  "StackosaurusRex",
                          "name":  "Acumulasaurio Rex",
-                         "description":  "Cuando obtienes \u003ckeywordMajor\u003eacumulaciones\u003c/keywordMajor\u003e permanentes de una habilidad, ¡obtienes un @StackModifier*100@% más!"
+                         "description":  "Cuando obtienes \u003ckeywordMajor\u003eacumulaciones\u003c/keywordMajor\u003e permanentes de una habilidad, ¡obtienes un @StackModifier*100@% más!",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  205,
                          "key":  "ADAPt",
                          "name":  "Daño Habilidoso",
-                         "description":  "Convierte el \u003cscaleAD\u003edaño de ataque adicional\u003c/scaleAD\u003e en \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e. Obtienes un \u003cscaleAP\u003e@APAmp*100@% de Poder de Habilidad\u003c/scaleAP\u003e."
+                         "description":  "Convierte el \u003cscaleAD\u003edaño de ataque adicional\u003c/scaleAD\u003e en \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e. Obtienes un \u003cscaleAP\u003e@APAmp*100@% de Poder de Habilidad\u003c/scaleAP\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  206,
                          "key":  "escAPADe",
                          "name":  "escaPHaDA",
-                         "description":  "Convierte el \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e en \u003cscaleAD\u003edaño de ataque adicional\u003c/scaleAD\u003e. Obtiene un \u003cscaleAD\u003e@ADAmp*100@% de Daño de Ataque\u003c/scaleAD\u003e."
+                         "description":  "Convierte el \u003cscaleAP\u003epoder de habilidad\u003c/scaleAP\u003e en \u003cscaleAD\u003edaño de ataque adicional\u003c/scaleAD\u003e. Obtiene un \u003cscaleAD\u003e@ADAmp*100@% de Daño de Ataque\u003c/scaleAD\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  207,
                          "key":  "HoldVeryStill",
                          "name":  "No te Muevas",
-                         "description":  "Obtienes \u003cspellName\u003eTácticas de Guerrilla\u003c/spellName\u003e. \u003cbr\u003e\u003cbr\u003eNo moverte te vuelve \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e hasta que vuelvas a moverte. Al salir de esta \u003ckeywordStealth\u003eInvisibilidad\u003c/keywordStealth\u003e, tu siguiente ataque infligirá \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional."
+                         "description":  "Obtienes \u003cspellName\u003eTácticas de Guerrilla\u003c/spellName\u003e. \u003cbr\u003e\u003cbr\u003eNo moverte te vuelve \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e hasta que vuelvas a moverte. Al salir de esta \u003ckeywordStealth\u003eInvisibilidad\u003c/keywordStealth\u003e, tu siguiente ataque infligirá \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  208,
                          "key":  "OrbitalLaser",
                          "name":  "Láser Orbital",
-                         "description":  "Reemplaza Huida del Invocador con \u003cspellName\u003eLáser Orbital\u003c/spellName\u003e. \u003cbr\u003e\u003cbr\u003e\u003crules\u003eTras un retraso, dispara un láser orbital que inflige un \u003ctrueDamage\u003e@DamagetoChampions*100@% de Vida Máxima como daño verdadero\u003c/trueDamage\u003e y \u003cmagicDamage\u003e@TotalDamageOverTimeTooltip@ de daño mágico\u003c/magicDamage\u003e durante @GroundDuration@ seg.\u003c/rules\u003e"
+                         "description":  "Reemplaza Huida del Invocador con \u003cspellName\u003eLáser Orbital\u003c/spellName\u003e. \u003cbr\u003e\u003cbr\u003e\u003crules\u003eTras un retraso, dispara un láser orbital que inflige un \u003ctrueDamage\u003e@DamagetoChampions*100@% de Vida Máxima como daño verdadero\u003c/trueDamage\u003e y \u003cmagicDamage\u003e@TotalDamageOverTimeTooltip@ de daño mágico\u003c/magicDamage\u003e durante @GroundDuration@ seg.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  211,
                          "key":  "ItsKillingTime",
                          "name":  "Es Hora de Matar",
-                         "description":  "Tras lanzar tu \u003ckeywordMajor\u003edefinitiva\u003c/keywordMajor\u003e, aplicas una marca de muerte a todos campeones enemigos. \u003cbr\u003e\u003cbr\u003eMientras están marcados, almacenan el daño que se les inflige. El daño detona cuando finaliza la marca."
+                         "description":  "Tras lanzar tu \u003ckeywordMajor\u003edefinitiva\u003c/keywordMajor\u003e, aplicas una marca de muerte a todos campeones enemigos. \u003cbr\u003e\u003cbr\u003eMientras están marcados, almacenan el daño que se les inflige. El daño detona cuando finaliza la marca.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  214,
                          "key":  "SpinToWin",
                          "name":  "Gira y gana",
-                         "description":  "¡Tus habilidades giratorias obtienen @SpinHaste@ de Aceleración de Habilidad e infligen un @SpinDamageAmp*100@% de daño adicional!"
+                         "description":  "¡Tus habilidades giratorias obtienen @SpinHaste@ de Aceleración de Habilidad e infligen un @SpinDamageAmp*100@% de daño adicional!",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  215,
                          "key":  "DarkBlessing",
                          "name":  "Bendición Oscura",
-                         "description":  "\u003chealing\u003eCurar\u003c/healing\u003e o \u003cshield\u003eescudar\u003c/shield\u003e a un aliado te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes aceleración de habilidad según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado."
+                         "description":  "\u003chealing\u003eCurar\u003c/healing\u003e o \u003cshield\u003eescudar\u003c/shield\u003e a un aliado te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes aceleración de habilidad según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  216,
                          "key":  "Dreadbringer",
                          "name":  "Heraldo del Terror",
-                         "description":  "Obtienes un aura que cosecha continuamente \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente por cada campeón enemigo que esté dentro. Obtienes \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado."
+                         "description":  "Obtienes un aura que cosecha continuamente \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente por cada campeón enemigo que esté dentro. Obtienes \u003cscaleHealth\u003evida máxima\u003c/scaleHealth\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  217,
                          "key":  "Deathtouch",
                          "name":  "Toque Mortal",
-                         "description":  "Atacar a campeones enemigos te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e de forma permanente e inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado."
+                         "description":  "Atacar a campeones enemigos te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e de forma permanente e inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e adicional según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Daño al impacto del Poder Maldito de 20 % a 35 %"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  218,
                          "key":  "Desecrator",
                          "name":  "Profanador",
-                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e campeones enemigos te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado."
+                         "description":  "\u003cstatus\u003eInmovilizar\u003c/status\u003e campeones enemigos te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  219,
                          "key":  "Doomsayer",
                          "name":  "Predicador del Fin",
-                         "description":  "Impactar a un campeón enemigo con habilidades otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes \u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado."
+                         "description":  "Impactar a un campeón enemigo con habilidades otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e permanente. Obtienes \u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e según la cantidad de \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e que hayas acumulado.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  220,
                          "key":  "FanTheHammer",
                          "name":  "Pistolero",
-                         "description":  "Al atacar, disparas @AdditionalBolts@ proyectiles. Cada uno inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e y aplica tus {{ Item_Keyword_OnHit }}."
+                         "description":  "Al atacar, disparas @AdditionalBolts@ proyectiles. Cada uno inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e y aplica tus {{ Item_Keyword_OnHit }}.",
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Enfriamiento por dirección de 7 s a 5 s"]
                      },
                      {
                          "mode":  "Arena",
                          "id":  221,
                          "key":  "Trailblazer",
                          "name":  "Abrecaminos",
-                         "description":  "Al desplazarte o saltar, aplicas una \u003ckeywordMajor\u003equemadura\u003c/keywordMajor\u003e a un enemigo cercano, lo cual le inflige daño prolongado. Se acumula de manera infinita."
+                         "description":  "Al desplazarte o saltar, aplicas una \u003ckeywordMajor\u003equemadura\u003c/keywordMajor\u003e a un enemigo cercano, lo cual le inflige daño prolongado. Se acumula de manera infinita.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  222,
                          "key":  "FruitsOfYourLabor",
                          "name":  "El Fruto de tu Labor",
-                         "description":  "Las Flores de Poder son un @AmpAmount*100@% más efectivas en ti y se comparten con tu aliado."
+                         "description":  "Las Flores de Poder son un @AmpAmount*100@% más efectivas en ti y se comparten con tu aliado.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  223,
                          "key":  "SummonerRevolution",
                          "name":  "Revolución del Invocador",
-                         "description":  "Tus \u003ckeywordMajor\u003ehechizos de invocador\u003c/keywordMajor\u003e obtienen @BonusCharges@ carga(s) adicionales. \u003cbr\u003e\u003cbr\u003e\u003cspellName\u003eDestello\u003c/spellName\u003e se restablece en cada ronda."
+                         "description":  "Tus \u003ckeywordMajor\u003ehechizos de invocador\u003c/keywordMajor\u003e obtienen @BonusCharges@ carga(s) adicionales. \u003cbr\u003e\u003cbr\u003e\u003cspellName\u003eDestello\u003c/spellName\u003e se restablece en cada ronda.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  224,
                          "key":  "PrismaticEgg",
                          "name":  "Huevo Prismático",
-                         "description":  "Obtienes @KillStackCredit@ acumulación al conseguir un derribo, una vez por campeón cada ronda.\u003cbr\u003e\u003cbr\u003eDespués de obtener @RequiredKillCount@ acumulaciones, eclosiona y otorga un \u003cattention\u003eYunque de Objetos Prismático\u003c/attention\u003e, un \u003cattention\u003e%i:Augment% Aumento Prismático\u003c/attention\u003e y un \u003cattention\u003e%i:StatAnvil% Yunque de Estadísticas Prismático\u003c/attention\u003e."
+                         "description":  "Obtienes @KillStackCredit@ acumulación al conseguir un derribo, una vez por campeón cada ronda.\u003cbr\u003e\u003cbr\u003eDespués de obtener @RequiredKillCount@ acumulaciones, eclosiona y otorga un \u003cattention\u003eYunque de Objetos Prismático\u003c/attention\u003e, un \u003cattention\u003e%i:Augment% Aumento Prismático\u003c/attention\u003e y un \u003cattention\u003e%i:StatAnvil% Yunque de Estadísticas Prismático\u003c/attention\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  225,
                          "key":  "DualWield",
                          "name":  "Doble Empuñadura",
-                         "description":  "Cuando atacas, disparas un proyectil que inflige un @AttackReduction*100@% de daño y aplica tus efectos {{ Item_Keyword_OnHit }} con un @OnHitMod*100@% de efectividad. \u003cbr\u003e\u003cbr\u003eObtienes un \u003cattackSpeed\u003e@AttackSpeed*100@% de Velocidad de Ataque total\u003c/attackSpeed\u003e."
+                         "description":  "Cuando atacas, disparas un proyectil que inflige un @AttackReduction*100@% de daño y aplica tus efectos {{ Item_Keyword_OnHit }} con un @OnHitMod*100@% de efectividad. \u003cbr\u003e\u003cbr\u003eObtienes un \u003cattackSpeed\u003e@AttackSpeed*100@% de Velocidad de Ataque total\u003c/attackSpeed\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  226,
                          "key":  "Stats",
                          "name":  "¡Estadísticas!",
-                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!"
+                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  227,
                          "key":  "StatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
-                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!"
+                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  228,
                          "key":  "StatsOnStatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
-                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!"
+                         "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  229,
                          "key":  "FireSale",
                          "name":  "Venta de Liquidación",
-                         "description":  "Vendes al instante todos los objetos que no sean de misión por un @SellValueTooltip@% de su precio de compra directo. \u003cbr\u003e\u003cbr\u003eExcelente para los yunques con descuento."
+                         "description":  "Vendes al instante todos los objetos que no sean de misión por un @SellValueTooltip@% de su precio de compra directo. \u003cbr\u003e\u003cbr\u003eExcelente para los yunques con descuento.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  231,
                          "key":  "LightWarden",
                          "name":  "Guardián de la Luz",
-                         "description":  "Cada pocos seg, \u003ckeywordMajor\u003elanzas automáticamente\u003c/keywordMajor\u003e una luz protectora, lo que les otorga un \u003cshield\u003eescudo\u003c/shield\u003e a ti y a los aliados que atraviese, luego regresa y se repite el efecto."
+                         "description":  "Cada pocos seg, \u003ckeywordMajor\u003elanzas automáticamente\u003c/keywordMajor\u003e una luz protectora, lo que les otorga un \u003cshield\u003eescudo\u003c/shield\u003e a ti y a los aliados que atraviese, luego regresa y se repite el efecto.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  232,
                          "key":  "SlimeTime",
                          "name":  "Hora del Slime",
-                         "description":  "Cada pocos seg, \u003ckeywordMajor\u003eautolanzas\u003c/keywordMajor\u003e una baba explosiva de tu cuerpo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos cercanos. \u003cbr\u003e\u003cbr\u003eSi impactas a un campeón, sueltas una masa que te \u003chealing\u003ecura\u003c/healing\u003e al caminar sobre ella."
+                         "description":  "Cada pocos seg, \u003ckeywordMajor\u003eautolanzas\u003c/keywordMajor\u003e una baba explosiva de tu cuerpo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos cercanos. \u003cbr\u003e\u003cbr\u003eSi impactas a un campeón, sueltas una masa que te \u003chealing\u003ecura\u003c/healing\u003e al caminar sobre ella.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  233,
                          "key":  "UltimateRoulette",
                          "name":  "Ruleta Definitiva",
-                         "description":  "Reemplaza \u003cspellName\u003eHuida\u003c/spellName\u003e por una \u003cattention\u003edefinitiva\u003c/attention\u003e aleatoria. \u003cbr\u003e\u003cbr\u003eTras lanzar la \u003cattention\u003edefinitiva\u003c/attention\u003e, la reemplaza con una nueva \u003cattention\u003edefinitiva\u003c/attention\u003e aleatoria."
+                         "description":  "Reemplaza \u003cspellName\u003eHuida\u003c/spellName\u003e por una \u003cattention\u003edefinitiva\u003c/attention\u003e aleatoria. \u003cbr\u003e\u003cbr\u003eTras lanzar la \u003cattention\u003edefinitiva\u003c/attention\u003e, la reemplaza con una nueva \u003cattention\u003edefinitiva\u003c/attention\u003e aleatoria.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  234,
                          "key":  "GambaAnvil",
                          "name":  "Yunque de Gamba",
-                         "description":  "Obtienes \u003cgold\u003e+%i:goldCoins%@GoldBonus@ de oro\u003c/gold\u003e. Además, el costo de todos los Yunques se reduce.\u003cbr\u003e\u003cbr\u003e\u003cattention\u003eYunques Prismáticos\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@PrismaticCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cattention\u003eYunques Legendarios\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@LegendaryCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cattention\u003eYunques de Estadísticas\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@StatCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLos objetos que se adquieren con Yunques se revenden por \u003cgold\u003e%i:goldCoins%500 de oro\u003c/gold\u003e menos.\u003c/rules\u003e"
+                         "description":  "Obtienes \u003cgold\u003e+%i:goldCoins%@GoldBonus@ de oro\u003c/gold\u003e. Además, el costo de todos los Yunques se reduce.\u003cbr\u003e\u003cbr\u003e\u003cattention\u003eYunques Prismáticos\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@PrismaticCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cattention\u003eYunques Legendarios\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@LegendaryCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cattention\u003eYunques de Estadísticas\u003c/attention\u003e: \u003cgold\u003e%i:goldCoins%@StatCostReduction@ de oro\u003c/gold\u003e menos\u003cbr\u003e\u003cbr\u003e\u003crules\u003eLos objetos que se adquieren con Yunques se revenden por \u003cgold\u003e%i:goldCoins%500 de oro\u003c/gold\u003e menos.\u003c/rules\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  236,
                          "key":  "TricksterDemon",
                          "name":  "Demonio Bromista",
-                         "description":  "Al salir del sigilo, explotas e infliges \u003cmagicDamage\u003e@TotalDamage@ de daño mágico\u003c/magicDamage\u003e. Tus clones y tus trampas harán lo mismo al morir."
+                         "description":  "Al salir del sigilo, explotas e infliges \u003cmagicDamage\u003e@TotalDamage@ de daño mágico\u003c/magicDamage\u003e. Tus clones y tus trampas harán lo mismo al morir.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  237,
                          "key":  "TransmuteGold",
                          "name":  "Transmutar: Oro",
-                         "description":  "Obtienes un \u003ckeywordMajor\u003e%i:Augment% Aumento de Oro\u003c/keywordMajor\u003e aleatorio."
+                         "description":  "Obtienes un \u003ckeywordMajor\u003e%i:Augment% Aumento de Oro\u003c/keywordMajor\u003e aleatorio.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  238,
                          "key":  "TransmutePrismatic",
                          "name":  "Transmutar: Prismático",
-                         "description":  "Obtienes un \u003ckeywordMajor\u003e%i:Augment% Aumento Prismático\u003c/keywordMajor\u003e aleatorio."
+                         "description":  "Obtienes un \u003ckeywordMajor\u003e%i:Augment% Aumento Prismático\u003c/keywordMajor\u003e aleatorio.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  239,
                          "key":  "SymbioticMutation",
                          "name":  "Mutación Simbiótica",
-                         "description":  "Cada ronda, esto \u003ckeyword\u003emuta\u003c/keyword\u003e en uno de los Aumentos de tu aliado.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSolo muta en aumentos que puedas activar.\u003c/rules\u003e"
+                         "description":  "Cada ronda, esto \u003ckeyword\u003emuta\u003c/keyword\u003e en uno de los Aumentos de tu aliado.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSolo muta en aumentos que puedas activar.\u003c/rules\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  240,
                          "key":  "ParasiticMutation",
                          "name":  "Mutación Parasitaria",
-                         "description":  "En cada ronda, esto \u003ckeyword\u003emuta\u003c/keyword\u003e en uno de los Aumentos de tu oponente.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSolo muta en aumentos que puedas activar.\u003c/rules\u003e"
+                         "description":  "En cada ronda, esto \u003ckeyword\u003emuta\u003c/keyword\u003e en uno de los Aumentos de tu oponente.\u003cbr\u003e\u003cbr\u003e\u003crules\u003eSolo muta en aumentos que puedas activar.\u003c/rules\u003e",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  241,
                          "key":  "HatTrick",
                          "name":  "Truco Bajo el Sombrero",
-                         "description":  "Obtienes @HatsToGrant@ \u003ckeywordMajor\u003esombreros\u003c/keywordMajor\u003e al instante, y el precio del \u003ckeywordMajor\u003eJuguito de Gorrito\u003c/keywordMajor\u003e se reduce en @HatTrickPriceReduction@.\u003cbr\u003e\u003cbr\u003eCuando tu Vida cae por debajo de un @LowHealthThreshold*100@%, obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y un \u003cshield\u003eescudo\u003c/shield\u003e, pero pierdes un \u003ckeywordMajor\u003esombrero\u003c/keywordMajor\u003e."
+                         "description":  "Obtienes @HatsToGrant@ \u003ckeywordMajor\u003esombreros\u003c/keywordMajor\u003e al instante, y el precio del \u003ckeywordMajor\u003eJuguito de Gorrito\u003c/keywordMajor\u003e se reduce en @HatTrickPriceReduction@.\u003cbr\u003e\u003cbr\u003eCuando tu Vida cae por debajo de un @LowHealthThreshold*100@%, obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y un \u003cshield\u003eescudo\u003c/shield\u003e, pero pierdes un \u003ckeywordMajor\u003esombrero\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  243,
                          "key":  "TransmuteChaos",
                          "name":  "Transmutar: Caos",
-                         "description":  "Obtienes \u003ckeywordMajor\u003e@AugmentsToGrantToolTipOnly@ %i:Augment%Aumentos\u003c/keywordMajor\u003e aleatorios."
+                         "description":  "Obtienes \u003ckeywordMajor\u003e@AugmentsToGrantToolTipOnly@ %i:Augment%Aumentos\u003c/keywordMajor\u003e aleatorios.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  251,
                          "key":  "NumbToPain",
                          "name":  "Inmune al Dolor",
-                         "description":  "Un @MeleeReduction*100@% del daño que recibes se distribuye a lo largo de @BleedDuration@ seg (un @RangedReduction*100@% para campeones a distancia)."
+                         "description":  "Un @MeleeReduction*100@% del daño que recibes se distribuye a lo largo de @BleedDuration@ seg (un @RangedReduction*100@% para campeones a distancia).",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  301,
                          "key":  "DivineIntervention",
                          "name":  "Intervención Divina",
-                         "description":  "Poco después de que comience el combate, invocas una estrella protectora. Cuando aterriza, tú y tus aliados cercanos se vuelven \u003ckeywordMajor\u003einvulnerables\u003c/keywordMajor\u003e durante unos seg. \u003cbr\u003e\u003cbr\u003eLuego, esta habilidad se \u003ckeywordMajor\u003eautolanza\u003c/keywordMajor\u003e cada @BaseCD@ seg."
+                         "description":  "Poco después de que comience el combate, invocas una estrella protectora. Cuando aterriza, tú y tus aliados cercanos se vuelven \u003ckeywordMajor\u003einvulnerables\u003c/keywordMajor\u003e durante unos seg. \u003cbr\u003e\u003cbr\u003eLuego, esta habilidad se \u003ckeywordMajor\u003eautolanza\u003c/keywordMajor\u003e cada @BaseCD@ seg.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2545,112 +2733,128 @@
                          "id":  305,
                          "key":  "LegDay",
                          "name":  "Día de Pierna",
-                         "description":  "Obtienes \u003cspeed\u003e@MovementSpeed@ de Velocidad de Movimiento\u003c/speed\u003e y \u003cspeed\u003e@SlowResist*100@% de resistencia a ralentizaciones\u003c/speed\u003e."
+                         "description":  "Obtienes \u003cspeed\u003e@MovementSpeed@ de Velocidad de Movimiento\u003c/speed\u003e y \u003cspeed\u003e@SlowResist*100@% de resistencia a ralentizaciones\u003c/speed\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  308,
                          "key":  "Firefox",
                          "name":  "Fuego Zorruno",
-                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e\u003cbr\u003eObtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y conjuras tres llamas que giran a tu alrededor. Fijan como objetivo al enemigo visible más cercano dentro de su alcance e infligen \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e."
+                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e\u003cbr\u003eObtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e y conjuras tres llamas que giran a tu alrededor. Fijan como objetivo al enemigo visible más cercano dentro de su alcance e infligen \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  309,
                          "key":  "AndMyAxe",
                          "name":  "¡Y mi hacha!",
-                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e: \u003cbr\u003eLanza periódicamente un hacha al oponente más cercano, lo que le inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e, lo \u003cstatus\u003eralentiza\u003c/status\u003e y le reduce su \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y su \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e. Recoger el hacha reduce su enfriamiento."
+                         "description":  "\u003ckeywordMajor\u003eAutolanzamiento\u003c/keywordMajor\u003e: \u003cbr\u003eLanza periódicamente un hacha al oponente más cercano, lo que le inflige \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e, lo \u003cstatus\u003eralentiza\u003c/status\u003e y le reduce su \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e y su \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e. Recoger el hacha reduce su enfriamiento.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  310,
                          "key":  "ClownCollege",
                          "name":  "Universidad de Payasos",
-                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEngaño\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003cspellName\u003eEngaño\u003c/spellName\u003e: Te teletransportas y te vuelves \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e. Mientras seas \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e, tu siguiente ataque infligirá \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional. \u003cbr\u003e\u003cbr\u003eCuando mueres, aparece una caja explosiva que inflige una gran cantidad de \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos cercanos y los \u003cstatus\u003eaterroriza\u003c/status\u003e."
+                         "description":  "Obtienes el hechizo de invocador \u003cspellName\u003eEngaño\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003cspellName\u003eEngaño\u003c/spellName\u003e: Te teletransportas y te vuelves \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e. Mientras seas \u003ckeywordStealth\u003einvisible\u003c/keywordStealth\u003e, tu siguiente ataque infligirá \u003cphysicalDamage\u003edaño físico\u003c/physicalDamage\u003e adicional. \u003cbr\u003e\u003cbr\u003eCuando mueres, aparece una caja explosiva que inflige una gran cantidad de \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e a los enemigos cercanos y los \u003cstatus\u003eaterroriza\u003c/status\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  311,
                          "key":  "Overflow",
                          "name":  "Sobrecarga",
-                         "description":  "Tus costos de \u003cscaleMana\u003emaná\u003c/scaleMana\u003e se duplican. \u003cbr\u003e\u003cbr\u003eLas \u003chealing\u003ecuraciones\u003c/healing\u003e, \u003cshield\u003eescudos\u003c/shield\u003e y daño de tu habilidad aumentan según tu \u003cscaleMana\u003emaná máximo\u003c/scaleMana\u003e."
+                         "description":  "Tus costos de \u003cscaleMana\u003emaná\u003c/scaleMana\u003e se duplican. \u003cbr\u003e\u003cbr\u003eLas \u003chealing\u003ecuraciones\u003c/healing\u003e, \u003cshield\u003eescudos\u003c/shield\u003e y daño de tu habilidad aumentan según tu \u003cscaleMana\u003emaná máximo\u003c/scaleMana\u003e.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  312,
                          "key":  "WellBeRightBack",
                          "name":  "Ya Volvemos",
-                         "description":  "Obtienes el Hechizo de invocador \u003cspellName\u003eDetener el Tiempo\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eDetener el Tiempo\u003c/spellName\u003e: Todos los campeones cercanos entran en \u003cstatus\u003eestasis\u003c/status\u003e. La \u003cstatus\u003eestasis\u003c/status\u003e es más corta para ti y, durante ella, te curarás según la vida que te falte.\u003c/rules\u003e"
+                         "description":  "Obtienes el Hechizo de invocador \u003cspellName\u003eDetener el Tiempo\u003c/spellName\u003e.\u003cbr\u003e\u003cbr\u003e\u003crules\u003e\u003cspellName\u003eDetener el Tiempo\u003c/spellName\u003e: Todos los campeones cercanos entran en \u003cstatus\u003eestasis\u003c/status\u003e. La \u003cstatus\u003eestasis\u003c/status\u003e es más corta para ti y, durante ella, te curarás según la vida que te falte.\u003c/rules\u003e",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  313,
                          "key":  "TankEngine",
                          "name":  "Locomotora",
-                         "description":  "Obtienes tamaño aumentado y \u003cscaleHealth\u003eporcentaje de vida adicional\u003c/scaleHealth\u003e por cada derribo."
+                         "description":  "Obtienes tamaño aumentado y \u003cscaleHealth\u003eporcentaje de vida adicional\u003c/scaleHealth\u003e por cada derribo.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  314,
                          "key":  "Unshackled",
                          "name":  "Usurpador",
-                         "description":  "Ahora puedes aplicar \u003cspellName\u003eUsurpación\u003c/spellName\u003e a la definitiva de tu aliado.\u003cbr\u003e\u003cbr\u003eAl lograr un derribo, se reduce el bloqueo y el enfriamiento de \u003cspellName\u003eUsurpación\u003c/spellName\u003e en un @TakedownRefund*100@%.\u003cbr\u003e\u003cbr\u003eObtienes @UltimateHaste@ de Aceleración de Definitiva."
+                         "description":  "Ahora puedes aplicar \u003cspellName\u003eUsurpación\u003c/spellName\u003e a la definitiva de tu aliado.\u003cbr\u003e\u003cbr\u003eAl lograr un derribo, se reduce el bloqueo y el enfriamiento de \u003cspellName\u003eUsurpación\u003c/spellName\u003e en un @TakedownRefund*100@%.\u003cbr\u003e\u003cbr\u003eObtienes @UltimateHaste@ de Aceleración de Definitiva.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  316,
                          "key":  "GrievousVenom",
                          "name":  "Veneno Mortal",
-                         "description":  "Infligir daño a un campeón enemigo reduce cualquier \u003cshield\u003eescudo\u003c/shield\u003e que obtenga y le aplica \u003cstatus\u003eHeridas Graves\u003c/status\u003e, lo que reduce cualquier \u003chealing\u003ecuración\u003c/healing\u003e que reciba. "
+                         "description":  "Infligir daño a un campeón enemigo reduce cualquier \u003cshield\u003eescudo\u003c/shield\u003e que obtenga y le aplica \u003cstatus\u003eHeridas Graves\u003c/status\u003e, lo que reduce cualquier \u003chealing\u003ecuración\u003c/healing\u003e que reciba. ",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  317,
                          "key":  "PandorasBox",
                          "name":  "Caja de Pandora",
-                         "description":  "Transmuta todos tus Aumentos en \u003ckeywordMajor\u003eAumentos Prismáticos%i:Augment% aleatorios\u003c/keywordMajor\u003e."
+                         "description":  "Transmuta todos tus Aumentos en \u003ckeywordMajor\u003eAumentos Prismáticos%i:Augment% aleatorios\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  318,
                          "key":  "Quest_MadHatter",
                          "name":  "Misión: Sombrerero Loco",
-                         "description":  "Requisito: Usa @QuestThreshold@ sombreros al final del combate.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes \u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e, \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e, \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e, \u003cscaleTenacity\u003etenacidad\u003c/scaleTenacity\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e por cada sombrero."
+                         "description":  "Requisito: Usa @QuestThreshold@ sombreros al final del combate.\u003cbr\u003e\u003cbr\u003eRecompensa: Obtienes \u003cscaleAF\u003efuerza adaptable\u003c/scaleAF\u003e, \u003cscaleArmor\u003earmadura\u003c/scaleArmor\u003e, \u003cscaleMR\u003eresistencia mágica\u003c/scaleMR\u003e, \u003cscaleTenacity\u003etenacidad\u003c/scaleTenacity\u003e y \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e por cada sombrero.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  319,
                          "key":  "Quest_ThreeSacredTreasures",
                          "name":  "Misión: Tres tesoros sagrados",
-                         "description":  "Requisito: Poseer Filo del Infinito, Perplejidad y Sablepistola Hextech.\u003cbr\u003e\u003cbr\u003eRecompensa: Los ataques de Yunara se convierten en rayos que infligen daño mixto."
+                         "description":  "Requisito: Poseer Filo del Infinito, Perplejidad y Sablepistola Hextech.\u003cbr\u003e\u003cbr\u003eRecompensa: Los ataques de Yunara se convierten en rayos que infligen daño mixto.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  321,
                          "key":  "Bodyguard",
                          "name":  "Guardaespaldas",
-                         "description":  "Al usar un desplazamiento, un salto o una teleportación, tú y los campeones aliados que atravieses obtienen un \u003cshield\u003eescudo\u003c/shield\u003e."
+                         "description":  "Al usar un desplazamiento, un salto o una teleportación, tú y los campeones aliados que atravieses obtienen un \u003cshield\u003eescudo\u003c/shield\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  322,
                          "key":  "AugmentedPower",
                          "name":  "Poder Mejorado",
-                         "description":  "Aumenta el daño causado por tus Aumentos y objetos en un @DamageAmp@."
+                         "description":  "Aumenta el daño causado por tus Aumentos y objetos en un @DamageAmp@.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  323,
                          "key":  "Cerberus",
                          "name":  "Cerbero",
-                         "description":  "Obtienes las runas clave \u003cspellName\u003eLluvia de Espadas\u003c/spellName\u003e y \u003cspellName\u003eEstrategia Ofensiva\u003c/spellName\u003e."
+                         "description":  "Obtienes las runas clave \u003cspellName\u003eLluvia de Espadas\u003c/spellName\u003e y \u003cspellName\u003eEstrategia Ofensiva\u003c/spellName\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  324,
                          "key":  "BravestoftheBrave",
                          "name":  "Valor de los Valientes",
-                         "description":  "Aumenta las ofertas futuras de Aumentos en @tierValueIncrease@ nivel. Si los Aumentos ya eran de nivel Prismático, obtén @GoldAmount@ de oro adicional."
+                         "description":  "Aumenta las ofertas futuras de Aumentos en @tierValueIncrease@ nivel. Si los Aumentos ya eran de nivel Prismático, obtén @GoldAmount@ de oro adicional.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2664,35 +2868,40 @@
                          "id":  330,
                          "key":  "Despoil",
                          "name":  "Despojo",
-                         "description":  "Desplazarte o teletransportarte te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e si hay un enemigo cerca. Obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e que aumenta según tu \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e."
+                         "description":  "Desplazarte o teletransportarte te otorga \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e si hay un enemigo cerca. Obtienes \u003cspeed\u003evelocidad de movimiento\u003c/speed\u003e que aumenta según tu \u003ckeywordMajor\u003ePoder Maldito\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  333,
                          "key":  "Quest_RiteOfTheForgeGod",
                          "name":  "Misión: Rito del Dios de la Forja",
-                         "description":  "Requisito: Compra @AnvilsReqToComplete@ yunque(s) de objetos.\u003cbr\u003e\u003cbr\u003eRecompensa: Todos tus objetos obtienen la \u003ckeywordMajor\u003emejora de Maestro Artesano\u003c/keywordMajor\u003e, lo que aumenta sus estadísticas en un @ItemPercentAmp*100@%."
+                         "description":  "Requisito: Compra @AnvilsReqToComplete@ yunque(s) de objetos.\u003cbr\u003e\u003cbr\u003eRecompensa: Todos tus objetos obtienen la \u003ckeywordMajor\u003emejora de Maestro Artesano\u003c/keywordMajor\u003e, lo que aumenta sus estadísticas en un @ItemPercentAmp*100@%.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  335,
                          "key":  "PanicRoom",
                          "name":  "Habitación del Pánico",
-                         "description":  "Una vez por combate, te conviertes en un espíritu cuando estás a punto de morir, tu vida se fija en un \u003cscaleHealth\u003e@HealthLock*100@% de Vida\u003c/scaleHealth\u003e y te transportas a un lugar aleatorio del mapa."
+                         "description":  "Una vez por combate, te conviertes en un espíritu cuando estás a punto de morir, tu vida se fija en un \u003cscaleHealth\u003e@HealthLock*100@% de Vida\u003c/scaleHealth\u003e y te transportas a un lugar aleatorio del mapa.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  336,
                          "key":  "AimForTheHead",
                          "name":  "Apunta a la Cabeza",
-                         "description":  "Tu \u003ccrit\u003eProbabilidad de Golpe Crítico\u003c/crit\u003e tiene un límite de un @CritChanceCeiling*100@%. Convierte un \u003ccrit\u003e@CritChanceToDamageRatio*100@% de la Probabilidad de Golpe Crítico\u003c/crit\u003e que supere un @CritChanceCeiling*100@% en daño de golpe crítico.\u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e@CritChanceBonus*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e y un \u003ccrit\u003e@CritDamageBonus*100@% de daño de golpe crítico\u003c/crit\u003e. "
+                         "description":  "Tu \u003ccrit\u003eProbabilidad de Golpe Crítico\u003c/crit\u003e tiene un límite de un @CritChanceCeiling*100@%. Convierte un \u003ccrit\u003e@CritChanceToDamageRatio*100@% de la Probabilidad de Golpe Crítico\u003c/crit\u003e que supere un @CritChanceCeiling*100@% en daño de golpe crítico.\u003cbr\u003e\u003cbr\u003eObtienes un \u003ccrit\u003e@CritChanceBonus*100@% de Probabilidad de Golpe Crítico\u003c/crit\u003e y un \u003ccrit\u003e@CritDamageBonus*100@% de daño de golpe crítico\u003c/crit\u003e. ",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  338,
                          "key":  "HiveMind",
                          "name":  "Mente Colmena",
-                         "description":  "Comienzas cada ronda con @StartingBees@ abeja. Obtienes más abejas al cosechar flores. Al dañar a un campeón enemigo, lanzas una abeja que inflige \u003cmagicDamage\u003e@BeeDamage@ de daño mágico\u003c/magicDamage\u003e durante @DebuffDuration@ seg al llegar, y luego regresa a ti.\u003cbr\u003e"
+                         "description":  "Comienzas cada ronda con @StartingBees@ abeja. Obtienes más abejas al cosechar flores. Al dañar a un campeón enemigo, lanzas una abeja que inflige \u003cmagicDamage\u003e@BeeDamage@ de daño mágico\u003c/magicDamage\u003e durante @DebuffDuration@ seg al llegar, y luego regresa a ti.\u003cbr\u003e",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
@@ -2720,126 +2929,144 @@
                          "id":  343,
                          "key":  "RighteousFury",
                          "name":  "Furia Justiciera",
-                         "description":  "Al \u003chealing\u003ecurar\u003c/healing\u003e u \u003cshield\u003eotorgar escudos\u003c/shield\u003e, tu daño de habilidad aumenta en un @SpellDamagePerStack*100@%. El efecto se acumula infinitamente durante la ronda."
+                         "description":  "Al \u003chealing\u003ecurar\u003c/healing\u003e u \u003cshield\u003eotorgar escudos\u003c/shield\u003e, tu daño de habilidad aumenta en un @SpellDamagePerStack*100@%. El efecto se acumula infinitamente durante la ronda.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  344,
                          "key":  "Energetic",
                          "name":  "Energético",
-                         "description":  "Obtienes \u003ckeyword\u003eEnergizado\u003c/keyword\u003e un @EnergizeAmpMovementCharge*100@% más rápido. Al activar \u003ckeyword\u003eEnergizado\u003c/keyword\u003e, lanzas un \u003ckeywordMajor\u003eproyectil mágico\u003c/keywordMajor\u003e que inflige hasta un \u003ctrueDamage\u003e@MaxHealthDamagePerMissile*100@% de la Vida Máxima como daño verdadero\u003c/trueDamage\u003e según la distancia recorrida."
+                         "description":  "Obtienes \u003ckeyword\u003eEnergizado\u003c/keyword\u003e un @EnergizeAmpMovementCharge*100@% más rápido. Al activar \u003ckeyword\u003eEnergizado\u003c/keyword\u003e, lanzas un \u003ckeywordMajor\u003eproyectil mágico\u003c/keywordMajor\u003e que inflige hasta un \u003ctrueDamage\u003e@MaxHealthDamagePerMissile*100@% de la Vida Máxima como daño verdadero\u003c/trueDamage\u003e según la distancia recorrida.",
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
                          "id":  345,
                          "key":  "MagicalGirl",
                          "name":  "Chica Mágica",
-                         "description":  "En cada ronda cae una estrella. Recógela para transformarte en una poderosa Chica Mágica.\u003cbr\u003e\u003cbr\u003ePor ser una Chica Mágica, las estrellas caen cerca de ti y de tus enemigos, lo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e."
+                         "description":  "En cada ronda cae una estrella. Recógela para transformarte en una poderosa Chica Mágica.\u003cbr\u003e\u003cbr\u003ePor ser una Chica Mágica, las estrellas caen cerca de ti y de tus enemigos, lo que inflige \u003cmagicDamage\u003edaño mágico\u003c/magicDamage\u003e.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  346,
                          "key":  "BreadSandwich",
                          "name":  "Sándwich de Pan",
-                         "description":  "Obtienes @AbilityHaste@ de Aceleración de Habilidad.\u003cbr\u003e\u003cbr\u003eLanzar una habilidad otorga un @MoveSpeedAmp*100@% de Velocidad de Movimiento durante @MSDuration@ seg."
+                         "description":  "Obtienes @AbilityHaste@ de Aceleración de Habilidad.\u003cbr\u003e\u003cbr\u003eLanzar una habilidad otorga un @MoveSpeedAmp*100@% de Velocidad de Movimiento durante @MSDuration@ seg.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  347,
                          "key":  "GoHChemtechPutrifier",
                          "name":  "Putrificador Quimtech",
-                         "description":  "Todo el daño que infliges aplica \u003ckeyword\u003eHeridas Graves\u003c/keyword\u003e."
+                         "description":  "Todo el daño que infliges aplica \u003ckeyword\u003eHeridas Graves\u003c/keyword\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  348,
                          "key":  "GoHBloodrazor",
                          "name":  "Navaja de Sangre",
-                         "description":  "Al infligir daño, infliges un \u003cphysicalDamage\u003e@MaxHealthDamage*100@% de la Vida Máxima como daño físico adicional\u003c/physicalDamage\u003e."
+                         "description":  "Al infligir daño, infliges un \u003cphysicalDamage\u003e@MaxHealthDamage*100@% de la Vida Máxima como daño físico adicional\u003c/physicalDamage\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  349,
                          "key":  "GoHDematerializer",
                          "name":  "Desmaterializador",
-                         "description":  "Tu daño ejecuta a los campeones que tengan menos de un @ExecuteThreshold*100@% de Vida."
+                         "description":  "Tu daño ejecuta a los campeones que tengan menos de un @ExecuteThreshold*100@% de Vida.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  350,
                          "key":  "GoHEnchantedFlask",
                          "name":  "Frasco Encantado",
-                         "description":  "Obtienes un \u003cattention\u003eEscudo Antihechizos\u003c/attention\u003e cada @Cooldown@ seg."
+                         "description":  "Obtienes un \u003cattention\u003eEscudo Antihechizos\u003c/attention\u003e cada @Cooldown@ seg.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  351,
                          "key":  "GoHFrozenMallet",
                          "name":  "Mazo de Hielo",
-                         "description":  "Infligir daño \u003cstatus\u003eralentiza\u003c/status\u003e a los enemigos."
+                         "description":  "Infligir daño \u003cstatus\u003eralentiza\u003c/status\u003e a los enemigos.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  354,
                          "key":  "GoHRemnantOfTheWatchers",
                          "name":  "Restos de los Vigilantes",
-                         "description":  "Reduce la \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e de los campeones cercanos."
+                         "description":  "Reduce la \u003cattackSpeed\u003evelocidad de ataque\u003c/attackSpeed\u003e de los campeones cercanos.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  355,
                          "key":  "GainStatAnvil",
                          "name":  "Obtienes un Yunque de Estadísticas.",
-                         "description":  "Obtienes un %i:StatAnvil% Yunque de Estadísticas aleatorio."
+                         "description":  "Obtienes un %i:StatAnvil% Yunque de Estadísticas aleatorio.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  356,
                          "key":  "SilverSpoon",
                          "name":  "Cuchara de plata",
-                         "description":  "Infliges daño aumentado por cada \u003ckeywordMajor\u003e%i:Augment% Aumento de Plata\u003c/keywordMajor\u003e que tengas."
+                         "description":  "Infliges daño aumentado por cada \u003ckeywordMajor\u003e%i:Augment% Aumento de Plata\u003c/keywordMajor\u003e que tengas.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  357,
                          "key":  "Hybrid",
                          "name":  "Híbrido",
-                         "description":  "Al infligir daño con un ataque, tu siguiente habilidad inflige un @AbilityBoost*100@% más de daño.\u003cbr\u003e\u003cbr\u003eAl infligir daño con una habilidad, tu siguiente ataque inflige un @AttackBoost*100@% más de daño."
+                         "description":  "Al infligir daño con un ataque, tu siguiente habilidad inflige un @AbilityBoost*100@% más de daño.\u003cbr\u003e\u003cbr\u003eAl infligir daño con una habilidad, tu siguiente ataque inflige un @AttackBoost*100@% más de daño.",
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
                          "id":  358,
                          "key":  "GoHWolf",
                          "name":  "Frenesí de Lobo",
-                         "description":  "Pierdes tu resurrección innata. \u003cbr\u003e\u003cbr\u003eAumenta tu \u003cscaleHealth\u003eVida en un @HealthPercentageMod*100@%\u003c/scaleHealth\u003e.\u003cbr\u003e\u003cbr\u003eSi infliges daño que dejaría a un campeón por debajo de un \u003cscaleHealth\u003e@ExecuteThreshold*100@% de su Vida Máxima\u003c/scaleHealth\u003e, lo ejecutas."
+                         "description":  "Pierdes tu resurrección innata. \u003cbr\u003e\u003cbr\u003eAumenta tu \u003cscaleHealth\u003eVida en un @HealthPercentageMod*100@%\u003c/scaleHealth\u003e.\u003cbr\u003e\u003cbr\u003eSi infliges daño que dejaría a un campeón por debajo de un \u003cscaleHealth\u003e@ExecuteThreshold*100@% de su Vida Máxima\u003c/scaleHealth\u003e, lo ejecutas.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  359,
                          "key":  "GoHLamb",
                          "name":  "Alivio del Cordero",
-                         "description":  "Revives @RevivesToGain@ vez más. Además, tardas la mitad de tiempo en revivir."
+                         "description":  "Revives @RevivesToGain@ vez más. Además, tardas la mitad de tiempo en revivir.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  361,
                          "key":  "GoHVoteAllyDemon",
                          "name":  "Demonio Aliado",
-                         "description":  "Vota a favor de que tu equipo una fuerzas con los Demonios. \u003cbr\u003e\u003cbr\u003eAliarte con Demonios otorga un \u003ckeywordMajor\u003e%i:AugmentLevel% nivel de Aumento\u003c/keywordMajor\u003e cuando se elimina a un \u003ckeywordMajor\u003eequipo de Cazadores\u003c/keywordMajor\u003e."
+                         "description":  "Vota a favor de que tu equipo una fuerzas con los Demonios. \u003cbr\u003e\u003cbr\u003eAliarte con Demonios otorga un \u003ckeywordMajor\u003e%i:AugmentLevel% nivel de Aumento\u003c/keywordMajor\u003e cuando se elimina a un \u003ckeywordMajor\u003eequipo de Cazadores\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  362,
                          "key":  "GoHVoteAllyHunter",
                          "name":  "Cazador Aliado",
-                         "description":  "Vota a favor de que tu equipo una fuerzas con los Cazadores de Demonios. \u003cbr\u003e\u003cbr\u003eAl aliarte con los Cazadores de Demonios, obtienes \u003cgold\u003e@BonusGold@ de oro %i:goldCoins% adicional\u003c/gold\u003e \u003ckeywordMajor\u003ecuando vences a un equipo de Demonios\u003c/keywordMajor\u003e."
+                         "description":  "Vota a favor de que tu equipo una fuerzas con los Cazadores de Demonios. \u003cbr\u003e\u003cbr\u003eAl aliarte con los Cazadores de Demonios, obtienes \u003cgold\u003e@BonusGold@ de oro %i:goldCoins% adicional\u003c/gold\u003e \u003ckeywordMajor\u003ecuando vences a un equipo de Demonios\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  364,
                          "key":  "ReplaceAugment",
                          "name":  "Reemplazar Aumento",
-                         "description":  "\u003ckeywordMajor\u003eReemplazas\u003c/keywordMajor\u003e uno de tus \u003ckeywordMajor\u003eAumentos %i:Augment%\u003c/keywordMajor\u003e con un Aumento de \u003ckeywordMajor\u003e@TierIncreaseToolTipOnly@ nivel superior %i:AugmentLevel%\u003c/keywordMajor\u003e."
+                         "description":  "\u003ckeywordMajor\u003eReemplazas\u003c/keywordMajor\u003e uno de tus \u003ckeywordMajor\u003eAumentos %i:Augment%\u003c/keywordMajor\u003e con un Aumento de \u003ckeywordMajor\u003e@TierIncreaseToolTipOnly@ nivel superior %i:AugmentLevel%\u003c/keywordMajor\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -2911,7 +3138,8 @@
                          "name":  "Arroz con Pollo",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2920,7 +3148,8 @@
                          "name":  "Arroz con Pescado",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2929,7 +3158,8 @@
                          "name":  "Arroz con Cerdo",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2938,7 +3168,8 @@
                          "name":  "Arroz Frito Mixto",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
@@ -2947,7 +3178,8 @@
                          "name":  "Transmutación: Plata",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -2956,7 +3188,8 @@
                          "name":  "Incendio",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
@@ -2965,7 +3198,8 @@
                          "name":  "Piedad",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2974,7 +3208,8 @@
                          "name":  "Carroñero",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -2983,7 +3218,8 @@
                          "name":  "Abrazo Demoniaco",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -2992,7 +3228,8 @@
                          "name":  "Hechicería",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3010,7 +3247,8 @@
                          "name":  "Flujo de Chroma",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3019,7 +3257,8 @@
                          "name":  "De Basura a Tesoro",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3028,7 +3267,8 @@
                          "name":  "Transmutación Inestable",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3037,14 +3277,16 @@
                          "name":  "De Mendigo a Millonario",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  392,
                          "key":  "GoHSwindlersOrb",
                          "name":  "Orbe del Timador",
-                         "description":  "Al infligir daño a un campeón enemigo, reduces sus \u003cshield\u003eescudos\u003c/shield\u003e."
+                         "description":  "Al infligir daño a un campeón enemigo, reduces sus \u003cshield\u003eescudos\u003c/shield\u003e.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3071,7 +3313,8 @@
                          "name":  "Mercader de la Muerte",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3087,14 +3330,16 @@
                          "id":  404,
                          "key":  "Augment404",
                          "name":  "404 - Aumento No Encontrado",
-                         "description":  "¡¿Cómo encontraste esto?! \u003cbr\u003e\u003cbr\u003eObtienes @HatsToGrant@ sombreros."
+                         "description":  "¡¿Cómo encontraste esto?! \u003cbr\u003e\u003cbr\u003eObtienes @HatsToGrant@ sombreros.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
                          "id":  405,
                          "key":  "Augment405",
                          "name":  "Aumento 405",
-                         "description":  "Obtienes un @DamageAmpPerHat*100@% de daño por cada sombrero que tengas."
+                         "description":  "Obtienes un @DamageAmpPerHat*100@% de daño por cada sombrero que tengas.",
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3103,7 +3348,8 @@
                          "name":  "Valor del Titán",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3112,7 +3358,8 @@
                          "name":  "¡Wiii-wuu! ¡Wiii-wuu!",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3121,7 +3368,9 @@
                          "name":  "Velo del Centinela",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Enfriamiento de 20 s a 10 s"]
                      },
                      {
                          "mode":  "Arena",
@@ -3130,7 +3379,8 @@
                          "name":  "Viento Bajo la Espada",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3139,7 +3389,8 @@
                          "name":  "Mejorar Coleccionista",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3148,7 +3399,8 @@
                          "name":  "¡Comienza a Emocionarte!",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3157,7 +3409,8 @@
                          "name":  "Batido de Proteínas",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3166,7 +3419,8 @@
                          "name":  "Cañón de Cristal",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
@@ -3175,7 +3429,8 @@
                          "name":  "Insistente",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3184,7 +3439,9 @@
                          "name":  "Ritmo Crítico",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2,
+                         "upgradeEffects":  ["Máximo de acumulaciones de 10 a 20"]
                      },
                      {
                          "mode":  "Arena",
@@ -3193,7 +3450,8 @@
                          "name":  "Pacto Ominoso",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3202,7 +3460,8 @@
                          "name":  "Plan de Escape",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3211,7 +3470,8 @@
                          "name":  "Forma Final",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3220,7 +3480,8 @@
                          "name":  "Pinball",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3229,7 +3490,8 @@
                          "name":  "Máquina Encogedora",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3238,7 +3500,8 @@
                          "name":  "Mejora: Espada del Amanecer Floreciente",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3247,7 +3510,8 @@
                          "name":  "Todo me da Vueltas",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3256,7 +3520,8 @@
                          "name":  "Crecimiento Acelerado",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3265,7 +3530,8 @@
                          "name":  "Demonio Veloz",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3274,7 +3540,8 @@
                          "name":  "Juntos por Desgracia",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3292,7 +3559,8 @@
                          "name":  "Cómo Abrir un Huevo",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3301,7 +3569,8 @@
                          "name":  "Sonata",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3310,7 +3579,8 @@
                          "name":  "El Diablo Sobre tu Hombro",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  3
                      },
                      {
                          "mode":  "Arena",
@@ -3319,7 +3589,8 @@
                          "name":  "Destreza Recompensada",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3328,7 +3599,8 @@
                          "name":  "Fanático",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3337,7 +3609,8 @@
                          "name":  "Toque Doble",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3346,7 +3619,8 @@
                          "name":  "A Tope",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3355,7 +3629,8 @@
                          "name":  "Purista: Hechicero",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3364,7 +3639,8 @@
                          "name":  "Críticos y Furiosos",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3373,7 +3649,8 @@
                          "name":  "Asesinato Asegurado",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3382,7 +3659,8 @@
                          "name":  "Carnada para Tiburones",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  2
                      },
                      {
                          "mode":  "Arena",
@@ -3391,7 +3669,8 @@
                          "name":  "La Naturaleza está Sanando",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3400,7 +3679,8 @@
                          "name":  "Archimago",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3409,7 +3689,8 @@
                          "name":  "Rito de Ascensión",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3418,7 +3699,8 @@
                          "name":  "Endemoniado",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3427,7 +3709,8 @@
                          "name":  "Juguito de Hechicería",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Arena",
@@ -3436,7 +3719,8 @@
                          "name":  "Campo de Sobrecarga",
                          "aliases":  [
 
-                                     ]
+                                     ],
+                         "maxLevel":  1
                      },
                      {
                          "mode":  "Caos",
