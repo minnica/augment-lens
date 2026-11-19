@@ -1,28 +1,39 @@
 # Aumentos LoL
 
-Aumentos LoL compara las cartas de **ARAM Caos** y **Arena** en el momento en que aparecen. Detecta tu campeón con la API local de League, reconoce los títulos en español y muestra junto a cada carta el dato de OP.GG y la estimación local. El catálogo corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
+Aumentos LoL muestra recomendaciones de **aumentos**, **objetos** y **hechizos de invocador** dentro de League of Legends. Detecta tu campeón a través del cliente local y reconoce los títulos de los aumentos en español. El catálogo incluido corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
+
+| Función | ARAM Caos | Arena |
+| --- | --- | --- |
+| Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | OP.GG, estimación local y GGEZ.GG |
+| Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
+| Hechizos de OP.GG | En la selección de campeón | — |
 
 ## Iniciar en Windows
 
 1. Abre `dist/win-x64/Iniciar.cmd`. La carpeta contiene la app, el runtime y el modelo de español. También incluye `AumentosLoL.exe` para el inicio directo donde la política de Windows lo permita.
-2. Usa League en **ventana sin bordes**. Cambia al juego para activar la detección. El icono de la bandeja permite abrir el diagnóstico, pausar el overlay o salir.
-3. Si el diagnóstico pide calibración, abre una captura de la **ventana completa del juego** o pulsa **Capturar juego** y vuelve a League con el panel de cartas abierto. Elige el modo y el número de cartas. Marca un detalle fijo del panel, como el botón azul inferior, y luego una franja por título que cubra también nombres largos. Pulsa **Probar lectura** y **Guardar calibración**.
+2. Usa League en **ventana sin bordes** y déjalo en primer plano cuando quieras ver los paneles. Desde el icono de **Aumentos LoL** en la bandeja puedes abrir **Diagnóstico y calibración**, **Pausar overlay** o salir.
+
+### Calibrar la lectura de aumentos
+
+Si el diagnóstico pide calibración, abre una captura de la **ventana completa del juego** o pulsa **Capturar juego** y vuelve a League con el panel de cartas abierto. Elige el modo y el número de cartas. Marca un detalle fijo del panel, como el botón azul inferior, y luego una franja por título que cubra también nombres largos. Pulsa **Probar lectura** y **Guardar calibración**.
 
 Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se incluyen las dos referencias de tu PC, **ARAM Caos con cuatro cartas** y **Arena con tres cartas**, y una posición inicial calculada para **ARAM Caos con tres cartas**. La app ajusta la posición en ventanas 16:9 y también cuando el tamaño difiere hasta un 3 % de la referencia. Puedes guardar una calibración exacta o agregar otra distribución desde el diagnóstico.
 
-## Leer la comparación
+## Comparar aumentos en partida
 
-**OP.GG** muestra la letra que publica para ese campeón en ARAM Caos (S, A, B, C, D o E). En Arena indica «Elección» con el porcentaje de veces que se eligió la carta, cuando la fuente publica ese dato. **Estimación local** usa las reglas de sinergia del proyecto.
+**OP.GG** muestra la letra que publica para tu campeón en ARAM Caos (S, A, B, C, D o E). En Arena indica «Elección» con el porcentaje de veces que se eligió la carta con tu campeón, cuando publica ese dato. La **estimación local** usa las reglas de sinergia del proyecto y se muestra junto a OP.GG. Cada fuente conserva su propia valoración o porcentaje. En el caso de **¡¡¡Abejas!!!** con Lux, la estimación local es **A**.
 
-| Letra | Significado |
+| Etiqueta | Significado en el overlay |
 | --- | --- |
-| S | Sinergia excepcional incluida en la tabla editorial |
-| A | Mecánica afín al perfil del campeón |
-| B | Valoración intermedia indicada en la tabla editorial |
-| C | Mecánica con poca afinidad para el perfil |
-| Sin dato | Carta reconocida sin valoración de esa fuente para el campeón, modo y parche actuales |
+| S | Estimación local para una sinergia excepcional incluida en la tabla editorial |
+| A | Estimación local para una mecánica afín al perfil del campeón |
+| B | Estimación local intermedia indicada en la tabla editorial |
+| C | Estimación local para una mecánica con poca afinidad con el perfil |
+| Sin dato | La carta se reconoció y esa fuente carece de una valoración disponible para el campeón, modo y parche |
 | Variable | La utilidad depende del aumento que reemplaces o del resultado de una transformación |
-| ? | El OCR todavía no ha identificado el título |
+| ? | La app todavía está intentando identificar la carta |
+
+Al cambiar una carta, el overlay vuelve a leer esa posición y actualiza sus valoraciones. Si dos cartas comparten título, la app también puede consultar la descripción. Para **¡Estadísticas sobre Estadísticas!**, lee cuántos yunques ofrece para distinguir la versión de tres de la de cuatro.
 
 Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su página pública de OP.GG. Mientras llega por primera vez, aparece «Consultando…» junto a la estimación local. Las imágenes del juego se procesan en memoria. La consulta externa contiene el modo y el campeón. Cada cambio de carta usa la tabla que ya está en memoria.
 
@@ -34,15 +45,19 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 
 ## Builds de OP.GG en partida
 
-El panel de builds de OP.GG aparece al abrir la tienda en **ARAM Caos** o **Arena**. Pulsa **Ctrl+Alt+B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja para consultarlo manualmente o esconderlo hasta la próxima apertura de la tienda. El panel se aparta durante la elección de aumentos.
+Pulsa **P**, la tecla predeterminada de la tienda, en **ARAM Caos** o **Arena**. La build aparece automáticamente a un lado de la tienda y se oculta al cerrarla. El panel también se aparta durante la elección de aumentos.
 
-El panel muestra los iconos y nombres en español de los objetos que publica OP.GG, incluidas las botas y los prismáticos de Arena cuando están disponibles. Las flechas indican el orden de compra de la build principal y de la alternativa. La app reutiliza una copia por campeón, modo y parche. Si la tabla disponible es del parche inmediatamente anterior de la misma temporada, la vista lo indica. **Abrir build de OP.GG** en la bandeja lleva a la página del último campeón detectado. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
+Lee los **iconos y las flechas de izquierda a derecha** para seguir el orden de compra. Debajo de cada icono aparece el nombre del objeto en español. El panel incluye objetos iniciales, botas, la build principal y su alternativa cuando OP.GG la publica. En Arena también muestra los objetos prismáticos disponibles. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
 
-Para comprobar los datos sin entrar a una partida, ejecuta `dist\win-x64\Iniciar.cmd --verificar-build Caos Zyra` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
+Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
-### Hechizos de invocador
+La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 
-En la selección de campeón de **ARAM Caos**, el panel de OP.GG aparece abajo a la derecha y se actualiza cuando cambias de campeón. Muestra la combinación principal, una alternativa cuando OP.GG publica otra y si ya tienes equipados los dos hechizos recomendados. Los hechizos se eligen en el cliente de League.
+Puedes comprobar las recomendaciones desde una terminal con `dist\win-x64\Iniciar.cmd --verificar-build Caos Kennen` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
+
+## Hechizos de invocador antes de la partida
+
+En la selección de campeón de **ARAM Caos**, busca el panel de OP.GG abajo a la derecha. Se actualiza cuando cambias de campeón y se retira al salir de esa pantalla. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
 
 ## Historial de aumentos
 
@@ -50,7 +65,7 @@ Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CS
 
 Cada fila guarda la carta ofrecida, su posición, el campeón, el modo, el parche y la fecha. La columna `tier` contiene la estimación local y `opgg` contiene la valoración o popularidad mostrada. Las columnas `arammayhem_popularidad_global_pct` y `arammayhem_parche` guardan el porcentaje de ARAMMayhem.com y el parche de sus datos. Las columnas `ggez_*` guardan el porcentaje de elección, cuántas veces se eligió el aumento, el tamaño de la muestra y el parche de GGEZ.GG. Las filas previas a cada integración llevan sus columnas nuevas vacías. Una carta nueva o una valoración que cambie en pantalla se registra en la misma selección. Las filas marcadas como **Captura** contienen los valores recalculados con los datos vigentes al importarla.
 
-Para comprobar una imagen con un campeón concreto, ejecuta `dist\win-x64\Iniciar.cmd --verificar Caos "ruta\captura.png" Lux`. Para Arena usa `Arena` y la clave del campeón correspondiente.
+Para comprobar una imagen con un campeón concreto, ejecuta `dist\win-x64\Iniciar.cmd --verificar Caos "ruta\captura.png" Lux`. Para agregar sus cartas al historial como captura, usa `dist\win-x64\Iniciar.cmd --registrar-capturas Caos Lux "ruta\captura.png"`. En Arena usa `Arena` y la clave del campeón correspondiente.
 
 ## Construir y actualizar
 
@@ -58,7 +73,12 @@ Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El scrip
 
 Para actualizar el catálogo, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar. El overlay se suspende si detecta que el parche del juego difiere del catálogo.
 
-Ejecuta `dotnet build AumentosLoL.slnx -c Release` y luego `dotnet tests/Aumentos.Tests/bin/Release/net10.0-windows10.0.19041.0/Aumentos.Tests.dll`. Agrega `--caos evidencias/captura.png --arena evidencias/image.png --items evidencias/image2.png` para probar las tres referencias, `--capture-smoke` para comprobar la captura de ventanas y `--live` durante una partida de uno de los dos modos para comprobar la API.
+Ejecuta `dotnet build AumentosLoL.slnx -c Release` y luego `dotnet tests/Aumentos.Tests/bin/Release/net10.0-windows10.0.19041.0/Aumentos.Tests.dll`. La suite verifica la comparación de fuentes, el historial, el contenido de las builds y la lectura de los datos de selección de campeón. Puedes agregar estas opciones al segundo comando para comprobar la detección y los paneles.
+
+- `--caos evidencias/captura.png --arena evidencias/image.png --items evidencias/image2.png` reproduce los paneles de referencia de aumentos y de objetos.
+- `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
+- `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
+- `--live` comprueba la API local durante una partida de ARAM Caos o Arena.
 
 [Riot Developer Portal](https://developer.riotgames.com/docs/lol) · [CommunityDragon](https://communitydragon.org/docs/assets)
 
