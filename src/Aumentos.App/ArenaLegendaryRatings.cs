@@ -11,6 +11,10 @@ internal sealed class ArenaLegendaryRatings(ArenaItem[] items, Champion[] champi
 
     internal ArenaItem?[]? Identify(DetectionResult offer) => titles.Identify(offer);
 
+    internal ArenaChoiceRating? Rate(string championKey, ArenaItem item) =>
+        profiles.TryGetValue(championKey, out var profile) && roster.TryGetValue(championKey, out var champion)
+            ? Rate(item, champion, profile) : null;
+
     internal CardComparison?[]? ForOffer(GameContext game, DetectionResult offer)
     {
         if (game.Mode != Mode.Arena || !profiles.TryGetValue(game.Champion, out var profile) ||

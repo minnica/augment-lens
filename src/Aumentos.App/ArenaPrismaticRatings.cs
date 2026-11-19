@@ -33,8 +33,17 @@ internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string
         var best = ordered[0];
         bool distinctBest = ordered.Length == choices.Length && ordered.Length > 1 &&
             (best.Rating.Tier != ordered[1].Rating.Tier || best.Matches != ordered[1].Matches);
-        var badges = choices.Select(choice => choice is null ? null : new CardComparison(choice.Rating.Tier.ToString(),
-            ArenaChoice: choice.Rating with { Recommended = distinctBest && choice.Id == best.Id })).ToArray();
+        var badges = choices.Select(choice =>
+        {
+            if (choice is null)
+                return null;
+            int position = System.Array.FindIndex(ranking.Top, item => item.Id == choice.Id) + 1;
+            return new CardComparison(choice.Rating.Tier.ToString(), ArenaChoice: choice.Rating with
+            {
+                Recommended = distinctBest && choice.Id == best.Id,
+                TopPosition = position == 0 ? null : position
+            });
+        }).ToArray();
 
         int offeredMask = 0;
         for (int index = 0; index < ranking.Top.Length; index++)

@@ -53,6 +53,8 @@ Lee los **iconos y las flechas de izquierda a derecha** para seguir el orden de 
 
 En **ARAM Caos**, la **Ruta a 6 objetos** cuenta las botas mejoradas y los demás objetos terminados de tu inventario. Parte del núcleo de OP.GG y sugiere cómo cubrir los espacios libres según la composición y las compras que reporta el marcador del cliente local. Debajo de cada objeto situacional aparece el motivo. La app actualiza la ruta con los cambios de la partida y consulta los datos de los objetos del mismo parche en Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
+En **Arena**, la ruta cuenta las botas mejoradas, los legendarios y los prismáticos equipados. Usa el inventario y el campeón para completar los huecos. A medida que el registro de combate identifica rivales, la ruta tiene en cuenta sus campeones y compras. El panel indica cuando usa rivales de rondas jugadas. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
+
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.

@@ -67,9 +67,10 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
     }
 }
 
-internal sealed record ArenaChoiceRating(string Name, Tier Tier, string Reason, bool Recommended = false)
+internal sealed record ArenaChoiceRating(string Name, Tier Tier, string Reason, bool Recommended = false, int? TopPosition = null)
 {
     internal string TierText => Tier == Tier.S ? "S+" : Tier.ToString();
+    internal string TopLabel => TopPosition is { } position ? $" · Top #{position}" : "";
 
     internal static CardComparison?[]? Badges(ArenaChoiceRating?[] ratings)
     {

@@ -15,7 +15,7 @@ public enum Tier { S, A, B, C }
 public record Champion(string Key, string Name, string[] Roles);
 public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases, int? AnvilCount = null);
 public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems,
-    ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null);
+    ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null, ArenaItem[]? ArenaEquipment = null);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
 public record ExceptionRating(string Mode, string Champion, string Augment, string Tier);
 public record ArenaDefaultRating(string Augment, [property: JsonConverter(typeof(JsonStringEnumConverter<Tier>))] Tier Tier,
@@ -158,6 +158,14 @@ public sealed class Ratings
     }
 
     public bool IsArenaItem(string title) => arenaItems.Contains(Normalize(title));
+
+    internal string? RecoverArenaItemTitle(string text)
+    {
+        var query = Normalize(text);
+        return arenaItems.Where(name => name.Length >= 16 && name.Contains(' ') &&
+            (query == name[1..] || query.EndsWith(" " + name[1..], StringComparison.Ordinal)))
+            .Take(2).ToArray() is [var unique] ? unique : null;
+    }
 
     internal bool HasTrait(string champion, string trait) =>
         profiles.TryGetValue(champion, out var profile) && profile.Contains(trait);

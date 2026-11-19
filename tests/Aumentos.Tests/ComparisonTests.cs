@@ -76,6 +76,7 @@ internal static class ComparisonTests
         CheckIvernOffer(ratings);
         CheckRellPrismaticAugments(ratings, patch);
         CheckRellSilverAugments(ratings, patch);
+        CheckChoGathSlowAugment(ratings);
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
         await CheckGgezArena(ratings, lux, elise);
@@ -268,6 +269,15 @@ internal static class ComparisonTests
             offer.Take(2).All(card => card is { External: null, Arena: null }) &&
             offer[2]?.External?.PickPercent == 4.82m && offer[2]?.Arena?.GamesPicked == 40,
             "las estimaciones de sinergia de Rell se muestran aunque las fuentes solo cubran Atormentador");
+    }
+
+    private static void CheckChoGathSlowAugment(Ratings ratings)
+    {
+        var game = new GameContext(Mode.Arena, "Chogath");
+        var card = ratings.Recognize(game.Mode, "Frío como el Hielo");
+        var badges = CardComparison.ForOffer(ratings, game, [card?.Id], [false], null);
+        Check(card?.Id == 44 && badges[0] is { Local: "A", External: null },
+            "las ralentizaciones repetidas de Cho'Gath permiten un tier local aunque falten estadísticas");
     }
 
     private static async Task CheckZileanOffer(Ratings ratings, GameContext lux, string patch, string settings)

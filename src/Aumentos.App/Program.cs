@@ -72,7 +72,7 @@ internal static class Program
                         if (shards?[index] is { } shard)
                             label = ArenaShardRatings.Name(shard);
                         if (itemChoices?[index] is { ArenaChoice: { } choice } choiceBadge)
-                            label = $"{(shards is null ? "Objeto: " : "")}{choice.Name} · Tier local {choiceBadge.LocalText} · {choice.Reason}" +
+                            label = $"{(shards is null ? "Objeto: " : "")}{choice.Name} · Tier local {choiceBadge.LocalText}{choice.TopLabel} · {choice.Reason}" +
                                 (choice.Recommended ? " · Recomendado" : "");
                         if (card is not null && comparisons?[index] is { } comparison)
                         {

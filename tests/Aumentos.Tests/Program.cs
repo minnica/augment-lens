@@ -22,11 +22,14 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
-        ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"));
+        ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
+            Option("--arena-prismatic-rank-shot"));
         ArenaShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
         MayhemBuildTests.Run(ratings, assets);
+        ArenaLiveMatchTests.Run();
+        ArenaBuildTests.Run(ratings);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
         ChampionSelectTests.Run();
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
@@ -108,7 +111,19 @@ internal static class Program
         }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
             PrismaticOverlaySmoke(ratings, assets);
+        if (args.Contains("--capture-smoke") || args.Contains("--arena-build-overlay-smoke"))
+            ArenaBuildOverlaySmoke(ratings);
+        if (Option("--arena-build-snapshot") is { } arenaSnapshot)
+        {
+            using var data = JsonDocument.Parse(File.ReadAllText(arenaSnapshot));
+            var match = LiveGame.ParseArenaMatch(data.RootElement);
+            var plan = match is null ? null : new ArenaBuilds(ratings).Recommend(match.Game, match.Arena, null);
+            Check(match?.Arena?.Opponents.Length > 0 && plan?.Steps.Length == 6,
+                "un snapshot real de Arena genera la ruta con inventario y rivales reconocidos");
+            Console.WriteLine(string.Join(" | ", plan!.Steps.Select(step => $"{step.Item.Name} ({step.Detail})")));
+        }
         var samples = new List<SavedLayout>();
+        ArenaFlickerTests.Run(ratings, assets, Option("--arena-ivern-shot"));
         if (Option("--caos") is { } caosPath)
             samples.Add(CheckScreenshot(caosPath, Mode.Caos, assets, ratings));
         if (Option("--caos-live-shot") is { } caosLiveShot)
@@ -504,6 +519,36 @@ internal static class Program
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
+        }
+        finally { overlay.Close(); }
+    }
+
+    private static void ArenaBuildOverlaySmoke(Ratings ratings)
+    {
+        var overlay = new BuildOverlay { Left = -30000, Top = -30000 };
+        try
+        {
+            var bounds = new Int32Rect(-30000, -30000, 1600, 900);
+            var shop = new Int32Rect(350, 75, 870, 690);
+            var match = new ArenaMatch([443083, 223111, 444644, 223084, 223068],
+                [new("Annie", [223089]), new("Brand", [226653]), new("Veigar", [223089])]);
+            var plan = new ArenaBuilds(ratings).Recommend(new(Mode.Arena, "Chogath"), match, null);
+            Check(plan?.Steps is { Length: 6 }, "el panel de Arena puede mostrar la ruta con el catálogo local");
+            overlay.Render(new BuildDisplay(bounds, 0, "Cho'Gath", Mode.Arena, null, shop, plan,
+                ClientPatch: ratings.Catalog.Patch, ArenaRivalsDetected: true));
+            var handle = new WindowInteropHelper(overlay).Handle;
+            var placement = Native.Bounds(handle);
+            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            var tiles = panel.Children.OfType<Grid>().SelectMany(row => row.Children.OfType<StackPanel>()).ToArray();
+            var details = tiles.SelectMany(tile => tile.Children.OfType<TextBlock>()).Select(text => text.Text);
+            Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X + shop.X + shop.Width &&
+                placement.X + placement.Width <= bounds.X + bounds.Width && tiles.Length == 6 &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Rivales de rondas jugadas") &&
+                details.Count(detail => detail == "Comprado") == 5,
+                "la ruta de Arena muestra seis objetos y conserva las cinco compras junto a la tienda");
+            overlay.Render(null);
+            Check(!Native.IsWindowVisible(handle), "la ruta de Arena se oculta al cerrar el panel");
+            Console.WriteLine("Panel de la ruta situacional de Arena verificado en WPF.");
         }
         finally { overlay.Close(); }
     }

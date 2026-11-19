@@ -2,7 +2,8 @@ using System.Linq;
 
 namespace Aumentos;
 
-public sealed record ArenaItem(int Id, string Name, bool SharedName = false, string[]? Categories = null);
+public sealed record ArenaItem(int Id, string Name, bool SharedName = false, string[]? Categories = null,
+    bool Buyable = false);
 
 internal sealed class ArenaItemTitles(ArenaItem[] items)
 {

@@ -60,10 +60,11 @@ internal sealed class LiveOverlay
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
         var shopDetector = new ShopDetection();
         var mayhemBuilds = MayhemBuilds.Load(ratings.Catalog, assets);
+        var arenaBuilds = new ArenaBuilds(ratings);
         WindowCapture? capture = null;
         GameContext? game = null;
-        MayhemMatch? mayhemMatch = null;
-        (MayhemMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
+        LiveMatch? match = null;
+        (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
         MayhemBuildPlan? plan = null;
         long nextPoll = 0;
         long lastFrame = 0;
@@ -93,7 +94,7 @@ internal sealed class LiveOverlay
                 {
                     StopCapture();
                     game = null;
-                    mayhemMatch = null;
+                    match = null;
                     nextPoll = 0;
                     result = new OverlayUpdate(Paused ? "Pausado" : "Esperando la ventana de League…");
                 }
@@ -112,7 +113,7 @@ internal sealed class LiveOverlay
                         if (game != current?.Game)
                             StopCapture();
                         game = current?.Game;
-                        mayhemMatch = current?.Mayhem;
+                        match = current;
                         nextPoll = Environment.TickCount64 + 1000;
                     }
                     result = game is null
@@ -134,15 +135,18 @@ internal sealed class LiveOverlay
                         }
                         else if (canShow && !cardsVisible && buildVisibility.ShouldShow(shop.HasValue))
                         {
-                            if (currentGame.Mode == Mode.Caos && planInput != (mayhemMatch, suggestion.Data))
+                            if (planInput != (match, suggestion.Data))
                             {
-                                planInput = (mayhemMatch, suggestion.Data);
-                                var updated = mayhemBuilds.Recommend(currentGame, mayhemMatch, suggestion.Data);
+                                planInput = (match, suggestion.Data);
+                                var updated = currentGame.Mode == Mode.Arena
+                                    ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
+                                    : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
                                 if (updated is null || plan is null || !updated.Steps.SequenceEqual(plan.Steps))
                                     plan = updated;
                             }
                             build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
-                                currentGame.Mode, suggestion, shop, currentGame.Mode == Mode.Caos ? plan : null);
+                                currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
+                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0);
                         }
                     }
                 }
@@ -259,7 +263,7 @@ internal sealed class LiveOverlay
                         ? $"{label} · Panel de objetos"
                         : $"{label} · Panel abierto · {result.Cards.Count(id => id.HasValue)} aumentos reconocidos";
                 }
-                else if (previous is not null && Environment.TickCount64 - lastOffer < 300)
+                else if (current.Mode != Mode.Arena && previous is not null && Environment.TickCount64 - lastOffer < 300)
                     return null;
                 previous = null;
                 detector.Clear();
@@ -306,8 +310,9 @@ internal sealed class Overlay
                 continue;
             }
             var title = layout.Titles[index];
+            double gap = label.ArenaChoice is null ? 0 : 8 * scale;
             badge.Display(label, bounds.X + (title.X + title.Width / 2) * bounds.Width,
-                bounds.Y + title.Y * bounds.Height, scale);
+                bounds.Y + title.Y * bounds.Height - gap, scale);
         }
     }
 
@@ -380,7 +385,7 @@ internal sealed class Overlay
                 string? tier = value.External?.Tier;
                 if (value.ArenaChoice is { } choice)
                 {
-                    source.Text = $"Tier local   {value.LocalText}{(choice.Recommended ? " · Recomendado" : "")}";
+                    source.Text = $"Tier local   {value.LocalText}{choice.TopLabel}{(choice.Recommended ? " · Recomendado" : "")}";
                     local.Text = choice.Reason;
                     tier = choice.Tier.ToString();
                 }

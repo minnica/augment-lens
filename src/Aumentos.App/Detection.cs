@@ -157,7 +157,7 @@ internal sealed class Detection : IDisposable
             var descriptions = mode == Mode.Arena ? UpgradeLevelArea(image, rect) : DescriptionArea(image, rect);
             var previousDescription = state.Descriptions[index];
             var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
-            if (state.Samples[index] is not { } previous || Difference(previous, current) >= 2.2 ||
+            if (state.Samples[index] is not { } previous || Difference(previous, current, mode == Mode.Arena) >= 2.2 ||
                 (mode == Mode.Arena && state.RetryTitleAt[index] != 0 && now >= state.RetryTitleAt[index]) ||
                 (description is not null && Difference(previousDescription!, description) >= 0.5))
             {
@@ -198,6 +198,17 @@ internal sealed class Detection : IDisposable
                         candidates = [recovered];
                         text = alternative;
                     }
+                    else if ((RecoverArenaCraftingTitle(text) ?? RecoverArenaCraftingTitle(alternative)) is { } crafting &&
+                        ratings.Recognize(mode, crafting) is { } craftingCard)
+                    {
+                        candidates = [craftingCard];
+                        text = crafting;
+                    }
+                    else if (ratings.RecoverArenaItemTitle(text) is { } itemTitle)
+                    {
+                        item = true;
+                        text = itemTitle;
+                    }
                 }
                 var card = candidates is [var unique] ? unique : null;
                 byte[]? detail = null;
@@ -230,6 +241,19 @@ internal sealed class Detection : IDisposable
                 upgrades[index] = state.UpgradeLevels[index];
         }
         return new DetectionResult(true, ids, texts, items, shards, upgrades);
+    }
+
+    internal static string? RecoverArenaCraftingTitle(string text)
+    {
+        // These reward titles can wrap onto two lines or pick up text from a neighboring UI label.
+        var words = $" {Ratings.Normalize(text)} ";
+        if (words.Contains(" obtienes una ranura de aumento ", StringComparison.Ordinal))
+            return "Obtienes una ranura de Aumento";
+        if (words.Contains(" yunque de estadisticas prismatico ", StringComparison.Ordinal))
+            return "Obtienes un Yunque de Estadísticas Prismático";
+        if (words.Contains(" nivelacion de aumentos ", StringComparison.Ordinal))
+            return "Nivelación de Aumentos";
+        return null;
     }
 
     private static Int32Rect? UpgradeLevelArea(BitmapSource image, Int32Rect title)
@@ -353,13 +377,25 @@ internal sealed class Detection : IDisposable
         return samples;
     }
 
-    private static double Difference(byte[] left, byte[] right)
+    internal static double Difference(byte[] left, byte[] right, bool compensateLighting = false)
     {
         if (left.Length != right.Length)
             return double.PositiveInfinity;
+        if (left.Length == 0)
+            return 0;
+        int shift = 0;
+        if (compensateLighting)
+        {
+            // Compare the placement of letters when an Arena card's background brightens uniformly.
+            for (int i = 0; i < left.Length; i++)
+                shift += right[i] - left[i];
+            shift /= left.Length;
+            if (Math.Abs(shift) > 18)
+                shift = 0;
+        }
         int sum = 0;
         for (int i = 0; i < left.Length; i++)
-            sum += Math.Abs(left[i] - right[i]);
+            sum += Math.Abs(right[i] - left[i] - shift);
         return sum / (double)left.Length;
     }
 

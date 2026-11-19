@@ -6,8 +6,10 @@ internal static class ArenaPrismaticTests
 {
     private static readonly string[] RellOffer = ["Cuota del Segador", "Armadura Pétrea", "Fulminación"];
     private static readonly string[] TristanaOffer = ["Cuota del Segador", "Escultor de Runas", "Decapitador"];
+    private static readonly string[] ChoGathOffer = ["Fuerza de la Entropía", "Manto de la Noche Estrellada", "Armadura de Warmog"];
 
-    internal static void Run(Ratings ratings, string assets, string? screenshot, string? tristanaScreenshot)
+    internal static void Run(Ratings ratings, string assets, string? screenshot, string? tristanaScreenshot,
+        string? choGathScreenshot = null)
     {
         var rell = new GameContext(Mode.Arena, "Rell");
         var offer = new DetectionResult(true, new int?[3], RellOffer, [true, true, true]);
@@ -40,6 +42,8 @@ internal static class ArenaPrismaticTests
             reroll.Badges[2]?.ArenaChoice?.Recommended == true,
             "el reroll cambia la disponibilidad y la mejor opción de la oferta");
 
+        var choGath = new GameContext(Mode.Arena, "Chogath");
+        CheckChoGathOffer(ratings, choGath, offer with { Texts = ChoGathOffer });
         if (screenshot is not null)
         {
             CheckRellOffer(ratings, rell, ReadScreenshot(ratings, assets, screenshot));
@@ -49,6 +53,11 @@ internal static class ArenaPrismaticTests
         {
             CheckTristanaOffer(ratings, tristana, ReadScreenshot(ratings, assets, tristanaScreenshot));
             Console.WriteLine("Captura de Tristana: Top 5 y Cuota del Segador S+ recomendada.");
+        }
+        if (choGathScreenshot is not null)
+        {
+            CheckChoGathOffer(ratings, choGath, ReadScreenshot(ratings, assets, choGathScreenshot));
+            Console.WriteLine("Captura de Cho'Gath: Manto de la Noche Estrellada muestra Top #5 sobre la carta.");
         }
         Console.WriteLine("Tiers de objetos prismáticos verificados por campeón, con aislamiento de otros paneles.");
     }
@@ -68,7 +77,7 @@ internal static class ArenaPrismaticTests
     {
         var result = ratings.Prismatics.ForOffer(tristana, offer);
         Check(result is { Badges: [
-                { ArenaChoice: { Tier: Tier.S, Recommended: true } },
+                { ArenaChoice: { Tier: Tier.S, Recommended: true, TopPosition: 1 } },
                 { ArenaChoice: { Tier: Tier.C, Recommended: false } },
                 { ArenaChoice: { Tier: Tier.A, Recommended: false } } ] },
             "Cuota del Segador es la mejor opción de la oferta de Tristana");
@@ -79,6 +88,17 @@ internal static class ArenaPrismaticTests
             Enumerable.Range(0, 5).Any(index => !top.IsOffered(index)),
             "el top de Tristana abarca todo el catálogo y distingue las opciones que salieron");
         return top;
+    }
+
+    private static void CheckChoGathOffer(Ratings ratings, GameContext choGath, DetectionResult offer)
+    {
+        var result = ratings.Prismatics.ForOffer(choGath, offer);
+        Check(result is { Badges: [
+                { ArenaChoice: { Tier: Tier.A, TopPosition: null, Recommended: false } },
+                { ArenaChoice: { Tier: Tier.A, TopPosition: 5, TopLabel: " · Top #5", Recommended: false } },
+                { ArenaChoice: { Tier: Tier.A, TopPosition: null, Recommended: false } } ] } &&
+            result.Top.Entries[4].Id == 443059 && result.Top.IsOffered(4),
+            "la posición del distintivo de Manto coincide con el top lateral y conserva el empate de tiers");
     }
 
     private static void CheckRellOffer(Ratings ratings, GameContext rell, DetectionResult offer)

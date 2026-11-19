@@ -11,7 +11,8 @@ namespace Aumentos;
 
 internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layout, string Patch);
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView? Source,
-    Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null);
+    Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
+    string? ClientPatch = null, bool ArenaRivalsDetected = false);
 
 internal sealed class BuildVisibility
 {
@@ -157,7 +158,8 @@ internal sealed class BuildOverlay : Window
         }
 
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
-            displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics)
+            displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
+            displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected)
             RenderContent(view);
         displayed = view;
 
@@ -222,7 +224,21 @@ internal sealed class BuildOverlay : Window
         var patch = build is null ? mode :
             $"{mode} · {(build.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(build.SourcePatch)}";
         AddLine($"{view.Champion} · {(view.Plan is null ? "OP.GG" : "Build en partida")}", 17, Brushes.WhiteSmoke, bold: true);
-        AddLine(view.Plan is null ? patch : $"{patch} · Base OP.GG", 12, build?.IsPrevious == true ? PreviousPatch : Muted);
+        AddLine(view.Plan is not null && build is not null ? $"{patch} · Base OP.GG" : patch,
+            12, build?.IsPrevious == true ? PreviousPatch : Muted);
+
+        if (view.Mode == Mode.Arena && view.Plan is { } arenaPlan)
+        {
+            AddLine(view.ArenaRivalsDetected ? "Rivales de rondas jugadas" : "Según tu inventario y campeón", 11, Muted);
+            AddRoute(arenaPlan, view.ClientPatch ?? build?.ClientPatch ?? "");
+            if (build?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Prismatic) is { } prismaticsGroup)
+            {
+                AddLine("Prismáticos de OP.GG", 12, Accent, bold: true, top: 9);
+                AddItems(prismaticsGroup.Choices.SelectMany(choice => choice).DistinctBy(item => item.Id).Take(3).ToArray(),
+                    build.SourcePatch, ordered: false);
+            }
+            return;
+        }
 
         if (build is null || build.Groups.Length == 0)
         {
@@ -235,10 +251,7 @@ internal sealed class BuildOverlay : Window
         {
             if (group.Section == OpGgBuildSection.Core && view.Plan is { } plan)
             {
-                AddLine("Ruta a 6 objetos", 12, Accent, bold: true, top: 9);
-                foreach (var row in plan.Steps.Chunk(3))
-                    AddItems(row.Select(step => step.Item).ToArray(), build.ClientPatch, ordered: true,
-                        details: row.Select(step => step.Detail).ToArray());
+                AddRoute(plan, build.ClientPatch);
                 if (group.Choices.ElementAtOrDefault(1) is { } alternative)
                 {
                     AddLine("Núcleo alternativo · OP.GG", 11, Muted, top: 5);
@@ -260,6 +273,14 @@ internal sealed class BuildOverlay : Window
                 AddItems(choice, build.SourcePatch, ordered: group.Section == OpGgBuildSection.Core);
             }
         }
+    }
+
+    private void AddRoute(MayhemBuildPlan plan, string patch)
+    {
+        AddLine("Ruta a 6 objetos", 12, Accent, bold: true, top: 9);
+        foreach (var row in plan.Steps.Chunk(3))
+            AddItems(row.Select(step => step.Item).ToArray(), patch, ordered: true,
+                details: row.Select(step => step.Detail).ToArray());
     }
 
     private void RenderPrismatics(string champion, PrismaticDisplay view)

@@ -126,16 +126,31 @@ $arenaPrismatics = @($allItems | Where-Object {
     $_.id -ge 443000 -and $_.id -lt 448000 -and $_.inStore -and $_.name -and
         ($_.priceTotal -eq 2750 -or $_.id -eq 446693)
 } | Sort-Object id | ForEach-Object {
-    [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $legendaryNames) }
+    [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $legendaryNames); categories=@($_.categories) }
 })
 if (!$arenaPrismatics.Count) { throw 'No se encontraron objetos prismáticos de Arena.' }
 $prismaticNames = @($arenaPrismatics | ForEach-Object { $_.name })
+function Test-ArenaShopItem($item) {
+    # These client entries are granted by augments or quests rather than bought directly.
+    $item.inStore -and !$item.requiredChampion -and !$item.requiredAlly -and !$item.requiredBuffCurrencyName -and
+        !$item.isEnchantment -and $item.specialRecipe -eq 0 -and $item.id -notin @(223005, 224403, 228009)
+}
 $arenaLegendaries = @($allItems | Where-Object {
     $_.id -ge 220000 -and $_.id -lt 230000 -and $_.inStore -and $_.name -and $_.priceTotal -eq 2500
 } | Sort-Object id | ForEach-Object {
-    [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $prismaticNames); categories=@($_.categories) }
+    [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $prismaticNames); categories=@($_.categories); buyable=(Test-ArenaShopItem $_) }
 })
 if (!$arenaLegendaries.Count) { throw 'No se encontraron objetos legendarios de Arena.' }
+$rankedArenaIds = @($arenaPrismatics + $arenaLegendaries | ForEach-Object { $_.id })
+$arenaEquipment = @($allItems | Where-Object {
+    $_.name -and $_.id -notin $rankedArenaIds -and
+        (($_.id -ge 222000 -and $_.id -lt 230000 -and ($_.categories -contains 'Boots' -or $_.priceTotal -ge 2500)) -or
+         ($_.id -ge 443000 -and $_.id -lt 448000 -and $_.priceTotal -ge 2500)) -and
+        $_.id -ne 223057 -and $_.categories -notcontains 'Consumable'
+} | Sort-Object id | ForEach-Object {
+    [ordered]@{ id=$_.id; name=$_.name; categories=@($_.categories); buyable=(($_.categories -contains 'Boots') -and (Test-ArenaShopItem $_)) }
+})
+if (!$arenaEquipment.Count) { throw 'No se encontraron datos del inventario de Arena.' }
 $catalog = [ordered]@{
     patch=$Patch
     locale='es_MX'
@@ -147,6 +162,7 @@ $catalog = [ordered]@{
     arenaItems=$arenaItems
     arenaPrismatics=$arenaPrismatics
     arenaLegendaries=$arenaLegendaries
+    arenaEquipment=$arenaEquipment
 }
 $json = $catalog | ConvertTo-Json -Depth 7
 [System.IO.File]::WriteAllText((Join-Path (Resolve-Path $assets) 'catalog.json'), $json + [Environment]::NewLine)

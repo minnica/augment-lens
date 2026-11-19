@@ -18,8 +18,10 @@ internal static class MayhemBuildTests
         var match = LiveGame.ParseMatch(Mode.Caos, data.RootElement, "self#000");
         Check(match?.Game == game && match.Mayhem is { Opponents.Length: 3, Items.Length: 3 },
             "inventarios del jugador y del equipo rival separados de los aliados");
-        Check(LiveGame.ParseMatch(Mode.Arena, data.RootElement, "self#000") == new LiveMatch(game with { Mode = Mode.Arena }),
-            "Arena conserva solo su contexto de cartas");
+        var arena = LiveGame.ParseMatch(Mode.Arena, data.RootElement, "self#000");
+        Check(arena?.Game == game with { Mode = Mode.Arena } && arena.Mayhem is null &&
+            arena.Arena is { Items.Length: 3, Opponents.Length: 0 },
+            "el respaldo de Arena conserva el inventario y no deduce rivales por ORDER o CHAOS");
 
         var patch = ratings.Catalog.Patch;
         var build = new OpGgBuildSnapshot(Mode.Caos, "Zilean", patch, patch, DateTimeOffset.UtcNow,
