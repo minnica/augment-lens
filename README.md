@@ -1,12 +1,13 @@
 # Aumentos LoL
 
-Aumentos LoL muestra recomendaciones de **aumentos**, **objetos** y **hechizos de invocador** dentro de League of Legends. Detecta tu campeón a través del cliente local y reconoce los títulos de los aumentos en español. El catálogo incluido corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
+Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones de Arena** y **hechizos de invocador** en League of Legends. Detecta tu campeón a través del cliente local y reconoce los títulos de los aumentos en español. El catálogo incluido corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
 
 | Función | ARAM Caos | Arena |
 | --- | --- | --- |
 | Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | OP.GG, estimación local y GGEZ.GG |
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
 | Hechizos de OP.GG | En la selección de campeón | — |
+| Tiers de campeones de GGEZ.GG | — | En la selección de campeón |
 
 ## Iniciar en Windows
 
@@ -33,7 +34,7 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 | Variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
 | ? | La app todavía está intentando identificar la carta |
 
-Al cambiar una carta, el overlay vuelve a leer esa posición y actualiza sus valoraciones. Si dos cartas comparten título, la app también puede consultar la descripción. Para **¡Estadísticas sobre Estadísticas!**, lee cuántos yunques ofrece para distinguir la versión de tres de la de cuatro.
+Al cambiar una carta, el overlay vuelve a leer esa posición y actualiza sus valoraciones. Si dos cartas comparten título, la app también puede consultar la descripción. En **ARAM Caos**, para **¡Estadísticas sobre Estadísticas!**, lee cuántos yunques ofrece para distinguir la versión de tres de la de cuatro.
 
 Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su página pública de OP.GG. Mientras llega por primera vez, aparece «Consultando…» junto a la estimación local. Las imágenes del juego se procesan en memoria. La consulta externa contiene el modo y el campeón. Cada cambio de carta usa la tabla que ya está en memoria.
 
@@ -41,7 +42,9 @@ La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\op
 
 En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese campeón y el número de partidas que lo respalda, por ejemplo «59/760 partidas · 26.23». La muestra abarca todas las regiones que recoge la fuente. Se usa el parche vigente o el inmediatamente anterior de la misma temporada con la marca «parche ant.». El menú **Datos de GGEZ.GG** abre la página del último campeón de Arena que detectó la app. [Ejemplo en Arena de Elise](https://ggez.gg/champion/Elise/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
 
-Al elegir un **objeto legendario o prismático de Arena**, o un **fragmento del yunque de estadísticas**, cada carta reconocida muestra un tier local y el motivo de su afinidad con el campeón. Durante una oferta prismática, un panel lateral muestra los **cinco prismáticos con mayor afinidad** y señala cuáles están en oferta. Si el overlay identifica todas las cartas y hay una opción claramente superior, la destaca. Las cartas de aumentos de Arena muestran su tier local y los porcentajes que publica cada fuente, con su parche.
+Al elegir un **objeto legendario o prismático de Arena**, o un **fragmento del yunque de estadísticas**, las cartas valoradas muestran el tier local y su motivo. Durante una oferta prismática, un panel lateral muestra los **cinco prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
+
+Las cartas de aumentos de Arena muestran **Recomendado** si todas tienen tier y una destaca por afinidad, o cuando existe un criterio específico para desempatar. Con Jax, **Bailarín de Tap** gana el empate ante **Goliat** para sostener ataques, y **Hábil** gana ante **Tifón** para atacar a un solo objetivo. Un desempate conserva la letra de cada carta. El overlay también lee el nivel de las mejoras compatibles. Por ejemplo, **¡Enciéndelos! Nv. 2** muestra el cambio de cuatro a cinco fuegos y el modificador de daño del 90 % al 100 %, y puede ganar el empate frente a **Cerbero** con Jax. El porcentaje de elección indica la frecuencia observada en la muestra de cada fuente.
 
 En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global de la carta en la muestra de esa fuente. La app prioriza el archivo del parche actual y, si aún falta, usa el inmediatamente anterior de la misma temporada. En ese caso, debajo del porcentaje aparece «Parche anterior» con el número. La fuente se consulta en segundo plano y se comparte entre todos los campeones. La app vuelve a comprobar los archivos anteriores cada 15 minutos y los del parche actual cada 12 horas mientras se usa el modo. [Datos de ARAMMayhem.com · CC BY 4.0](https://arammayhem.com/data/)
 
@@ -53,7 +56,7 @@ Lee los **iconos y las flechas de izquierda a derecha** para seguir el orden de 
 
 En **ARAM Caos**, la **Ruta a 6 objetos** cuenta las botas mejoradas y los demás objetos terminados de tu inventario. Parte del núcleo de OP.GG y sugiere cómo cubrir los espacios libres según la composición y las compras que reporta el marcador del cliente local. Debajo de cada objeto situacional aparece el motivo. La app actualiza la ruta con los cambios de la partida y consulta los datos de los objetos del mismo parche en Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
-En **Arena**, la ruta cuenta las botas mejoradas, los legendarios y los prismáticos equipados. Usa el inventario y el campeón para completar los huecos. A medida que el registro de combate identifica rivales, la ruta tiene en cuenta sus campeones y compras. El panel indica cuando usa rivales de rondas jugadas. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
+En **Arena**, la ruta cuenta las botas mejoradas, los legendarios y los prismáticos equipados. Destaca la **Siguiente compra**, ordena los pendientes y agrupa los objetos **Comprados**. Antes del primer enfrentamiento que puede confirmar, usa el inventario, el perfil de tu campeón y el núcleo de OP.GG cuando está disponible. Después, puede adaptar la ruta a las compras y al perfil de hasta tres rivales confirmados en rondas jugadas. Los prismáticos de OP.GG sirven como referencia en su propia sección. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
@@ -61,7 +64,11 @@ La app guarda una copia de las recomendaciones por campeón, modo y parche en `%
 
 Puedes comprobar las recomendaciones desde una terminal con `dist\win-x64\Iniciar.cmd --verificar-build Caos Kennen` o `dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
 
-## Hechizos de invocador antes de la partida
+## Selección de campeón
+
+En **Arena**, durante la selección en el cliente de League, el panel muestra **Opciones visibles** cuando reconoce la fila de **Valentía**. Ordena los campeones leídos por tier de GGEZ.GG y, dentro de la misma letra, por su frecuencia de terminar entre los primeros tres. **Valentía** es la opción aleatoria. Cuando la fila no se puede leer, el panel muestra un **Top 5 general** de Arena como referencia. Se retira al salir de selección.
+
+La lista de campeones usa la muestra de Arena de todas las regiones y muestra su parche. GGEZ.GG calcula la letra con un ajuste por tamaño de muestra. La app reutiliza la copia de `%LOCALAPPDATA%\AumentosLoL\ggez-arena\<parche>\champion-tiers.json` y puede mostrar el parche inmediatamente anterior con su etiqueta. El acceso de la bandeja **Tier de campeones de Arena** abre la fuente. [Tier list de Arena](https://ggez.gg/tierlist/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
 
 En la selección de campeón de **ARAM Caos**, busca el panel de OP.GG abajo a la derecha. Se actualiza cuando cambias de campeón y se retira al salir de esa pantalla. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
 
@@ -84,7 +91,18 @@ Ejecuta `dotnet build AumentosLoL.slnx -c Release` y luego `dotnet tests/Aumento
 - `--caos evidencias/captura.png --arena evidencias/image.png --items evidencias/image2.png` reproduce los paneles de referencia de aumentos y de objetos.
 - `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
 - `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
+- `--arena-draft-shot "ruta\seleccion.png" --arena-champion-overlay-smoke` comprueba la fila de Valentía de la captura de referencia y el panel de campeones.
+- `--arena-jax-upgrade-shot "ruta\fuegos.png"` comprueba el nivel 2 de **¡Enciéndelos!** en la carta central de la captura de referencia.
+- `--arena-build-snapshot "ruta\allgamedata.json" --arena-build-overlay-smoke` comprueba la ruta con un registro de Arena que incluya rivales confirmados y el panel de tienda.
 - `--live` comprueba la API local durante una partida de ARAM Caos o Arena.
+
+## Hallazgos para futuras sesiones
+
+- En la revisión de **26.23**, el catálogo de Arena tiene **282 aumentos** y **173 campeones**. **99** aumentos tienen tier para todos, **4** para algunos perfiles, **10** muestran **Variable** con su condición y **169** carecen de regla local. Una carta reconocida puede tener datos de elección aunque siga pendiente en `ratings.json`.
+- En el catálogo actual, **Abrecaminos** (221), **Putrificador Quimtech** (347) y **Abrazo Demoniaco** (383) comparten título con objetos que tienen prioridad en la detección. Las dos versiones de **¡Estadísticas sobre Estadísticas!** (227 y 228) siguen ambiguas en Arena. **¡Estadísticas!** (226) es la carta distinta de dos yunques.
+- Para ampliar los tiers, actualiza el catálogo, revisa mecánicas y etiquetas de cartas en los datos públicos del cliente y asigna reglas por perfil. Esto se puede hacer con el catálogo y pruebas de regresión sin jugar con todos los campeones. Conserva capturas limpias para comprobar OCR, rerolls y cierres de panel. Una captura con el propio overlay encima puede tapar parte de un título al volver a leerla. [Catálogo es-MX de Arena, parche 16.23](https://raw.communitydragon.org/16.23/plugins/rcp-be-lol-game-data/global/es_mx/v1/cherry-augments.json)
+- Las tres recompensas de Ivern y las mejoras de aumentos de Arena tienen casos de regresión propios. Para el parpadeo de Ivern, usa `--arena-ivern-shot "ruta\ivern.png"`. Para validar la posición **Top #5** sobre el Manto de la Noche Estrellada de Cho’Gath, usa `--arena-prismatic-rank-shot "ruta\prismaticos.png"`.
+- En el registro observado de Arena, el campo de equipo no distingue a todos los bandos. La ruta deduce aliados por asistencias y confirma rivales con cruces de combate. Para probar esa ruta, guarda una muestra de `allgamedata` con nombres redactados de forma consistente entre participantes y eventos. `--verificar-build` comprueba únicamente la fuente de OP.GG.
 
 [Riot Developer Portal](https://developer.riotgames.com/docs/lol) · [CommunityDragon](https://communitydragon.org/docs/assets)
 

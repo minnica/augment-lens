@@ -21,7 +21,7 @@ internal sealed record ArenaPopularity(decimal Percent, int GamesPicked, int Sam
 internal sealed record CardComparison(string Local, OpGgCard? External = null, bool Loading = false,
     MayhemPopularity? Mayhem = null, ArenaPopularity? Arena = null, string? ExternalPreviousPatch = null,
     ArenaChoiceRating? ArenaChoice = null, bool IsArenaAugment = false, string? LocalReason = null,
-    bool RecommendedUpgrade = false)
+    bool RecommendedUpgrade = false, bool RecommendedAugment = false)
 {
     internal static readonly CardComparison Unread = new("?");
     internal const string Missing = "Sin dato";
@@ -61,9 +61,66 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
                 published is null ? null : externalPrevious, IsArenaAugment: game.Mode == Mode.Arena,
                 LocalReason: variable ?? ratings.DefaultReason(game.Mode, id.Value));
         }).ToArray();
-        if (game.Mode == Mode.Arena && upgradeLevels?.Any(level => level.HasValue) == true)
-            ArenaUpgradeRatings.Apply(ratings, game, ids, upgradeLevels, badges);
+        if (game.Mode == Mode.Arena)
+        {
+            var isUpgrade = upgradeLevels?.Any(level => level.HasValue) == true;
+            var jax = game.Champion.Equals("Jax", StringComparison.OrdinalIgnoreCase);
+            if (jax)
+                DescribeJaxChoices(ids, upgradeLevels, badges);
+            if (isUpgrade)
+                ArenaUpgradeRatings.Apply(ratings, game, ids, upgradeLevels!, badges);
+            else
+                RecommendArenaAugment(jax, ids, badges);
+        }
         return badges;
+    }
+
+    private const int Deft = 22;
+    private const int Goliath = 41;
+    private const int TapDancer = 81;
+    private const int Typhoon = 87;
+
+    private static void DescribeJaxChoices(int?[] ids, int?[]? levels, CardComparison?[] badges)
+    {
+        for (int i = 0; i < badges.Length; i++)
+        {
+            if (badges[i] is not { Local: "A" } badge)
+                continue;
+            badges[i] = ids[i] switch
+            {
+                Deft when levels?[i] == 2 => badge with { LocalReason = "Velocidad de ataque de 60 % a 80 %" },
+                Deft when levels?[i] == 3 => badge with { LocalReason = "Velocidad de ataque de 80 % a 130 % y sin límite" },
+                Deft when levels?[i] is null => badge with { LocalReason = "Velocidad de ataque desde el primer golpe" },
+                Goliath => badge with { LocalReason = "Vida y fuerza adaptable para resistir el daño inicial" },
+                ArenaUpgradeRatings.LightEmUp => badge with { LocalReason = "Daño mágico adicional cada cuarto ataque" },
+                TapDancer => badge with { LocalReason = "Velocidad para sostener ataques y activar el tercer golpe de la R" },
+                84 => badge with { LocalReason = "Penetración física y mágica contra rivales con resistencias" },
+                Typhoon => badge with { LocalReason = "Aplica efectos al impacto a un segundo rival cercano" },
+                217 => badge with { LocalReason = "Daño mágico acumulable al atacar campeones" },
+                ArenaUpgradeRatings.Cerberus => badge with { LocalReason = "Acelera los primeros ataques y recompensa tres impactos" },
+                _ => badge
+            };
+        }
+    }
+
+    private static void RecommendArenaAugment(bool jax, int?[] ids, CardComparison?[] badges)
+    {
+        if (badges.Length < 2 || badges.Any(badge => badge?.Local is not ("S" or "A" or "B" or "C")))
+            return;
+        var bestTier = badges.Select(badge => Enum.Parse<Tier>(badge!.Local)).Min();
+        if (bestTier is not (Tier.S or Tier.A))
+            return;
+        var best = Enumerable.Range(0, badges.Length).Where(index => badges[index]!.Local == bestTier.ToString()).ToArray();
+        var index = best.Length == 1 ? best[0] : -1;
+        if (jax && bestTier == Tier.A && best.Length == 2)
+        {
+            if (best.Any(i => ids[i] == Goliath))
+                index = best.FirstOrDefault(i => ids[i] == TapDancer, -1);
+            else if (best.Any(i => ids[i] == Typhoon))
+                index = best.FirstOrDefault(i => ids[i] == Deft, -1);
+        }
+        if (index >= 0)
+            badges[index] = badges[index]! with { RecommendedAugment = true };
     }
 }
 

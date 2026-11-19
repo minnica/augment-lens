@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Aumentos;
 
-internal sealed record BuildStep(OpGgBuildItem Item, string? Detail = null);
+internal sealed record BuildStep(OpGgBuildItem Item, string? Detail = null, bool Owned = false);
 internal sealed record MayhemBuildPlan(BuildStep[] Steps);
 
 internal sealed record MayhemItem(string Name, bool Finished, bool Available, bool Boots, bool OnHit, bool Sustain,
@@ -105,7 +105,7 @@ internal sealed class MayhemBuilds
 
         var owned = match.Items.Where(id => items.GetValueOrDefault(id)?.Finished == true)
             .DistinctBy(BaseId).Take(6).ToArray();
-        var steps = owned.Select(id => Step(id, "Comprado")).ToList();
+        var steps = owned.Select(id => Step(id, "Comprado", owned: true)).ToList();
         if (steps.Count == 6)
             return new(steps.ToArray());
 
@@ -155,7 +155,7 @@ internal sealed class MayhemBuilds
         return steps.Count == 6 ? new(steps.ToArray()) : null;
     }
 
-    private BuildStep Step(int id, string? detail = null) => new(new(id, items[id].Name), detail);
+    private BuildStep Step(int id, string? detail = null, bool owned = false) => new(new(id, items[id].Name), detail, owned);
 
     private bool CanAdd(int id, List<BuildStep> steps)
     {

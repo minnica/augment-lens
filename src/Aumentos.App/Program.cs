@@ -82,6 +82,8 @@ internal static class Program
                                     $" · Tier local {comparison.LocalText}";
                                 if (comparison.RecommendedUpgrade)
                                     label += " · Mejora recomendada";
+                                if (comparison.RecommendedAugment)
+                                    label += " · Recomendado";
                                 if (comparison.LocalReason is { } reason)
                                     label += $" · {reason}";
                                 if (comparison.External is not null)
@@ -142,7 +144,10 @@ internal static class Program
             var overlay = new Overlay();
             var buildOverlay = new BuildOverlay(new BuildItemIcons(http));
             var spellOverlay = new SpellOverlay();
-            var spellAdvice = new ChampionSelectAdvice(ratings.Catalog, assets, builds, app.Dispatcher, spellOverlay.Render);
+            var arenaChampionOverlay = new ArenaChampionOverlay();
+            var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
+            var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers,
+                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render);
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, builds, assets, app.Dispatcher, state =>
@@ -181,6 +186,8 @@ internal static class Program
                 OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
             menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
                 OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
+            menu.Items.Add("Tier de campeones de Arena", null, (_, _) =>
+                OpenProviderPage(ArenaChampionTierSource.Address.AbsoluteUri, ArenaChampionTierSource.Attribution));
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
             menu.Items.Add("Abrir build de OP.GG", null, (_, _) => OpenProviderPage(builds.SourceUrl, "OP.GG"));
@@ -188,12 +195,13 @@ internal static class Program
             pause.CheckedChanged += (_, _) =>
             {
                 worker.Paused = pause.Checked;
-                spellAdvice.Paused = pause.Checked;
+                championSelect.Paused = pause.Checked;
                 if (pause.Checked)
                 {
                     overlay.Hide();
                     buildOverlay.Render(null);
                     spellOverlay.Render(null);
+                    arenaChampionOverlay.Render(null);
                 }
             };
             menu.Items.Add(pause);
@@ -230,7 +238,7 @@ internal static class Program
                 });
                 _ = Task.Run(async () =>
                 {
-                    try { await spellAdvice.Run(stop.Token).ConfigureAwait(false); }
+                    try { await championSelect.Run(stop.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
                     catch (Exception error)
                     {
@@ -238,7 +246,8 @@ internal static class Program
                             await app.Dispatcher.InvokeAsync(() =>
                             {
                                 spellOverlay.Render(null);
-                                WriteStatus($"No se pudo mostrar la recomendación de hechizos · {error.GetType().Name}");
+                                arenaChampionOverlay.Render(null);
+                                WriteStatus($"No se pudo mostrar el panel de selección de campeón · {error.GetType().Name}");
                             });
                     }
                 });

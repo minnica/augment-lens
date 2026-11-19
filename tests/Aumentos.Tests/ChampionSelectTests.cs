@@ -12,9 +12,13 @@ internal static class ChampionSelectTests
         using var lobby = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":2400}}}""");
         using var started = JsonDocument.Parse("""{"phase":"InProgress","gameData":{"queue":{"id":2400}}}""");
         using var normalAram = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":450}}}""");
-        Check(ChampionSelectClient.IsMayhemSelect(lobby.RootElement) &&
-            !ChampionSelectClient.IsMayhemSelect(started.RootElement) &&
-            !ChampionSelectClient.IsMayhemSelect(normalAram.RootElement), "fase y cola de ARAM Caos");
+        using var arena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":1710}}}""");
+        using var otherArena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"gameMode":"CHERRY"}}}""");
+        Check(ChampionSelectClient.SelectMode(lobby.RootElement) == Mode.Caos &&
+            ChampionSelectClient.SelectMode(started.RootElement) is null &&
+            ChampionSelectClient.SelectMode(normalAram.RootElement) is null &&
+            ChampionSelectClient.SelectMode(arena.RootElement) == Mode.Arena &&
+            ChampionSelectClient.SelectMode(otherArena.RootElement) == Mode.Arena, "fase y colas de selección");
 
         using var selection = JsonDocument.Parse("""
             {"localPlayerCellId":4,"myTeam":[{"cellId":0,"championId":103},
@@ -62,6 +66,48 @@ internal static class ChampionSelectTests
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el panel se retira al salir de selección");
             Console.WriteLine("Panel de hechizos en WPF verificado.");
+        }
+        finally { overlay.Close(); }
+    }
+
+    internal static void ArenaSmoke(Catalog catalog)
+    {
+        var overlay = new ArenaChampionOverlay { Left = -30000, Top = -30000 };
+        try
+        {
+            var bounds = new Int32Rect(-30000, -30000, 1040, 585);
+            var data = new ArenaChampionTierList(catalog.Patch, catalog.Patch, DateTimeOffset.UtcNow, 500, new()
+            {
+                ["Lillia"] = new("Lillia", "S", 59, 100),
+                ["Jax"] = new("Jax", "A", 53, 100),
+                ["Rell"] = new("Rell", "S", 58, 100)
+            });
+            var source = new ArenaChampionTierView(data, "Prueba");
+            var offers = catalog.Champions.Where(champion => champion.Key is "Jax" or "Rell" or "Aurora")
+                .Select(champion => new ArenaDraftOffer(champion, Int32Rect.Empty)).ToArray();
+            var options = ArenaChampionDisplay.Create(bounds, 0, catalog, source, offers);
+            Check(options.VisibleOptions && options.Rows.Select(row => row.Rating?.Champion).SequenceEqual(["Rell", "Jax", null]) &&
+                options.Rows[^1].Champion == "Aurora", "ordena las opciones visibles y conserva a quien carece de tier");
+            var global = ArenaChampionDisplay.Create(bounds, 0, catalog, source, null);
+            Check(!global.VisibleOptions && global.Rows.Select(row => row.Rating?.Champion).SequenceEqual(["Lillia", "Rell", "Jax"]),
+                "ranking global por tier y resultados");
+
+            overlay.Render(options);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var handle = new WindowInteropHelper(overlay).Handle;
+            var placement = Native.Bounds(handle);
+            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X && placement.Y >= bounds.Y &&
+                placement.X + placement.Width <= bounds.X + bounds.Width &&
+                placement.Y + placement.Height <= bounds.Y + bounds.Height &&
+                (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
+                panel.Children.OfType<TextBlock>().Select(row => row.Text).SequenceEqual(
+                    ["Arena · Opciones visibles", $"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}",
+                     "1. Rell · S · 58 % top 3", "2. Jax · A · 53 % top 3", "Aurora · Sin tier"]),
+                "muestra las opciones de Arena dentro del cliente con fuente y parche");
+            overlay.Render(null);
+            Check(!Native.IsWindowVisible(handle), "se oculta el panel de Arena al salir de selección");
+            Console.WriteLine("Panel de campeones de Arena en WPF verificado.");
         }
         finally { overlay.Close(); }
     }

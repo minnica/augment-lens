@@ -62,6 +62,8 @@ internal sealed class BuildOverlay : Window
     private static readonly Brush Muted = Overlay.Paint("#B1C1D8");
     private static readonly Brush Accent = Overlay.Paint("#AAD1FF");
     private static readonly Brush PreviousPatch = Overlay.Paint("#FFD76D");
+    private static readonly Brush PurchaseAccent = Overlay.Paint("#F6D28C");
+    private static readonly Brush PurchaseSurface = Overlay.Paint("#30333A");
     private readonly StackPanel content = new();
     private readonly Border panel;
     private readonly BuildItemIcons? itemIcons;
@@ -210,7 +212,7 @@ internal sealed class BuildOverlay : Window
             placement = target;
     }
 
-    private void RenderContent(BuildDisplay view)
+    internal void RenderContent(BuildDisplay view)
     {
         content.Children.Clear();
         if (view.Prismatics is { } prismatics)
@@ -230,10 +232,10 @@ internal sealed class BuildOverlay : Window
         if (view.Mode == Mode.Arena && view.Plan is { } arenaPlan)
         {
             AddLine(view.ArenaRivalsDetected ? "Rivales de rondas jugadas" : "Según tu inventario y campeón", 11, Muted);
-            AddRoute(arenaPlan, view.ClientPatch ?? build?.ClientPatch ?? "");
+            AddArenaRoute(arenaPlan, view.ClientPatch ?? build?.ClientPatch ?? "");
             if (build?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Prismatic) is { } prismaticsGroup)
             {
-                AddLine("Prismáticos de OP.GG", 12, Accent, bold: true, top: 9);
+                AddLine("Referencia de prismáticos · OP.GG", 12, Accent, bold: true, top: 9);
                 AddItems(prismaticsGroup.Choices.SelectMany(choice => choice).DistinctBy(item => item.Id).Take(3).ToArray(),
                     build.SourcePatch, ordered: false);
             }
@@ -281,6 +283,65 @@ internal sealed class BuildOverlay : Window
         foreach (var row in plan.Steps.Chunk(3))
             AddItems(row.Select(step => step.Item).ToArray(), patch, ordered: true,
                 details: row.Select(step => step.Detail).ToArray());
+    }
+
+    private void AddArenaRoute(MayhemBuildPlan plan, string patch)
+    {
+        var byPurchase = plan.Steps.ToLookup(step => step.Owned);
+        var purchased = byPurchase[true].ToArray();
+        var pending = byPurchase[false].ToArray();
+        if (pending.Length > 0)
+        {
+            AddLine($"Por comprar · {pending.Length}", 12, Accent, bold: true, top: 9);
+            AddArenaPurchase(pending[0], patch, 1);
+            if (pending.Length > 1)
+                AddLine("Después", 12, Accent, bold: true, top: 8);
+            for (int index = 1; index < pending.Length; index++)
+                AddArenaPurchase(pending[index], patch, index + 1);
+        }
+        else if (purchased.Length == 6)
+            AddLine("Build completa", 14, Accent, bold: true, top: 9);
+
+        AddLine($"Comprados · {purchased.Length}/6", 12, Muted, bold: true, top: 9);
+        foreach (var row in purchased.Chunk(3))
+            AddItems(row.Select(step => step.Item).ToArray(), patch, ordered: false);
+    }
+
+    private void AddArenaPurchase(BuildStep step, string patch, int position)
+    {
+        bool next = position == 1;
+        var row = new DockPanel { Margin = next ? new Thickness(0) : new Thickness(0, 6, 0, 0) };
+        if (!next)
+        {
+            var order = new TextBlock { Text = $"{position}.", Width = 20, Foreground = Accent, FontSize = 12 };
+            DockPanel.SetDock(order, Dock.Left);
+            row.Children.Add(order);
+        }
+
+        var icon = new Image { Width = next ? 36 : 27, Height = next ? 36 : 27, Margin = new Thickness(0, 2, 8, 0),
+            VerticalAlignment = VerticalAlignment.Top };
+        System.Windows.Automation.AutomationProperties.SetName(icon, step.Item.Name);
+        DockPanel.SetDock(icon, Dock.Left);
+        row.Children.Add(icon);
+        if (itemIcons is not null)
+            _ = SetIcon(icon, itemIcons, patch, step.Item.Id);
+
+        var text = new StackPanel();
+        if (next)
+            text.Children.Add(new TextBlock { Text = "Siguiente compra", FontSize = 11,
+                Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
+        text.Children.Add(new TextBlock { Text = step.Item.Name, FontSize = next ? 15 : 13, Foreground = Brushes.WhiteSmoke,
+            FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        if (step.Detail is { Length: > 0 } detail)
+            text.Children.Add(new TextBlock { Text = detail, FontSize = 11, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
+        row.Children.Add(text);
+
+        if (next)
+            content.Children.Add(new Border { Child = row, Background = PurchaseSurface, BorderBrush = PurchaseAccent,
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(5), Padding = new Thickness(8),
+                Margin = new Thickness(0, 4, 0, 0) });
+        else
+            content.Children.Add(row);
     }
 
     private void RenderPrismatics(string champion, PrismaticDisplay view)

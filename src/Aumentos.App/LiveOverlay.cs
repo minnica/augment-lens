@@ -255,7 +255,8 @@ internal sealed class LiveOverlay
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
                         var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
                             badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.LocalText}" +
-                            (badge.RecommendedUpgrade ? " · Mejora recomendada" : "")));
+                            (badge.RecommendedUpgrade ? " · Mejora recomendada" :
+                                badge.RecommendedAugment ? " · Recomendado" : "")));
                         return new OverlayUpdate($"{label} · {name} · {sources} · OP.GG / local · {displayed}",
                             window.Bounds, candidate, badges, window.Handle);
                     }
@@ -392,7 +393,8 @@ internal sealed class Overlay
                 else if (value.IsArenaAugment && value.Local != CardComparison.Missing)
                 {
                     source.Text = value.Local == "Variable" ? "Valoración variable" : $"Tier local   {value.LocalText}" +
-                        (value.RecommendedUpgrade ? " · Mejora recomendada" : "");
+                        (value.RecommendedUpgrade ? " · Mejora recomendada" :
+                            value.RecommendedAugment ? " · Recomendado" : "");
                     local.Text = value.External is not null || value.Loading ? $"OP.GG   {value.ExternalText}" : "";
                     tier = value.Local;
                 }

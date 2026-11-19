@@ -17,7 +17,7 @@ internal static class ArenaBuildTests
              new(OpGgBuildSection.Prismatic, [[new(447119, "Vara del Rayo")]])]);
         var defense = planner.Recommend(cho, match, source);
         Check(defense is not null && defense.Steps.Select(step => step.Item.Id).SequenceEqual([..equipped, 222504]) &&
-            defense.Steps.Take(5).All(step => step.Detail == "Comprado") &&
+            defense.Steps.Take(5).All(step => step is { Detail: "Comprado", Owned: true }) && !defense.Steps[5].Owned &&
             defense.Steps[5].Item.Name == "Rukerno Kaénico" && defense.Steps[5].Detail == "Daño mágico rival · Brand, Lux",
             "Cho'Gath conserva dos prismáticos y sus botas, y completa el sexto hueco contra daño mágico");
 

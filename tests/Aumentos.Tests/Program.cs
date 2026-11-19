@@ -22,6 +22,7 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 12);
         CheckHistory(ratings, legacyColumns: 14);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
+        ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
             Option("--arena-prismatic-rank-shot"));
         ArenaShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
@@ -32,6 +33,21 @@ internal static class Program
         ArenaBuildTests.Run(ratings);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
         ChampionSelectTests.Run();
+        ArenaChampionTierTests.Run(ratings, Option("--arena-champion-tier-html"));
+        if (Option("--arena-draft-shot") is { } draftShot)
+            ArenaDraftReaderTests.Run(ratings, assets, draftShot);
+        if (Option("--arena-jax-upgrade-shot") is { } fireworksShot)
+        {
+            var image = Diagnostics.OpenBitmap(fireworksShot);
+            using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+            var candidates = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena,
+                image.PixelWidth, image.PixelHeight);
+            var read = detector.ReadPanel(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight),
+                candidates, Mode.Arena, null);
+            Check(read?.Result is { } upgradeOffer && upgradeOffer.Cards[1] == ArenaUpgradeRatings.LightEmUp &&
+                upgradeOffer.UpgradeLevels?[1] == 2, "reconoce el nivel 2 de ¡Enciéndelos! en el centro de la captura");
+            Console.WriteLine("Nivel 2 de ¡Enciéndelos! leído de la captura de Arena.");
+        }
         Check(LeaguePatch.FindInstallPath(["product_install_root: \"C:/Riot Games\"",
             "product_install_full_path: \"C:/Riot Games/League of Legends\""]) == "C:/Riot Games/League of Legends",
             "ruta de instalación según Riot");
@@ -112,7 +128,12 @@ internal static class Program
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
             PrismaticOverlaySmoke(ratings, assets);
         if (args.Contains("--capture-smoke") || args.Contains("--arena-build-overlay-smoke"))
+        {
+            ArenaBuildOverlayTests.Run(ratings);
             ArenaBuildOverlaySmoke(ratings);
+        }
+        if (args.Contains("--capture-smoke") || args.Contains("--arena-champion-overlay-smoke"))
+            ChampionSelectTests.ArenaSmoke(ratings.Catalog);
         if (Option("--arena-build-snapshot") is { } arenaSnapshot)
         {
             using var data = JsonDocument.Parse(File.ReadAllText(arenaSnapshot));
@@ -540,12 +561,11 @@ internal static class Program
             var placement = Native.Bounds(handle);
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             var tiles = panel.Children.OfType<Grid>().SelectMany(row => row.Children.OfType<StackPanel>()).ToArray();
-            var details = tiles.SelectMany(tile => tile.Children.OfType<TextBlock>()).Select(text => text.Text);
             Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X + shop.X + shop.Width &&
-                placement.X + placement.Width <= bounds.X + bounds.Width && tiles.Length == 6 &&
-                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Rivales de rondas jugadas") &&
-                details.Count(detail => detail == "Comprado") == 5,
-                "la ruta de Arena muestra seis objetos y conserva las cinco compras junto a la tienda");
+                placement.X + placement.Width <= bounds.X + bounds.Width && tiles.Length == 5 &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Comprados · 5/6") &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Rivales de rondas jugadas"),
+                "la ruta de Arena distingue la compra pendiente y cinco equipadas junto a la tienda");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la ruta de Arena se oculta al cerrar el panel");
             Console.WriteLine("Panel de la ruta situacional de Arena verificado en WPF.");

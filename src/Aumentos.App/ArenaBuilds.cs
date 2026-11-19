@@ -25,7 +25,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
             return null;
 
         var owned = match.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => BaseId(item.Id)).Take(Slots).ToArray();
-        var steps = owned.Select(item => Step(item, "Comprado")).ToList();
+        var steps = owned.Select(item => Step(item, "Comprado", owned: true)).ToList();
         if (steps.Count == Slots)
             return new(steps.ToArray());
 
@@ -200,7 +200,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         "Mage" => 223020, "Marksman" => 223006, "Tank" => 223111, "Support" => 223158, _ => 223047
     };
     private static string Reason(string label, Rival[] rivals) => $"{label} · {string.Join(", ", rivals.Take(2).Select(rival => rival.Champion.Name))}";
-    private static BuildStep Step(ArenaItem item, string detail) => new(new(item.Id, item.Name), detail);
+    private static BuildStep Step(ArenaItem item, string detail, bool owned = false) => new(new(item.Id, item.Name), detail, owned);
     private sealed record Counter(int Priority, string Reason, int[] ItemIds);
     private sealed record Rival(Champion Champion, bool MagicDamage, bool PhysicalDamage, bool Healing, bool Shielded,
         int Armor, int MagicResist, int Crit, int Health);

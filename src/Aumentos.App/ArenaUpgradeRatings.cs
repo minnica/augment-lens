@@ -1,13 +1,25 @@
+using System;
 using System.Linq;
 
 namespace Aumentos;
 
 internal static class ArenaUpgradeRatings
 {
-    internal static bool Supports(int id) => id is 22 or 52 or 1328;
+    internal const int LightEmUp = 51;
+    internal const int Cerberus = 323;
+    internal static bool Supports(int id) => id is 22 or LightEmUp or 52 or 1328;
 
     internal static void Apply(Ratings ratings, GameContext game, int?[] ids, int?[] levels, CardComparison?[] badges)
     {
+        var fireworks = Array.IndexOf(ids, LightEmUp);
+        if (fireworks >= 0 && levels[fireworks] == 2 && badges[fireworks] is { } light)
+            badges[fireworks] = light with { LocalReason = "Fuegos artificiales de 4 a 5 · Daño de 90 % a 100 %" };
+
+        if (game.Champion.Equals("Jax", StringComparison.OrdinalIgnoreCase))
+        {
+            RecommendJaxUpgrade(ids, levels, badges, fireworks);
+            return;
+        }
         if (!ratings.HasTrait(game.Champion, "attackspeed") || !ratings.HasTrait(game.Champion, "crit"))
             return;
 
@@ -19,6 +31,22 @@ internal static class ArenaUpgradeRatings
         for (int index = 0; index < choices.Length; index++)
             if (choices[index] is { } choice && badges[index] is { Local: "S" or "A" } badge)
                 badges[index] = badge with { LocalReason = choice.Reason, RecommendedUpgrade = unique && choice.Priority == best };
+    }
+
+    private static void RecommendJaxUpgrade(int?[] ids, int?[] levels, CardComparison?[] badges, int fireworks)
+    {
+        const int deft = 22;
+        var speed = Array.IndexOf(ids, deft);
+        if (IsPreferred(speed, 3, LightEmUp))
+            badges[speed] = badges[speed]! with { RecommendedUpgrade = true };
+        else if (IsPreferred(fireworks, 2, Cerberus))
+            badges[fireworks] = badges[fireworks]! with { RecommendedUpgrade = true };
+
+        bool IsPreferred(int candidate, int level, int alternative) =>
+            badges.Length > 1 && candidate >= 0 && levels[candidate] == level && badges[candidate] is { Local: "A" } &&
+            Enumerable.Range(0, badges.Length).Where(index => index != candidate)
+                .All(index => badges[index]?.Local is "B" or "C" ||
+                    (ids[index] == alternative && badges[index]?.Local == "A" && levels[index] is null));
     }
 
     private static Upgrade? Rate(int? id, int? level) => (id, level) switch

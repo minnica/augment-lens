@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
+internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null);
 
 internal sealed class ChampionSelectClient : IDisposable
 {
@@ -29,13 +30,22 @@ internal sealed class ChampionSelectClient : IDisposable
     internal ChampionSelectClient(string rootPath) =>
         root = X509Certificate2.CreateFromPem(File.ReadAllText(rootPath));
 
-    internal async Task<ChampionSelection?> Read(CancellationToken cancellation)
+    internal async Task<ChampionSelectSession?> Read(CancellationToken cancellation)
     {
         var connection = Open();
         if (connection is null) return null;
         using var flow = await Get(connection, "/lol-gameflow/v1/session", cancellation).ConfigureAwait(false);
-        if (flow is null || !IsMayhemSelect(flow.RootElement))
+        if (flow is null || SelectMode(flow.RootElement) is not { } mode)
             return null;
+        if (mode == Mode.Arena)
+            return new ChampionSelectSession(mode);
+
+        var pick = await ReadMayhemPick(connection, cancellation).ConfigureAwait(false);
+        return new ChampionSelectSession(mode, pick);
+    }
+
+    private async Task<ChampionSelection?> ReadMayhemPick(HttpClient connection, CancellationToken cancellation)
+    {
         using var selection = await Get(connection, "/lol-champ-select/v1/session", cancellation).ConfigureAwait(false);
         if (selection is null || OwnPick(selection.RootElement) is not { } pick)
             return null;
@@ -55,12 +65,23 @@ internal sealed class ChampionSelectClient : IDisposable
             : null;
     }
 
-    internal static bool IsMayhemSelect(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object && root.TryGetProperty("phase", out var phase) &&
-        phase.ValueKind == JsonValueKind.String && phase.ValueEquals("ChampSelect") &&
-        root.TryGetProperty("gameData", out var data) && data.ValueKind == JsonValueKind.Object &&
-        data.TryGetProperty("queue", out var queue) && queue.ValueKind == JsonValueKind.Object &&
-        Number(queue, "id") == 2400;
+    internal static Mode? SelectMode(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !TextIs(root, "phase", "ChampSelect") ||
+            !root.TryGetProperty("gameData", out var data) || data.ValueKind != JsonValueKind.Object)
+            return null;
+        if (data.TryGetProperty("queue", out var queue) && queue.ValueKind == JsonValueKind.Object)
+        {
+            if (Number(queue, "id") == 2400)
+                return Mode.Caos;
+            if (Number(queue, "id") is 1700 or 1710 || TextIs(queue, "gameMode", "CHERRY"))
+                return Mode.Arena;
+        }
+        return TextIs(data, "gameMode", "CHERRY") ? Mode.Arena : null;
+    }
+
+    private static bool TextIs(JsonElement root, string key, string expected) =>
+        root.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String && value.ValueEquals(expected);
 
     internal static (int Champion, int Spell1, int Spell2)? OwnPick(JsonElement root)
     {
