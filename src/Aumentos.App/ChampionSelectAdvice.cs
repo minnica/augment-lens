@@ -12,11 +12,13 @@ using System.Windows.Threading;
 
 namespace Aumentos;
 
-internal sealed record SpellDisplay(Int32Rect Bounds, nint Target, string Champion, ChampionSelection Selection, OpGgBuildView Source);
+internal sealed record SpellDisplay(Int32Rect Bounds, nint Target, string Champion, ChampionSelection Selection,
+    OpGgBuildView Source, string? Tier = null, string? TierCaption = null);
 
 internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgBuilds builds,
-    ArenaChampionTierSource tiers, Dispatcher dispatcher, Action<SpellDisplay?> update,
-    Action<ArenaChampionDisplay?> updateArena)
+    ArenaChampionTierSource tiers, MayhemChampionTiers mayhemTiers, MayhemBenchPortraits mayhemBench,
+    Dispatcher dispatcher, Action<SpellDisplay?> update,
+    Action<ArenaChampionDisplay?> updateArena, Action<MayhemChampionDisplay?> updateMayhem)
 {
     private int paused;
     internal bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
@@ -26,14 +28,21 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         using var lobby = new ChampionSelectClient(Path.Combine(assets, "riotgames.pem"));
         var catalog = ratings.Catalog;
         var draftReader = new ArenaDraftReader(catalog);
+        var mayhemReader = new MayhemDraftReader(catalog);
         using var draftOcr = new Detection(ratings, Path.Combine(assets, "tessdata"));
         WindowCapture? capture = null;
+        (nint Handle, Int32Rect Bounds, Int32Rect Frame)? scanWindow = null;
+        Mode? scanMode = null;
         ArenaDraftOffer[]? offers = null;
+        MayhemDraftChoice[]? choices = null;
+        MayhemBenchChoice[] bench = [];
         SpellDisplay? previous = null;
         ArenaChampionDisplay? previousArena = null;
+        MayhemChampionDisplay? previousMayhem = null;
         long checkPatchAt = 0;
         long scanAt = 0;
         long lastOffer = 0;
+        long lastChoice = 0;
         bool patchMatches = false;
         try
         {
@@ -41,6 +50,8 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
             {
                 SpellDisplay? display = null;
                 ArenaChampionDisplay? arena = null;
+                MayhemChampionDisplay? mayhem = null;
+                bool scanning = false;
                 if (!Paused && ForegroundClient() is { } window)
                 {
                     var now = Environment.TickCount64;
@@ -49,37 +60,72 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                         patchMatches = LeaguePatch.Installed() == catalog.Patch;
                         checkPatchAt = now + 5000;
                     }
-                    var session = patchMatches ? await ReadSession(lobby, cancellation).ConfigureAwait(false) : null;
-                    if (!Paused && Native.GetForegroundWindow() == window.Handle)
+                    if (patchMatches)
                     {
-                        if (session is { Mode: Mode.Caos, Pick: { } selected })
+                        mayhemTiers.Current(cancellation);
+                        mayhemBench.Prefetch(cancellation);
+                    }
+                    var session = patchMatches ? await ReadSession(lobby, cancellation).ConfigureAwait(false) : null;
+                    if (session is not null && !Paused && Native.GetForegroundWindow() == window.Handle)
+                    {
+                        scanning = true;
+                        if (scanWindow != window || scanMode != session.Mode)
                         {
-                            var champion = catalog.Champions.FirstOrDefault(item =>
-                                string.Equals(item.Key, selected.Champion, StringComparison.OrdinalIgnoreCase));
-                            if (champion is not null)
-                                display = new SpellDisplay(window.Bounds, window.Handle, champion.Name, selected,
-                                    builds.Current(new GameContext(Mode.Caos, champion.Key), cancellation));
+                            StopCapture();
+                            scanWindow = window;
+                            scanMode = session.Mode;
                         }
-                        else if (session?.Mode == Mode.Arena)
+                        if (session.Mode == Mode.Caos)
+                        {
+                            var source = mayhemTiers.Current(cancellation);
+                            ScanMayhem(window);
+                            if (choices is { } visible)
+                            {
+                                if (visible.Length > 0 || source.Data is null)
+                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, source, visible);
+                            }
+                            else
+                            {
+                                if (source.Data is not null && bench.Length > 0)
+                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, source, [], bench);
+                                if (session.Pick is { } selected)
+                                {
+                                    var champion = catalog.Champions.FirstOrDefault(item =>
+                                        string.Equals(item.Key, selected.Champion, StringComparison.OrdinalIgnoreCase));
+                                    if (champion is not null)
+                                        display = new SpellDisplay(window.Bounds, window.Handle, champion.Name, selected,
+                                            builds.Current(new GameContext(Mode.Caos, champion.Key), cancellation),
+                                            source.Data?.Letter(champion.Key), source.Status);
+                                }
+                            }
+                        }
+                        else if (session.Mode == Mode.Arena)
                         {
                             var source = tiers.Current(cancellation);
-                            ScanOffers(window);
+                            ScanArena(window);
                             arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source, offers);
                         }
                     }
                 }
-                if (arena is null)
-                    StopCapture();
-                if (display is not null || previous is not null || arena is not null || previousArena is not null)
+                if (!scanning)
                 {
-                    (previous, previousArena) = await dispatcher.InvokeAsync(() =>
+                    StopCapture();
+                    scanWindow = null;
+                    scanMode = null;
+                }
+                if (display is not null || previous is not null || arena is not null || previousArena is not null ||
+                    mayhem is not null || previousMayhem is not null)
+                {
+                    (previous, previousArena, previousMayhem) = await dispatcher.InvokeAsync(() =>
                     {
                         var foreground = Native.GetForegroundWindow();
                         var visible = !Paused && display?.Target == foreground ? display : null;
                         var visibleArena = !Paused && arena?.Target == foreground ? arena : null;
+                        var visibleMayhem = !Paused && mayhem?.Target == foreground ? mayhem : null;
                         update(visible);
                         updateArena(visibleArena);
-                        return (visible, visibleArena);
+                        updateMayhem(visibleMayhem);
+                        return (visible, visibleArena, visibleMayhem);
                     }, DispatcherPriority.Normal, cancellation);
                 }
                 await Task.Delay(420, cancellation).ConfigureAwait(false);
@@ -87,12 +133,27 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         }
         finally { StopCapture(); }
 
-        void ScanOffers((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
+        void ScanMayhem((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
         {
-            if (capture is not null && (capture.Handle != window.Handle ||
-                capture.Width != window.Frame.Width || capture.Height != window.Frame.Height))
-                StopCapture();
+            var now = Environment.TickCount64;
+            if (now - lastChoice > 1500)
+            {
+                choices = null;
+                bench = [];
+            }
+            if (now < scanAt)
+                return;
+            scanAt = now + 600;
+            if (ReadFrame(window, now) is { } frame)
+            {
+                choices = mayhemReader.Read(frame, draftOcr);
+                bench = choices is null ? mayhemBench.Read(frame) : [];
+                lastChoice = now;
+            }
+        }
 
+        void ScanArena((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
+        {
             var now = Environment.TickCount64;
             if (now - lastOffer > 2000)
                 offers = null;
@@ -100,6 +161,19 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                 return;
 
             scanAt = now + 800;
+            if (ReadFrame(window, now) is { } frame && draftReader.Read(frame, draftOcr) is { Length: > 0 } recognized)
+            {
+                if (offers is null || recognized.Length >= offers.Length ||
+                    recognized.Any(candidate => !offers.Any(known => known.Champion.Key == candidate.Champion.Key)))
+                {
+                    offers = recognized;
+                    lastOffer = now;
+                }
+            }
+        }
+
+        System.Windows.Media.Imaging.BitmapSource? ReadFrame((nint Handle, Int32Rect Bounds, Int32Rect Frame) window, long now)
+        {
             try
             {
                 capture ??= new WindowCapture(window.Handle);
@@ -108,20 +182,13 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                     bounds.Width, bounds.Height));
                 if (frame is null)
                     scanAt = now;
-                else if (draftReader.Read(frame, draftOcr) is { Length: > 0 } recognized)
-                {
-                    if (offers is null || recognized.Length >= offers.Length ||
-                        recognized.Any(candidate => !offers.Any(known => known.Champion.Key == candidate.Champion.Key)))
-                    {
-                        offers = recognized;
-                        lastOffer = now;
-                    }
-                }
+                return frame;
             }
             catch (Exception error) when (error is ExternalException or ArgumentException or InvalidOperationException or NotSupportedException)
             {
                 StopCapture();
                 scanAt = now + 3000;
+                return null;
             }
         }
 
@@ -130,8 +197,11 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
             capture?.Dispose();
             capture = null;
             offers = null;
+            choices = null;
+            bench = [];
             scanAt = 0;
             lastOffer = 0;
+            lastChoice = 0;
         }
     }
 

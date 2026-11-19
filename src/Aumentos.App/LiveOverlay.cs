@@ -13,7 +13,7 @@ using System.Windows.Threading;
 namespace Aumentos;
 
 internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
-    CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null);
+    CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null, Mode? Mode = null);
 
 internal sealed class LiveOverlay
 {
@@ -61,6 +61,7 @@ internal sealed class LiveOverlay
         var mayhemBuilds = MayhemBuilds.Load(ratings, assets);
         var arenaBuilds = new ArenaBuilds(ratings);
         WindowCapture? capture = null;
+        Mode? activeMode = null;
         GameContext? game = null;
         LiveMatch? match = null;
         LiveMatch? confirmedMatch = null;
@@ -70,7 +71,7 @@ internal sealed class LiveOverlay
         EnemyDamageMix? enemyDamage = null;
         bool hideStartingItems = false;
         long nextPoll = 0;
-        Task<LiveMatch?>? pendingMatch = null;
+        Task<LiveMatchState?>? pendingMatch = null;
         (nint Handle, uint ProcessId) pendingWindow = default;
         long lastFrame = 0;
         long lastOffer = 0;
@@ -96,6 +97,7 @@ internal sealed class LiveOverlay
                         knownShop = null;
                         buildVisibility.ObserveShop(open: false);
                         history.ResetMatch();
+                        activeMode = null;
                         game = null;
                         match = null;
                         confirmedMatch = null;
@@ -111,6 +113,7 @@ internal sealed class LiveOverlay
                 if (window is null || window.Bounds.Width < 1 || window.Bounds.Height < 1)
                 {
                     StopCapture();
+                    activeMode = null;
                     game = null;
                     match = null;
                     nextPoll = 0;
@@ -125,26 +128,30 @@ internal sealed class LiveOverlay
                         bool sameWindow = pendingWindow == (window.Handle, window.ProcessId);
                         try
                         {
-                            var current = await completed.ConfigureAwait(false);
-                            if (sameWindow)
+                            var state = await completed.ConfigureAwait(false);
+                            var current = state?.Match;
+                            if (sameWindow && (current is not null || state?.Mode != activeMode || now - lastMatchRead >= 2500))
                             {
                                 bool newMatch = current is not null && confirmedMatch is not null && current.IsNewSession(confirmedMatch);
-                                if (game != current?.Game || newMatch)
+                                if (game != current?.Game || state?.Mode != activeMode || newMatch)
                                     StopCapture();
                                 if (newMatch)
                                     history.ResetMatch();
                                 if (current is not null)
+                                {
                                     confirmedMatch = current.GameTime.HasValue || newMatch
                                         ? current : current with { GameTime = confirmedMatch?.GameTime };
+                                    lastMatchRead = Environment.TickCount64;
+                                }
+                                activeMode = state?.Mode;
                                 game = current?.Game;
                                 match = current;
-                                lastMatchRead = Environment.TickCount64;
                             }
                         }
                         catch (Exception error) when (error is HttpRequestException or JsonException or KeyNotFoundException
                             or InvalidOperationException or TaskCanceledException)
                         {
-                            if (sameWindow && Environment.TickCount64 - lastMatchRead >= 2500)
+                            if (sameWindow && game is not null && Environment.TickCount64 - lastMatchRead >= 2500)
                             {
                                 StopCapture();
                                 game = null;
@@ -158,44 +165,52 @@ internal sealed class LiveOverlay
                         pendingMatch = live.ReadMatch(cancellation);
                         nextPoll = now + 1000;
                     }
-                    result = game is null
-                        ? new OverlayUpdate("Esperando ARAM Caos o Arena…")
-                        : ReadOverlay(window, game, match?.Arena is { InventoryKnown: true } arenaMatch ? arenaMatch.Items : null);
+                    var champion = game is not null ? ChampionName(game) : null;
+                    result = activeMode is { } mode
+                        ? ReadOverlay(window, mode, champion is null ? null : game, champion,
+                            match?.Arena is { InventoryKnown: true } arenaMatch ? arenaMatch.Items : null)
+                        : new OverlayUpdate("Esperando ARAM Caos o Arena…");
                     if (result is not null)
                     {
                         cardsVisible = result.Labels is not null;
                         prismaticDisplay = result.Prismatics;
                     }
-                    if (game is { } currentGame && window.Patch == ratings.Catalog.Patch)
+                    if (activeMode is { } buildMode && window.Patch == ratings.Catalog.Patch &&
+                        !Paused && Native.GetForegroundWindow() == window.Handle)
                     {
-                        var suggestion = builds.Current(currentGame, cancellation);
-                        bool canShow = !Paused && Native.GetForegroundWindow() == window.Handle;
-                        if (canShow && prismaticDisplay is not null)
+                        bool showShopBuild = !cardsVisible && buildVisibility.ShouldShow(shop.HasValue);
+                        if (game is { } currentGame && champion is not null)
                         {
-                            build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
-                                currentGame.Mode, null, Prismatics: prismaticDisplay);
-                        }
-                        else if (canShow && !cardsVisible && buildVisibility.ShouldShow(shop.HasValue))
-                        {
-                            if (planInput != (match, suggestion.Data))
+                            var suggestion = builds.Current(currentGame, cancellation);
+                            if (prismaticDisplay is not null)
                             {
-                                planInput = (match, suggestion.Data);
-                                var updated = currentGame.Mode == Mode.Arena
-                                    ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
-                                    : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
-                                if (updated is null || plan is null || updated.Swap != plan.Swap ||
-                                    !updated.Steps.SequenceEqual(plan.Steps))
-                                    plan = updated;
-                                enemyDamage = currentGame.Mode == Mode.Arena
-                                    ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
-                                    : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
-                                hideStartingItems = mayhemBuilds.HasStartingPurchase(match?.Mayhem, suggestion.Data);
+                                build = new BuildDisplay(window.Bounds, window.Handle, champion,
+                                    currentGame.Mode, null, Prismatics: prismaticDisplay);
                             }
-                            build = new BuildDisplay(window.Bounds, window.Handle, ChampionName(currentGame),
-                                currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
-                                ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
-                                HideStartingItems: hideStartingItems);
+                            else if (showShopBuild)
+                            {
+                                if (planInput != (match, suggestion.Data))
+                                {
+                                    planInput = (match, suggestion.Data);
+                                    var updated = currentGame.Mode == Mode.Arena
+                                        ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
+                                        : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
+                                    if (updated is null || plan is null || updated.Swap != plan.Swap ||
+                                        !updated.Steps.SequenceEqual(plan.Steps))
+                                        plan = updated;
+                                    enemyDamage = currentGame.Mode == Mode.Arena
+                                        ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
+                                        : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
+                                    hideStartingItems = mayhemBuilds.HasStartingPurchase(match?.Mayhem, suggestion.Data);
+                                }
+                                build = new BuildDisplay(window.Bounds, window.Handle, champion,
+                                    currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
+                                    ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
+                                    HideStartingItems: hideStartingItems);
+                            }
                         }
+                        else if (showShopBuild)
+                            build = new BuildDisplay(window.Bounds, window.Handle, null, buildMode, null, shop);
                     }
                 }
 
@@ -237,7 +252,7 @@ internal sealed class LiveOverlay
             shop = null;
         }
 
-        OverlayUpdate? ReadOverlay(GameWindow window, GameContext current, IReadOnlyList<int>? arenaItems)
+        OverlayUpdate? ReadOverlay(GameWindow window, Mode mode, GameContext? current, string? name, IReadOnlyList<int>? arenaItems)
         {
             if (!string.Equals(window.Patch, ratings.Catalog.Patch, StringComparison.Ordinal))
             {
@@ -248,7 +263,7 @@ internal sealed class LiveOverlay
                 capture.Width != window.Frame.Width || capture.Height != window.Frame.Height))
                 StopCapture();
 
-            var label = current.Mode == Mode.Caos ? "ARAM Caos" : "Arena";
+            var label = mode == Mode.Caos ? "ARAM Caos" : "Arena";
             try
             {
                 capture ??= new WindowCapture(window.Handle);
@@ -286,10 +301,11 @@ internal sealed class LiveOverlay
                 if (!scanCards)
                     return null;
                 nextCardScan = lastFrame + CardScanInterval;
+                if (current is null || name is null)
+                    return new OverlayUpdate($"{label} · No se reconoció tu campeón.");
                 if (!cardsVisible && wasOpen != shop.HasValue)
                     return null;
 
-                var name = ChampionName(current);
                 var source = opgg.Current(current, cancellation);
                 var mayhem = aramMayhem.Current(current.Mode, cancellation);
                 var arena = ggez.Current(current, cancellation);
@@ -316,7 +332,7 @@ internal sealed class LiveOverlay
                         var tiers = string.Join(" | ", choices.Select(badge => badge?.LocalText ?? "?"));
                         return new OverlayUpdate($"{label} · {name} · {offers} · Tier local · {tiers}",
                             window.Bounds, candidate, choices, window.Handle,
-                            prismatics is null ? null : new(prismatics.Top, candidate, ratings.Catalog.Patch));
+                            prismatics is null ? null : new(prismatics.Top, candidate, ratings.Catalog.Patch), current.Mode);
                     }
                     if (result.CanShow(candidate == previous))
                     {
@@ -333,7 +349,7 @@ internal sealed class LiveOverlay
                             (badge.RecommendedUpgrade ? " · Mejora recomendada" :
                                 badge.RecommendedAugment ? " · Recomendado" : "")));
                         return new OverlayUpdate($"{label} · {name} · {sources} · OP.GG / local · {displayed}",
-                            window.Bounds, candidate, badges, window.Handle);
+                            window.Bounds, candidate, badges, window.Handle, Mode: current.Mode);
                     }
                     status = result.Items.Any(item => item)
                         ? $"{label} · Panel de objetos"
@@ -355,6 +371,6 @@ internal sealed class LiveOverlay
         }
     }
 
-    private string ChampionName(GameContext game) => ratings.Catalog.Champions.FirstOrDefault(item =>
-        string.Equals(item.Key, game.Champion, StringComparison.OrdinalIgnoreCase))?.Name ?? game.Champion;
+    private string? ChampionName(GameContext game) => ratings.Catalog.Champions.FirstOrDefault(item =>
+        string.Equals(item.Key, game.Champion, StringComparison.OrdinalIgnoreCase))?.Name;
 }

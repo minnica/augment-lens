@@ -24,15 +24,15 @@ internal static class ArenaBuildOverlayTests
         var panel = (StackPanel)renderer.Child;
         renderer.Render(view);
         var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-        Check(blocks.SequenceEqual(["Build de Jax", "Arena", "Después", "Equipados · 4 de 6",
-            "Daño rival estimado", "Según rivales de rondas jugadas", "Referencias de OP.GG", "Parche 26.23", "Objetos prismáticos"]) &&
-            ReadText(panel.Children.OfType<StackPanel>().Single()).SequenceEqual(["67% físico", "33% mágico"]),
-            "Arena muestra el daño rival junto a las compras y la referencia prismática");
+        Check(blocks.SequenceEqual(["Después", "Equipados · 4 de 6", "Objetos prismáticos",
+            "Daño rival estimado", "Según rivales de rondas jugadas"]) &&
+            ReadText(panel.Children[^1]).SequenceEqual(["67% físico", "33% mágico"]),
+            "Arena abre directo en los objetos y muestra la estimación de daño al pie");
         var next = panel.Children.OfType<Border>().Single();
-        Check(next.BorderThickness.Left > 0 && next.Background is not null &&
-            ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
-            ReadText(panel.Children.OfType<DockPanel>().Single()).SequenceEqual(["2.", "Presagio de Randuin", "Contra los golpes críticos de Zed"]),
-            "la siguiente compra se destaca y el segundo objeto conserva posición y motivo");
+        Check(panel.Children[0] == next && next.BorderThickness.Left > 0 && next.Background is not null &&
+            ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk"]) &&
+            ReadText(panel.Children.OfType<DockPanel>().Single()).SequenceEqual(["2.", "Presagio de Randuin"]),
+            "la siguiente compra se destaca y las filas conservan posición y objeto");
         var owned = panel.Children.OfType<UniformGrid>().Take(2).SelectMany(ReadText);
         Check(owned.SequenceEqual(jaxRoute.Steps.Take(4).Select(step => step.Item.Name)),
             "los objetos comprados se agrupan aparte y conservan sus iconos y nombres");
@@ -46,8 +46,8 @@ internal static class ArenaBuildOverlayTests
             emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<DockPanel>().Count() == 5 &&
             !panel.Children.OfType<UniformGrid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
         renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null }, 215);
-        Check(ReadText(panel).Count(label => label == "Encaja con tu campeón") == 1 &&
-            panel.Children.OfType<DockPanel>().Count() == 5, "la vista estrecha agrupa las explicaciones genéricas consecutivas");
+        Check(!ReadText(panel).Contains("Encaja con tu campeón") &&
+            panel.Children.OfType<DockPanel>().Count() == 5, "la vista estrecha muestra las compras sin explicaciones genéricas");
 
         var full = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with { Detail = null, Owned = true }).ToArray());
         renderer.Render(view with { Plan = full, Source = null });
@@ -61,6 +61,16 @@ internal static class ArenaBuildOverlayTests
             ["Cambio sugerido", "Sale", "Presagio de Randuin", "Entra", "Fauces de Malmortius", "Contra el daño mágico de Brand"]) &&
             ReadText(panel).Contains("Equipados · 6 de 6"),
             "el cambio muestra los dos objetos y el motivo sin alterar el inventario equipado");
+        renderer.Render(view with { Champion = null });
+        Check(ReadText(panel).SequenceEqual(["No se reconoció tu campeón."]),
+            "si falta el campeón, el aviso reemplaza los datos anteriores");
+        var previous = LeaguePatch.Previous(clientPatch);
+        if (previous is not null)
+        {
+            renderer.Render(view with { Source = new(build with { SourcePatch = previous }, "Prueba") });
+            Check(ReadText(panel).Contains($"OP.GG · Parche anterior {LeaguePatch.Public(previous)}"),
+                "se conserva el aviso solo para recomendaciones de un parche anterior");
+        }
         Console.WriteLine("Tienda de Arena verificada con próximas compras, inventario separado y ruta completa.");
     }
 

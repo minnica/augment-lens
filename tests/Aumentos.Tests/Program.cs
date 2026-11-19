@@ -38,6 +38,14 @@ internal static class Program
         ArenaBuildTests.Run(ratings);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
         ChampionSelectTests.Run();
+        MayhemChampionTests.Source(ratings.Catalog).GetAwaiter().GetResult();
+        if (Option("--mayhem-draft-shot") is { } mayhemDraft)
+            MayhemChampionTests.ReadOffer(ratings, assets, mayhemDraft, Option("--mayhem-locked-shot"));
+        if (Option("--mayhem-pair-shot") is { } mayhemPair)
+            MayhemChampionTests.ReadOffer(ratings, assets, mayhemPair, Option("--mayhem-locked-shot"), pair: true);
+        if (Option("--mayhem-bench-templates") is { } benchTemplates && Option("--mayhem-locked-shot") is { } benchFirst &&
+            Option("--mayhem-bench-swap-shot") is { } benchSwap)
+            MayhemChampionTests.ReadBench(ratings.Catalog, benchTemplates, benchFirst, benchSwap);
         ArenaChampionTierTests.Run(ratings, Option("--arena-champion-tier-html"));
         if (Option("--arena-draft-shot") is { } draftShot)
             ArenaDraftReaderTests.Run(ratings, assets, draftShot);
@@ -126,11 +134,12 @@ internal static class Program
         if (args.Contains("--capture-smoke"))
         {
             CaptureSmoke();
-            OverlaySmoke();
+            OverlaySmoke(assets);
             BuildOverlaySmoke();
             BuildSizeControlSmoke(ratings.Catalog.Patch);
             BuildSizeButtonSmoke(ratings.Catalog.Patch);
             ChampionSelectTests.Smoke();
+            MayhemChampionTests.Smoke(ratings.Catalog);
         }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
             PrismaticOverlaySmoke(ratings, assets);
@@ -575,10 +584,10 @@ internal static class Program
             Check(nextRow.Children.OfType<Border>().Single().Width > after[0].Children.OfType<Border>().Single().Width &&
                 nextLabels.Select(text => text.Text).SequenceEqual(["Siguiente compra", "Botas del Hechicero"]) &&
                 nextLabels[1].FontSize > PurchaseText(after[0])[0].FontSize &&
+                rows.Children[0] == next &&
                 rows.Children.IndexOf(next) < rows.Children.IndexOf(boughtRow) &&
                 bought.Children.OfType<TextBlock>().Single().Text == "El Tormento de Liandry" &&
-                after.Select(row => PurchaseText(row)[0].Text).SequenceEqual(plan.Steps.Skip(2).Select(step => step.Item.Name)) &&
-                after.SelectMany(PurchaseText).Any(text => text.Text == "Contra 2 rivales con objetos de resistencia mágica") &&
+                after.Select(row => PurchaseText(row).Single().Text).SequenceEqual(plan.Steps.Skip(2).Select(step => step.Item.Name)) &&
                 rows.Children.OfType<TextBlock>().Any(text => text.Text == "Equipados · 1 de 6"),
                 "ARAM Caos destaca la primera compra pendiente por encima del inventario y las referencias");
             CheckDamageBar(rows, 78);
@@ -607,6 +616,32 @@ internal static class Program
             var compactBounds = new Int32Rect(-30000, -30000, Pixels(1040), Pixels(640));
             var shop = new Int32Rect(Pixels(220), Pixels(50), Pixels(560), Pixels(520));
             var core = plan.Steps.Select(step => step.Item).ToArray();
+            var alternative = new[] { core[0], new OpGgBuildItem(3003, "Báculo del Arcángel"), core[2] };
+            var withAlternative = view with { Source = new(build with
+            {
+                Groups = [build.Groups[1], new(OpGgBuildSection.Core, [core, alternative])]
+            }, "Prueba") };
+            overlay.Render(withAlternative);
+            Check(HasRouteLabel(), "la ruta alternativa aparece mientras falten objetos de esa ruta");
+            overlay.Render(withAlternative with { Plan = new MayhemBuildPlan([
+                plan.Steps[0], new(new(3040, "Abrazo del Serafín"), Owned: true),
+                plan.Steps[2] with { Owned = true }, ..plan.Steps.Skip(3)
+            ]) });
+            Check(!HasRouteLabel(), "la ruta alternativa se oculta al tener sus objetos, incluidas sus mejoras");
+
+            var equipped = plan.Steps.Select(step => step with { Owned = true }).ToArray();
+            overlay.Render(withAlternative with { Plan = new MayhemBuildPlan(equipped) });
+            Check(!HasRouteLabel() && rows.Children.OfType<TextBlock>().Any(text => text.Text == "Build completa"),
+                "una build completa oculta la ruta alternativa aunque falten objetos de esa ruta");
+            overlay.Render(withAlternative with { Plan = new MayhemBuildPlan(equipped,
+                new(equipped[^1].Item, alternative[1], "Contra la composición rival")) });
+            Check(!HasRouteLabel() && BuildElements<TextBlock>(rows).Any(text => text.Text == "Cambio sugerido"),
+                "la ruta alternativa también se oculta con seis objetos y un cambio sugerido");
+            overlay.Render(withAlternative with { Plan = new MayhemBuildPlan([..equipped.Take(5), plan.Steps[5]]) });
+            Check(HasRouteLabel(), "la ruta alternativa vuelve a aparecer si se libera un espacio y falta algún objeto");
+
+            bool HasRouteLabel() => rows.Children.OfType<TextBlock>().Any(text => text.Text == "Ruta alternativa");
+
             var reference = data with { Groups = [new(OpGgBuildSection.Core, [core])] };
             overlay.Render(view with { Bounds = compactBounds, Shop = shop, Plan = null, Source = new(reference, "Prueba") });
             var compactRows = rows.Children.OfType<DockPanel>().ToArray();
@@ -655,7 +690,8 @@ internal static class Program
             var labels = (Grid)distribution.Children[0];
             var bar = (Grid)distribution.Children[1];
             var segments = bar.Children.OfType<Border>().ToArray();
-            Check(labels.Children.OfType<TextBlock>().Select(label => label.Text)
+            Check(rows.Children[^1] == distribution &&
+                labels.Children.OfType<TextBlock>().Select(label => label.Text)
                     .SequenceEqual([$"{physical}% físico", $"{100 - physical}% mágico"]) &&
                 bar.ActualWidth > 0 && segments.Length == 2 &&
                 Math.Abs(segments[0].ActualWidth - bar.ActualWidth * physical / 100) <= 1 &&
@@ -843,7 +879,7 @@ internal static class Program
         }
     }
 
-    private static void OverlaySmoke()
+    private static void OverlaySmoke(string assets)
     {
         var overlay = new Overlay();
         try
@@ -883,6 +919,7 @@ internal static class Program
                 texts[3].FontSize < texts[0].FontSize &&
                 VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "OP.GG", "Local", "A"]) &&
                 VisibleLines(overlay.Windows[2]).SequenceEqual(["Leyendo carta…"]), "Abejas muestra sus dos fuentes y el estado de lectura es explícito");
+            CheckTierLayout(first);
             overlay.ShowDetails = true;
             overlay.Render(comparison);
             Check(VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "OP.GG", "Local", "A"]),
@@ -897,7 +934,7 @@ internal static class Program
             overlay.ShowDetails = true;
             overlay.Render(reroll);
             Check(VisibleLines(first).SequenceEqual(
-                ["Elección global", "18.81 %", "ARAMMayhem.com", "Parche anterior 26.22", "B", "OP.GG"]) &&
+                ["B", "OP.GG", "Elección global", "18.81 %", "ARAMMayhem.com", "Parche anterior 26.22"]) &&
                 !overlay.Windows[1].IsVisible && VisibleLines(overlay.Windows[2]).SequenceEqual(["A", "Local"]),
                 "la vista detallada conserva la elección global y el parche");
             var updated = Native.Bounds(handle);
@@ -908,7 +945,7 @@ internal static class Program
                 "los tiers se alinean aunque una carta tenga más datos que otra, dentro del ancho calibrado");
             overlay.Render(new OverlayUpdate("Parche vigente", bounds, layout,
                 [new("A", Mayhem: new(18.81m, "26.23", false))]));
-            Check(VisibleLines(first).SequenceEqual(["Elección global", "18.81 %", "ARAMMayhem.com", "A", "Local"]),
+            Check(VisibleLines(first).SequenceEqual(["A", "Local", "Elección global", "18.81 %", "ARAMMayhem.com"]),
                 "la anotación del parche anterior desaparece al llegar los datos vigentes");
             var arenaOffer = new OverlayUpdate("Arena", bounds, layout,
                 [new("A", Arena: new(7.76m, 59, 760, "26.23", false), IsArenaAugment: true),
@@ -917,16 +954,44 @@ internal static class Program
                  new("B", Loading: true, IsArenaAugment: true)]);
             overlay.Render(arenaOffer);
             Check(VisibleLines(first).SequenceEqual(
-                ["Frecuencia de elección", "GGEZ.GG", "7.76 %", "59 de 760 partidas · 26.23", "A", "Local"]) &&
+                ["A", "Local", "Frecuencia de elección", "GGEZ.GG", "7.76 %", "59 de 760 partidas · 26.23"]) &&
                 VisibleLines(overlay.Windows[1]).SequenceEqual(
-                    ["Frecuencia de elección", "OP.GG", "4.82 %", "Parche anterior 26.22", "S+", "Local", "Nv. 2", "Mejora recomendada"]) &&
-                VisibleLines(overlay.Windows[2]).SequenceEqual(["Consultando OP.GG…", "B", "Local"]),
+                    ["S+", "Local", "Nv. 2", "Mejora recomendada", "Frecuencia de elección", "OP.GG", "4.82 %", "Parche anterior 26.22"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["B", "Local", "Consultando OP.GG…"]),
                 "Arena destaca la estimación disponible y conserva los datos externos publicados y el estado de consulta");
+            CheckTierLayout(overlay.Windows[1]);
             overlay.ShowDetails = false;
             overlay.Render(arenaOffer);
             Check(VisibleLines(first).SequenceEqual(["A", "Local"]) &&
                 VisibleLines(overlay.Windows[1]).SequenceEqual(["S+", "Local", "Nv. 2", "Recomendado"]),
                 "Arena conserva la recomendación y el nivel en la vista compacta");
+            var sPlusAugment = Frame(overlay.Windows[1]);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var recommendation = BuildElements<TextBlock>(sPlusAugment).Single(text => text.Text == "Recomendado");
+            Check(recommendation.ActualHeight < recommendation.FontSize * 2,
+                "Recomendado cabe en una línea en una tarjeta S+ compacta");
+            var goldSurface = sPlusAugment.Background;
+            var goldOutline = sPlusAugment.BorderBrush;
+            var regularSurface = firstBadge.Background;
+            var prismatics = new OverlayUpdate("Prismáticos", bounds, layout,
+                [new("S", ArenaChoice: new("Objeto prismático", Tier.S, "Se adapta a tu campeón", TopPosition: 5)),
+                 new("S", new OpGgCard("S")),
+                 new("A", ArenaChoice: new("Otro objeto", Tier.A, "Afín a tu campeón", Recommended: true))]);
+            foreach (var details in new[] { false, true })
+            {
+                overlay.ShowDetails = details;
+                overlay.Render(prismatics);
+                Check(firstBadge.Background == goldSurface && firstBadge.BorderBrush == goldOutline &&
+                    firstBadge.BorderThickness == new Thickness(2) && VisibleLines(first).Contains("S+") &&
+                    !VisibleLines(first).Contains("Recomendado") &&
+                    overlay.Windows.Skip(1).All(window => Frame(window).Background == regularSurface &&
+                        Frame(window).BorderBrush != goldOutline),
+                    "todo S+ lleva el fondo y el marco dorados sin depender de la recomendación y se distingue del S y del A");
+            }
+            overlay.ShowDetails = false;
+            overlay.Render(prismatics with { Labels = [CardComparison.Unread] });
+            Check(firstBadge.Background == regularSurface && firstBadge.BorderBrush != goldOutline &&
+                firstBadge.BorderThickness == new Thickness(1), "el dorado se retira al releer una carta");
             overlay.Render(new OverlayUpdate("Arena variable", bounds, layout,
                 [new("Variable", IsArenaAugment: true, LocalReason: "Copia un aumento rival cada ronda")]));
             Check(VisibleLines(first).SequenceEqual(["Copia un aumento rival cada ronda", "Afinidad variable"]),
@@ -956,10 +1021,67 @@ internal static class Program
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Check(overlay.Windows.Select(window => Native.Bounds(new WindowInteropHelper(window).Handle)).SequenceEqual(shardPlacements),
                 "los fragmentos conservan sus dimensiones entre fotogramas de la misma oferta");
+            CheckTierLayout(first);
+
+            static void CheckTierLayout(Window window)
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                var frame = Frame(window);
+                var lines = BuildElements<TextBlock>(frame).ToArray();
+                var grade = lines[0];
+                Rect LayoutOf(TextBlock block) => block.TransformToAncestor(frame).TransformBounds(new Rect(block.RenderSize));
+                var gradeBounds = LayoutOf(grade);
+                Check(grade.TextAlignment == TextAlignment.Center && gradeBounds.Width > 0 &&
+                    Math.Abs(gradeBounds.X + gradeBounds.Width / 2 - frame.ActualWidth / 2) <= 1 &&
+                    lines.Skip(1).All(line => LayoutOf(line).Top >= gradeBounds.Bottom - 1),
+                    "la letra se centra respecto al marco y todas las etiquetas y detalles se colocan debajo");
+            }
 
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
+
+            CheckMayhemCrown(2560, 1440);
+            CheckMayhemCrown(1600, 900);
             Console.WriteLine("Overlay de WPF verificado.");
+
+            void CheckMayhemCrown(int width, int height)
+            {
+                var store = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
+                var viewport = new Int32Rect(-30000, -30000, width, height);
+                var fits = store.Find(Mode.Caos, width, height);
+                Check(fits.Length == 2, "hay calibraciones de tres y cuatro cartas");
+                CardComparison?[] cards = [
+                    new("A", new OpGgCard("D"), Mayhem: new(10m, "26.22", true)),
+                    new("A", new OpGgCard("S")), new(CardComparison.Missing, new OpGgCard("A")),
+                    new("S", ArenaChoice: new("Fragmento", Tier.S, "Afinidad con el campeón", Recommended: true))
+                ];
+                // At 16:9 the reference frame begins at 17.85%, and its artwork starts below 21.5%.
+                int cardEdge = viewport.Y + (int)Math.Round(height * .1785);
+                int artTop = viewport.Y + (int)(height * .215);
+                foreach (var fit in fits)
+                foreach (var details in new[] { false, true })
+                {
+                    overlay.ShowDetails = details;
+                    overlay.Render(new OverlayUpdate("ARAM Caos", viewport, fit, cards, Mode: Mode.Caos));
+                    var placements = overlay.Windows.Take(fit.Titles.Length).Select(window =>
+                        (Window: window, Bounds: Native.Bounds(new WindowInteropHelper(window).Handle))).ToArray();
+                    Check(placements.Select((placement, index) =>
+                        {
+                            var title = fit.Titles[index].Pixels(width, height);
+                            int bottom = placement.Bounds.Y + placement.Bounds.Height;
+                            return placement.Window.IsVisible && placement.Bounds.Y >= viewport.Y &&
+                                placement.Bounds.Y < cardEdge && bottom > cardEdge && bottom <= artTop &&
+                                Math.Abs(placement.Bounds.X + placement.Bounds.Width / 2.0 - (viewport.X + title.X + title.Width / 2)) <= 1;
+                        }).All(ok => ok), "los distintivos se apoyan en el marco sin tapar la zona de habilidad");
+                    if (!details && width == 2560)
+                    {
+                        var shortBadge = placements[2].Bounds;
+                        int overlap = shortBadge.Y + shortBadge.Height - cardEdge;
+                        Check(overlap >= Math.Min(shortBadge.Height * .4, height * .03) && overlap <= shortBadge.Height * .55,
+                            "el distintivo compacto cruza el borde aproximadamente por la mitad");
+                    }
+                }
+            }
         }
         finally { overlay.Close(); }
     }

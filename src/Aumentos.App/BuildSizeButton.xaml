@@ -7,20 +7,20 @@
         Background="Transparent" UseLayoutRounding="True">
     <Button x:Name="OpenButton" Content="Tamaño…" AutomationProperties.Name="Tamaño de las builds"
             Cursor="Hand" Focusable="False" IsTabStop="False" FontSize="13" FontWeight="SemiBold"
-            Foreground="#E7EDF7">
+            Foreground="#EEE7D8">
         <Button.Template>
             <ControlTemplate TargetType="Button">
-                <Border x:Name="Frame" Background="#172436" BorderBrush="#667C9F"
-                        BorderThickness="1" CornerRadius="6">
+                <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
                     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="Frame" Property="Background" Value="#2B405A"/>
-                        <Setter TargetName="Frame" Property="BorderBrush" Value="#AAD1FF"/>
+                        <Setter TargetName="Frame" Property="Background" Value="#1C3940"/>
+                        <Setter TargetName="Frame" Property="BorderBrush" Value="#E0BA7A"/>
                     </Trigger>
                     <Trigger Property="IsPressed" Value="True">
-                        <Setter TargetName="Frame" Property="Background" Value="#111D2D"/>
+                        <Setter TargetName="Frame" Property="Background" Value="#081923"/>
                     </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate>

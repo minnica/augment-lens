@@ -1,13 +1,13 @@
 # Aumentos LoL
 
-Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones de Arena** y **hechizos de invocador** en League of Legends. Detecta tu campeón a través del cliente local y reconoce los títulos de los aumentos en español. El catálogo incluido corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
+Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones** y **hechizos de invocador** en League of Legends. Detecta tu campeón a través del cliente local y reconoce los títulos de los aumentos en español. El catálogo incluido corresponde al parche **26.23** (`16.23` en el cliente y en OP.GG).
 
 | Función | ARAM Caos | Arena |
 | --- | --- | --- |
 | Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | Tier local por campeón, objetos y nivel con mecánicas de LoL Wiki. Elección en OP.GG y GGEZ.GG |
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
 | Hechizos de OP.GG | En la selección de campeón | — |
-| Tiers de campeones de GGEZ.GG | — | En la selección de campeón |
+| Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
 
 ## Iniciar en Windows
 
@@ -22,7 +22,7 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 
 ## Comparar aumentos en partida
 
-La vista compacta alinea las letras grandes justo encima de los títulos. En **ARAM Caos** la letra principal es el tier de **OP.GG** para tu campeón (S, A, B, C, D o E). Cuando hay una afinidad calculada por la app, su letra aparece más pequeña junto a **Local**, incluso si coincide con la de OP.GG. Si falta el tier publicado, la afinidad local toma el lugar principal. En **Arena** la letra principal siempre es local (S+, A, B o C).
+El distintivo centra la letra principal y coloca sus etiquetas y detalles debajo. En **ARAM Caos** se apoya sobre el borde superior de la carta y deja visibles el icono y la tecla de la habilidad. La letra principal es el tier de **OP.GG** para tu campeón (S, A, B, C, D o E). Cuando hay una afinidad calculada por la app, su letra aparece más pequeña junto a **Local**, incluso si coincide con la de OP.GG. Si falta el tier publicado, la afinidad local toma el lugar principal. En **Arena** la letra principal siempre es local (S+, A, B o C). Las etiquetas **S+** se distinguen con un fondo ámbar y un marco dorado, tanto en la vista compacta como en la detallada.
 
 Activa **Detalles de las cartas** en el icono de la bandeja para ver porcentajes de elección, parches y motivos. Regresa a League para ver el cambio. La vista compacta conserva las recomendaciones de Arena, el nivel y las condiciones de afinidad variable.
 
@@ -56,19 +56,19 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 
 ## Builds de OP.GG en partida
 
-Pulsa **P**, la tecla predeterminada de la tienda, en **ARAM Caos** o **Arena**. La build aparece automáticamente a un lado de la tienda y se oculta al cerrarla. El panel también se aparta durante la elección de aumentos.
+Pulsa **P**, la tecla predeterminada de la tienda, en **ARAM Caos** o **Arena**. La build aparece automáticamente a un lado de la tienda y se oculta al cerrarla. El panel también se aparta durante la elección de aumentos. Si se detecta el modo pero falta el campeón, aparece **No se reconoció tu campeón**.
 
 Los números indican el **orden de compra** y cada icono va acompañado del nombre del objeto en español. Cuando hay poco espacio junto a la tienda, los objetos se leen en una sola columna. El panel incluye objetos iniciales, botas y las rutas que publica OP.GG. En Arena también muestra los objetos prismáticos de la fuente. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
 
-En **ARAM Caos**, la ruta a seis objetos destaca la **Siguiente compra** al inicio del panel. Las compras pendientes se leen en **Después** y los objetos terminados de tu inventario, incluidas las botas mejoradas, se agrupan en **Equipados**. La ruta parte del núcleo de OP.GG y cubre los espacios libres según la composición y las compras que reporta el marcador del cliente local. Debajo de cada objeto situacional aparece el motivo, por ejemplo «Para reducir la curación de Soraka». La app actualiza la ruta durante la partida y usa los datos de objetos del parche de Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
+En **ARAM Caos**, la ruta a seis objetos destaca la **Siguiente compra** al inicio del panel. Las compras pendientes se leen en **Después** y los objetos terminados de tu inventario, incluidas las botas mejoradas, se agrupan en **Equipados**. La ruta parte del núcleo de OP.GG y cubre los espacios libres según la composición y las compras que reporta el marcador del cliente local. La app actualiza la ruta durante la partida y usa los datos de objetos del parche de Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
-En **ARAM Caos**, la sección **Objetos iniciales** se oculta cuando el cliente confirma que llevas una pieza inicial recomendada o un objeto terminado.
+En **ARAM Caos**, la sección **Objetos iniciales** se oculta cuando el cliente confirma que llevas una pieza inicial recomendada o un objeto terminado. **Ruta alternativa** solo aparece si te queda espacio en la build y falta al menos un objeto de esa ruta.
 
-En **Arena**, **Equipados** cuenta las botas mejoradas, los legendarios y los prismáticos que llevas. Antes de confirmar un rival, la ruta usa tu inventario, el perfil de tu campeón y el núcleo de OP.GG cuando está disponible. Después, puede adaptarse a las compras y al perfil de hasta tres rivales de rondas jugadas. Los prismáticos publicados aparecen en **Referencias de OP.GG**. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
+En **Arena**, **Equipados** cuenta las botas mejoradas, los legendarios y los prismáticos que llevas. Antes de confirmar un rival, la ruta usa tu inventario, el perfil de tu campeón y el núcleo de OP.GG cuando está disponible. Después, puede adaptarse a las compras y al perfil de hasta tres rivales de rondas jugadas. Los prismáticos publicados aparecen en **Objetos prismáticos**. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
 Con seis objetos equipados, **Cambio sugerido** muestra qué objeto saldría, cuál entraría y el motivo. Por ejemplo, si los rivales acumulan resistencia mágica, la app puede sugerir **Báculo del Vacío**. La sugerencia se recalcula con las compras, prioriza los cambios en objetos flexibles y protege las piezas clave de la build y las respuestas a otras amenazas activas. La comparación evalúa el encaje de los objetos con la partida.
 
-El panel muestra **Daño rival estimado** en ambos modos con una barra de daño **físico** en naranja y **mágico** en violeta. Estima la proporción a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero.
+Al pie del panel, **Daño rival estimado** muestra el daño **físico** en naranja y el **mágico** en violeta. Estima la proporción a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero.
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
@@ -84,7 +84,9 @@ En **Arena**, durante la selección en el cliente de League, el panel muestra **
 
 La lista de campeones usa la muestra de Arena de todas las regiones y muestra su parche. GGEZ.GG calcula la letra con un ajuste por tamaño de muestra. La app reutiliza la copia de `%LOCALAPPDATA%\AumentosLoL\ggez-arena\<parche>\champion-tiers.json` y puede mostrar el parche inmediatamente anterior con su etiqueta. El acceso de la bandeja **Tier de campeones de Arena** abre la fuente. [Tier list de Arena](https://ggez.gg/tierlist/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
 
-En la selección de campeón de **ARAM Caos**, busca el panel de OP.GG abajo a la derecha. Se actualiza cuando cambias de campeón y se retira al salir de esa pantalla. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
+En la selección de campeón de **ARAM Caos**, aparece una letra debajo de cada carta reconocida en ofertas de dos o tres cartas. En **Campeones disponibles**, los retratos reconocidos muestran su letra en la esquina inferior derecha para poder comparar antes de intercambiar. Las letras **S, A, B, C y D** corresponden a los tiers **1 a 5** de la tabla de OP.GG. La app guarda la tabla en la caché local y muestra su parche debajo de las cartas. Si usa el parche anterior, lo indica en pantalla. [Tier list de campeones de ARAM Caos en OP.GG](https://op.gg/es-419/lol/modes/aram-mayhem)
+
+Al elegir un campeón, su letra pasa al panel de hechizos de OP.GG, abajo a la derecha. El panel se actualiza cuando cambias de campeón y se retira al salir de selección. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
 
 ## Historial de aumentos
 
@@ -121,6 +123,8 @@ La suite verifica las fuentes, el historial, las builds, la selección de campe�
 - `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
 - `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
 - `--arena-draft-shot "ruta\seleccion.png" --arena-champion-overlay-smoke` comprueba la fila de Valentía de la captura de referencia y el panel de campeones.
+- `--mayhem-draft-shot "ruta\oferta.png" --mayhem-locked-shot "ruta\campeon-elegido.png"` comprueba la oferta de referencia de Kai'Sa, Jinx y Aurelion Sol y el cierre al elegir.
+- `--mayhem-pair-shot "ruta\oferta-doble.png"` comprueba la oferta de Camille y Bel'Veth con una carta ampliada.
 - `--arena-jax-upgrade-shot "ruta\fuegos.png"` comprueba el nivel 2 de **¡Enciéndelos!** en la carta central de la captura de referencia.
 - `--arena-level-shot evidencias/image4.png` comprueba dos mejoras de nivel 2 en la misma oferta, incluida la relectura independiente de cada posición.
 - `--arena-build-snapshot "ruta\allgamedata.json" --arena-build-overlay-smoke` comprueba la ruta con un registro de Arena que incluya rivales confirmados y el panel de tienda.

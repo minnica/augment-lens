@@ -1,4 +1,6 @@
 using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -8,6 +10,7 @@ internal static class BuildVisibilityTests
 {
     internal static void Run(Ratings ratings, string assets, string? shopShot, string? closedShot)
     {
+        CheckChampionLookup().GetAwaiter().GetResult();
         var visibility = new BuildVisibility();
         Check(!visibility.ShouldShow(false), "la build automática espera la tienda");
         visibility.ObserveShop(open: true);
@@ -61,6 +64,42 @@ internal static class BuildVisibilityTests
                 Check(!detector.MatchesProbe(cropped, new Int32Rect(0, 0, cropped.PixelWidth, cropped.PixelHeight)),
                     "el recorte deja de confirmar la tienda al cerrar y conserva la posición para reabrir");
             }
+        }
+    }
+
+    private static async Task CheckChampionLookup()
+    {
+        using var game = new LocalGameFixture();
+        using var http = new HttpClient(game) { BaseAddress = new Uri("https://127.0.0.1:2999/liveclientdata/") };
+        var missing = await LiveGame.ReadMatch(http, CancellationToken.None);
+        Check(missing is { Mode: Mode.Caos, Match: null }, "el modo confirmado se conserva si la API no identifica al campeón");
+        game.MissingChampion = false;
+        var loaded = await LiveGame.ReadMatch(http, CancellationToken.None);
+        Check(loaded is { Mode: Mode.Caos, Match.Game.Champion: "Gragas" }, "el aviso puede dar paso a una build al reconocer el campeón");
+        game.SupportedMode = false;
+        Check(await LiveGame.ReadMatch(http, CancellationToken.None) is null, "los modos incompatibles no muestran el aviso de campeón");
+    }
+
+    private sealed class LocalGameFixture : HttpMessageHandler
+    {
+        internal bool MissingChampion { get; set; } = true;
+        internal bool SupportedMode { get; set; } = true;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string? payload = request.RequestUri?.AbsolutePath switch
+            {
+                "/liveclientdata/gamestats" => SupportedMode ? """{"gameMode":"KIWI"}""" : """{"gameMode":"ARAM"}""",
+                "/liveclientdata/activeplayername" when !MissingChampion => """
+                    "Player#000"
+                    """,
+                "/liveclientdata/playerlist" => """
+                    [{"riotId":"Player#000","rawChampionName":"game_character_displayname_Gragas"}]
+                    """,
+                _ => null
+            };
+            return Task.FromResult(payload is null ? new HttpResponseMessage(HttpStatusCode.NotFound) :
+                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload) });
         }
     }
 

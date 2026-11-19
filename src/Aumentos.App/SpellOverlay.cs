@@ -50,7 +50,7 @@ internal sealed class SpellOverlay : Window
             return;
         }
         if (displayed is null || displayed.Champion != view.Champion || displayed.Selection != view.Selection ||
-            displayed.Source != view.Source)
+            displayed.Source != view.Source || displayed.Tier != view.Tier || displayed.TierCaption != view.TierCaption)
             RenderRows(view);
         displayed = view;
 
@@ -76,7 +76,22 @@ internal sealed class SpellOverlay : Window
     private void RenderRows(SpellDisplay view)
     {
         rows.Children.Clear();
-        AddLine($"{view.Champion} · Hechizos de OP.GG", 15, Brushes.WhiteSmoke, bold: true);
+        if (view.Tier is { } tier && view.TierCaption is { } caption)
+        {
+            var header = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var badge = MayhemTierBadge.Create(tier, view.Champion, 36, 34, 22);
+            badge.Margin = new Thickness(0, 0, 9, 0);
+            DockPanel.SetDock(badge, Dock.Left);
+            header.Children.Add(badge);
+            var champion = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            champion.Children.Add(Line(view.Champion, 15, Brushes.WhiteSmoke, bold: true));
+            champion.Children.Add(Line(caption, 10.5, Overlay.Paint("#B8CAE2")));
+            header.Children.Add(champion);
+            rows.Children.Add(header);
+            AddLine("Hechizos", 11, Overlay.Paint("#B8CAE2"), bold: true);
+        }
+        else
+            AddLine($"{view.Champion} · Hechizos de OP.GG", 15, Brushes.WhiteSmoke, bold: true);
         if (view.Source.Data is not { } data)
         {
             AddLine(view.Source.Status, 12, Brushes.WhiteSmoke);
@@ -95,8 +110,10 @@ internal sealed class SpellOverlay : Window
             if (pairs.Length > 1)
                 AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, Brushes.WhiteSmoke);
         }
-        AddLine($"{(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}",
-            11, data.IsPrevious ? Overlay.Paint("#FFD76D") : Brushes.LightGray);
+        var patch = $"{(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";
+        if (view.TierCaption != $"OP.GG · {patch}")
+            AddLine(view.Tier is null ? patch : $"Hechizos · {patch}", 11,
+                data.IsPrevious ? Overlay.Paint("#FFD76D") : Overlay.Paint("#B8CAE2"));
     }
 
     internal static bool Matches(OpGgSpellPair pair, ChampionSelection selection)
@@ -110,9 +127,11 @@ internal sealed class SpellOverlay : Window
     }
 
     private void AddLine(string text, double fontSize, Brush color, bool bold = false) =>
-        rows.Children.Add(new TextBlock
-        {
-            Text = text, FontSize = fontSize, Foreground = color, TextWrapping = TextWrapping.Wrap,
-            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Margin = new Thickness(0, 2, 0, 0)
-        });
+        rows.Children.Add(Line(text, fontSize, color, bold));
+
+    private static TextBlock Line(string text, double fontSize, Brush color, bool bold = false) => new()
+    {
+        Text = text, FontSize = fontSize, Foreground = color, TextWrapping = TextWrapping.Wrap,
+        FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Margin = new Thickness(0, 2, 0, 0)
+    };
 }

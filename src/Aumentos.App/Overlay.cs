@@ -13,6 +13,9 @@ internal sealed class Overlay
 {
     private const int SummaryWidth = 160;
     private const int DetailWidth = 260;
+    private const double MayhemTitleToCardEdge = 0.213;
+    // Limit the overlap to the upper frame, where there are no ability icons.
+    private const double MayhemFrameOverlap = 0.036;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     internal bool ShowDetails { private get; set; }
     internal IReadOnlyList<Window> Windows => badges;
@@ -35,6 +38,10 @@ internal sealed class Overlay
         int maximumWidth = ShowDetails ? DetailWidth : SummaryWidth;
         int width = Math.Clamp(titles.Min(title => title.Width), 1, Math.Min((int)(maximumWidth * dpi), bounds.Width));
         int margin = (int)Math.Ceiling(6 * dpi);
+        int? mayhemEdge = update.Mode == Mode.Caos
+            ? titles.Min(title => title.Y) - (int)Math.Round(bounds.Height * MayhemTitleToCardEdge)
+            : null;
+        int maxOverlap = mayhemEdge.HasValue ? (int)(bounds.Height * MayhemFrameOverlap) : 0;
 
         for (int index = 0; index < badges.Length; index++)
         {
@@ -47,15 +54,17 @@ internal sealed class Overlay
 
             var title = titles[index];
             int gap = label.ArenaChoice is null ? margin : Math.Max(2 * margin, title.Height / 3);
-            int bottom = title.Y - gap;
-            if (bottom <= margin)
+            int anchor = mayhemEdge ?? (title.Y - gap);
+            int roomAbove = anchor - margin;
+            if (roomAbove <= 0)
             {
                 badge.HideBadge();
                 continue;
             }
 
             int desiredHeight = badge.Prepare(label, width, dpi, ShowDetails);
-            int height = Math.Min(desiredHeight, bottom - margin);
+            int height = Math.Min(desiredHeight, roomAbove + Math.Min(roomAbove, maxOverlap));
+            int bottom = anchor + Math.Min(height / 2, maxOverlap);
             int fittedWidth = Math.Max(1, width * height / desiredHeight);
             int center = bounds.X + title.X + title.Width / 2;
             int x = Math.Clamp(center - fittedWidth / 2, bounds.X, bounds.X + bounds.Width - fittedWidth);
@@ -77,6 +86,11 @@ internal sealed class Overlay
         private static readonly Brush Divider = Paint("#3D506C");
         private static readonly Brush Muted = Paint("#B9C8DD");
         private static readonly Brush Gold = Paint("#FFD888");
+        private static readonly Brush SPlusSurface = Paint("#FC493117");
+        private static readonly Brush SPlusOutline = Paint("#FFD162");
+        private static readonly Brush SPlusInk = Paint("#FFE393");
+        private static readonly Brush SPlusMuted = Paint("#F2D8AE");
+        private static readonly Brush SPlusDivider = Paint("#826133");
         private static readonly Brush Green = Paint("#A0EACD");
         private static readonly Brush Blue = Paint("#BFD1FF");
         private static readonly Brush NeutralGrade = Paint("#DCE4F2");
@@ -155,17 +169,29 @@ internal sealed class Overlay
         {
             content.Children.Clear();
             bool recommended = value.RecommendedUpgrade || value.RecommendedAugment || value.ArenaChoice?.Recommended == true;
-            badge.BorderBrush = recommended ? Gold : Outline;
+            bool arena = value.IsArenaAugment || value.ArenaChoice is not null;
+            bool variable = value.Local == "Variable";
+            string? local = value.Local is CardComparison.Missing or "Variable" ? null : value.LocalText;
+            string? published = arena ? null : value.External?.Tier;
+            bool sPlus = (published ?? local) == "S+";
+            badge.Background = sPlus ? SPlusSurface : Surface;
+            badge.BorderBrush = sPlus ? SPlusOutline : recommended ? Gold : Outline;
+            badge.BorderThickness = new Thickness(sPlus ? 2 : 1);
             if (value == CardComparison.Unread)
             {
                 AddStatus("Leyendo carta…");
                 return;
             }
 
-            bool arena = value.IsArenaAugment || value.ArenaChoice is not null;
-            bool variable = value.Local == "Variable";
-            string? local = value.Local is CardComparison.Missing or "Variable" ? null : value.LocalText;
-            string? published = arena ? null : value.External?.Tier;
+            var context = value.UpgradeLevel is { } level ? $"Nv. {level}" :
+                value.ArenaChoice?.TopPosition is { } position ? $"Top #{position}" : null;
+            var recommendation = recommended ? (value.RecommendedUpgrade && showDetails ? "Mejora recomendada" : "Recomendado") : null;
+            if (published is { } tier)
+                AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
+            else if (local is not null)
+                AddGrade(local, "Local", context, recommendation, narrow);
+
+            int headerLength = content.Children.Count;
             if (showDetails || variable)
                 AddDetail(value.ArenaChoice?.Reason ?? value.DetailText, narrow);
             if (showDetails)
@@ -176,15 +202,9 @@ internal sealed class Overlay
                     AddMayhemStats(value, published is not null, local is not null, variable, narrow);
             }
 
-            AddDivider();
-            var context = value.UpgradeLevel is { } level ? $"Nv. {level}" :
-                value.ArenaChoice?.TopPosition is { } position ? $"Top #{position}" : null;
-            var recommendation = recommended ? (value.RecommendedUpgrade && showDetails ? "Mejora recomendada" : "Recomendado") : null;
-            if (published is { } tier)
-                AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
-            else if (local is not null)
-                AddGrade(local, "Local", context, recommendation, narrow);
-            else
+            if (content.Children.Count > headerLength)
+                AddDivider(headerLength > 0 ? headerLength : content.Children.Count, sPlus ? SPlusDivider : Divider);
+            if (headerLength == 0)
                 AddStatus(variable ? "Afinidad variable" : arena ? "Sin tier local" :
                     value.Loading ? "Consultando OP.GG…" : "Sin tier", context);
         }
@@ -231,41 +251,32 @@ internal sealed class Overlay
 
         private void AddGrade(string tier, string label, string? context, string? recommendation, bool narrow, string? localTier = null)
         {
-            var header = new DockPanel { MinHeight = narrow ? 48 : 56 };
-            var grade = Line(tier, narrow ? 38 : 46, TierInk(tier), bold: true);
+            var grade = Line(tier, narrow ? 38 : 46, TierInk(tier), centered: true);
             grade.FontWeight = FontWeights.Bold;
             grade.TextWrapping = TextWrapping.NoWrap;
-            grade.TextAlignment = TextAlignment.Center;
-            grade.Width = narrow ? 49 : 59;
-            grade.Margin = new Thickness(0, 0, narrow ? 5 : 8, 0);
-            grade.VerticalAlignment = VerticalAlignment.Center;
             if (tier == "S+")
             {
                 grade.Inlines.Clear();
                 grade.Inlines.Add(new Run("S"));
                 grade.Inlines.Add(new Run("+") { FontSize = narrow ? 19 : 23, BaselineAlignment = BaselineAlignment.Superscript });
             }
-            header.Children.Add(grade);
-
-            var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(Line(label, 13, Brushes.WhiteSmoke, bold: true));
+            content.Children.Add(grade);
+            content.Children.Add(Line(label, 13, Brushes.WhiteSmoke, bold: true, centered: true));
             if (localTier is not null)
             {
-                var local = new StackPanel { Orientation = Orientation.Horizontal };
+                var local = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
                 var caption = Line("Local", 12, Muted);
                 caption.VerticalAlignment = VerticalAlignment.Center;
                 var letter = Line(localTier, 16, Brushes.WhiteSmoke, bold: true);
                 letter.Margin = new Thickness(4, 0, 0, 0);
                 local.Children.Add(caption);
                 local.Children.Add(letter);
-                text.Children.Add(local);
+                content.Children.Add(local);
             }
             if (context is not null)
-                text.Children.Add(Line(context, 12, Muted));
+                content.Children.Add(Line(context, 12, tier == "S+" ? SPlusMuted : Muted, centered: true));
             if (recommendation is not null)
-                text.Children.Add(Line(recommendation, narrow ? 11 : 12, Gold, bold: true, top: 2));
-            header.Children.Add(text);
-            content.Children.Add(header);
+                content.Children.Add(Line(recommendation, narrow ? 11 : 12, Gold, bold: true, top: 2, centered: true));
         }
 
         private void AddStatus(string text, string? context = null)
@@ -283,11 +294,8 @@ internal sealed class Overlay
                 content.Children.Add(Line(text, compact ? 11 : 12, Brushes.WhiteSmoke, top: 4));
         }
 
-        private void AddDivider()
-        {
-            if (content.Children.Count > 0)
-                content.Children.Add(new Border { Height = 1, Background = Divider, Margin = new Thickness(0, 6, 0, 5) });
-        }
+        private void AddDivider(int index, Brush ink) =>
+            content.Children.Insert(index, new Border { Height = 1, Background = ink, Margin = new Thickness(0, 6, 0, 5) });
 
         private void AddStat(string label, string value, Brush? ink = null, double size = 12)
         {
@@ -306,15 +314,16 @@ internal sealed class Overlay
         private void AddPreviousPatch(string patch) =>
             content.Children.Add(Line($"Parche anterior {patch}", 11, Gold, top: 2));
 
-        private static TextBlock Line(string text, double size, Brush ink, bool bold = false, double top = 0) => new()
+        private static TextBlock Line(string text, double size, Brush ink, bool bold = false, double top = 0, bool centered = false) => new()
         {
             Text = text, FontSize = size, Foreground = ink, FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal,
-            Margin = new Thickness(0, top, 0, 0), TextWrapping = TextWrapping.Wrap
+            Margin = new Thickness(0, top, 0, 0), TextWrapping = TextWrapping.Wrap,
+            TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
         };
 
         private static Brush TierInk(string tier) => tier switch
         {
-            "S" or "S+" => Gold, "A" => Green, "B" => Blue, _ => NeutralGrade
+            "S+" => SPlusInk, "S" => Gold, "A" => Green, "B" => Blue, _ => NeutralGrade
         };
     }
 }

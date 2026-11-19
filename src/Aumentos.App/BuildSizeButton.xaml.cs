@@ -14,6 +14,8 @@ internal sealed partial class BuildSizeButton : Window
     internal BuildSizeButton(Action open)
     {
         InitializeComponent();
+        OpenButton.Background = BuildPanel.WindowSurface;
+        OpenButton.BorderBrush = BuildPanel.WindowFrame;
         OpenButton.Click += (_, _) => open();
         SourceInitialized += (_, _) =>
         {

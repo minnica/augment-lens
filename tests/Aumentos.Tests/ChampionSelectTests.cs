@@ -63,6 +63,14 @@ internal static class ChampionSelectTests
                     ["Kennen · Hechizos de OP.GG", "Destello + Marca", "Ya tienes estos hechizos",
                      "Alternativa · Destello + Fantasma", "Parche anterior 26.22"]),
                 "panel dentro del cliente, sin interceptar clics y con las dos combinaciones de OP.GG");
+            overlay.Render(new SpellDisplay(bounds, 0, "Aurelion Sol", new("AurelionSol", "Marca", "Destello"),
+                new(ReadSpells() with { Champion = "AurelionSol" }, "Prueba"), "A", "OP.GG · Parche 26.23"));
+            var header = (DockPanel)panel.Children[0];
+            Check(((TextBlock)((Border)header.Children[0]).Child).Text == "A" &&
+                ((StackPanel)header.Children[1]).Children.OfType<TextBlock>().Select(line => line.Text)
+                    .SequenceEqual(["Aurelion Sol", "OP.GG · Parche 26.23"]) &&
+                panel.Children.OfType<TextBlock>().Any(line => line.Text == "Hechizos · Parche anterior 26.22"),
+                "el campeón elegido conserva su tier junto a los hechizos con parches independientes");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el panel se retira al salir de selección");
             Console.WriteLine("Panel de hechizos en WPF verificado.");

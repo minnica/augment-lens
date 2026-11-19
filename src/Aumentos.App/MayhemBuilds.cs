@@ -330,7 +330,7 @@ internal sealed class MayhemBuilds
     private static string ChampionReason(string label, Opponent[] opponents) =>
         $"{label} {string.Join(" y ", opponents.Take(2).Select(rival => rival.Champion.Name))}";
 
-    private static int BaseId(int id) => id switch
+    internal static int BaseId(int id) => id switch
     {
         3040 => 3003, 3042 => 3004, 3121 => 3119, 2530 => 2526, _ => id
     };

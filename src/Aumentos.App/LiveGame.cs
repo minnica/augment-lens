@@ -16,6 +16,7 @@ internal sealed record MayhemOpponent(string Champion, int[] Items);
 internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
 internal sealed record ArenaOpponent(string Champion, int[] Items);
 internal sealed record ArenaMatch(int[] Items, ArenaOpponent[] Opponents, bool InventoryKnown = true);
+internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
     double? GameTime = null)
 {
@@ -62,11 +63,13 @@ internal sealed class LiveGame : IDisposable
     }
 
     internal async Task<GameContext?> Read(CancellationToken cancellation) =>
-        (await ReadMatch(cancellation).ConfigureAwait(false))?.Game;
+        (await ReadMatch(cancellation).ConfigureAwait(false))?.Match?.Game;
 
-    internal async Task<LiveMatch?> ReadMatch(CancellationToken cancellation)
+    internal Task<LiveMatchState?> ReadMatch(CancellationToken cancellation) => ReadMatch(client, cancellation);
+
+    internal static async Task<LiveMatchState?> ReadMatch(HttpClient client, CancellationToken cancellation)
     {
-        using var game = await ReadJson("gamestats", cancellation).ConfigureAwait(false);
+        using var game = await ReadJson("gamestats").ConfigureAwait(false);
         var mode = ParseMode(Identity(game.RootElement, "gameMode"));
         if (mode is null)
             return null;
@@ -75,18 +78,35 @@ internal sealed class LiveGame : IDisposable
         {
             try
             {
-                using var snapshot = await ReadJson("allgamedata", cancellation).ConfigureAwait(false);
+                using var snapshot = await ReadJson("allgamedata").ConfigureAwait(false);
                 if (ParseArenaMatch(snapshot.RootElement) is { } arena)
-                    return arena with { GameTime = arena.GameTime ?? gameTime };
+                    return new(mode.Value, arena with { GameTime = arena.GameTime ?? gameTime });
             }
             catch (Exception error) when (!cancellation.IsCancellationRequested &&
                 error is HttpRequestException or JsonException or TaskCanceledException) { }
         }
 
-        using var name = await ReadJson("activeplayername", cancellation).ConfigureAwait(false);
-        using var players = await ReadJson("playerlist", cancellation).ConfigureAwait(false);
-        return ParseMatch(mode.Value, players.RootElement, name.RootElement.GetString()) is { } match
-            ? match with { GameTime = gameTime } : null;
+        try
+        {
+            using var name = await ReadJson("activeplayername").ConfigureAwait(false);
+            using var players = await ReadJson("playerlist").ConfigureAwait(false);
+            var active = name.RootElement.ValueKind == JsonValueKind.String ? name.RootElement.GetString() : null;
+            var match = ParseMatch(mode.Value, players.RootElement, active);
+            return new(mode.Value, match is null ? null : match with { GameTime = gameTime });
+        }
+        catch (Exception error) when (!cancellation.IsCancellationRequested &&
+            error is HttpRequestException or JsonException or TaskCanceledException)
+        {
+            return new(mode.Value);
+        }
+
+        async Task<JsonDocument> ReadJson(string path)
+        {
+            using var response = await client.GetAsync(path, cancellation).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);
+            return JsonDocument.Parse(json);
+        }
     }
 
     internal static Mode? ParseMode(string? mode) => mode switch
@@ -271,14 +291,6 @@ internal sealed class LiveGame : IDisposable
     private static string? Identity(JsonElement player, string field) =>
         player.ValueKind == JsonValueKind.Object && player.TryGetProperty(field, out var value) &&
         value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-
-    private async Task<JsonDocument> ReadJson(string path, CancellationToken cancellation)
-    {
-        using var response = await client.GetAsync(path, cancellation).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        var json = await response.Content.ReadAsStringAsync(cancellation).ConfigureAwait(false);
-        return JsonDocument.Parse(json);
-    }
 
     public void Dispose()
     {

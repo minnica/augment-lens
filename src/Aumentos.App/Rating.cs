@@ -21,7 +21,8 @@ public record Augment(string Mode, int Id, string Key, string Name, string? Desc
             ? UpgradeEffects[level.Value - 2] : null;
 }
 public record Catalog(string Patch, string Locale, Champion[] Champions, Augment[] Augments, string[] ArenaItems,
-    ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null, ArenaItem[]? ArenaEquipment = null);
+    ArenaItem[]? ArenaPrismatics = null, ArenaItem[]? ArenaLegendaries = null, ArenaItem[]? ArenaEquipment = null,
+    Dictionary<string, string>? Sources = null);
 public record Affinity(string Tag, string Keys, string? DescriptionPattern);
 public record ExceptionRating(string Mode, string Champion, string Augment, string Tier);
 public record ArenaDefaultRating(string Augment, [property: JsonConverter(typeof(JsonStringEnumConverter<Tier>))] Tier Tier,

@@ -148,9 +148,12 @@ internal static class Program
             buildOverlay.SizeRequested += OpenBuildSize;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
+            var mayhemChampionOverlay = new MayhemChampionOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
-            var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers,
-                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render);
+            var mayhemChampionTiers = new MayhemChampionTiers(ratings.Catalog, settings, http);
+            var mayhemBench = new MayhemBenchPortraits(ratings.Catalog, settings, http);
+            var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers, mayhemChampionTiers, mayhemBench,
+                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render);
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, builds, assets, app.Dispatcher, state =>
@@ -195,6 +198,8 @@ internal static class Program
                         ArenaWikiMechanics.Attribution));
             menu.Items.Add("Tier de campeones de Arena", null, (_, _) =>
                 OpenProviderPage(ArenaChampionTierSource.Address.AbsoluteUri, ArenaChampionTierSource.Attribution));
+            menu.Items.Add("Tier de campeones de ARAM Caos", null, (_, _) =>
+                OpenProviderPage(MayhemChampionTiers.Address.AbsoluteUri, "OP.GG"));
             var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
             cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
             menu.Items.Add(cardDetails);
@@ -214,6 +219,7 @@ internal static class Program
                     buildOverlay.Render(null);
                     spellOverlay.Render(null);
                     arenaChampionOverlay.Render(null);
+                    mayhemChampionOverlay.Render(null);
                 }
             };
             menu.Items.Add(pause);
@@ -262,6 +268,7 @@ internal static class Program
                             {
                                 spellOverlay.Render(null);
                                 arenaChampionOverlay.Render(null);
+                                mayhemChampionOverlay.Render(null);
                                 WriteStatus($"No se pudo mostrar el panel de selección de campeón · {error.GetType().Name}");
                             });
                     }

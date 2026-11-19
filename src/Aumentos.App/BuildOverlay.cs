@@ -9,7 +9,7 @@ using System.Windows.Media;
 namespace Aumentos;
 
 internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layout, string Patch);
-internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string Champion, Mode Mode, OpGgBuildView? Source,
+internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string? Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
     string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null,
     bool HideStartingItems = false);
