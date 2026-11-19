@@ -6,6 +6,8 @@ namespace Aumentos;
 
 internal sealed class ArenaBuilds(Ratings ratings)
 {
+    internal const string ChampionFit = "Encaja con tu campeón";
+    internal const string PublishedPick = "De la build de OP.GG";
     private const int Slots = 6;
     private static readonly HashSet<string> Healers = new(["Aatrox", "Briar", "DrMundo", "Illaoi", "Nami",
         "Nilah", "Sona", "Soraka", "Swain", "Sylas", "Taric", "Vladimir", "Warwick", "Yuumi", "Zac"], StringComparer.OrdinalIgnoreCase);
@@ -64,7 +66,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
             var boot = bootIds.Append(DefaultBoot(role)).Select(Resolve).OfType<ArenaItem>()
                 .FirstOrDefault(item => item.Buyable && IsBoot(item));
             if (boot is not null)
-                steps.Add(Step(boot, bootIds.Any(id => Resolve(id)?.Id == boot.Id) ? "Base OP.GG" : "Botas para tu perfil"));
+                steps.Add(Step(boot, bootIds.Any(id => Resolve(id)?.Id == boot.Id) ? PublishedPick : "Botas para tu campeón"));
         }
 
         foreach (var item in core.Concat(defaults.Select(Resolve).OfType<ArenaItem>()))
@@ -72,7 +74,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
             if (steps.Count >= 4)
                 break;
             if (CanAdd(item, steps))
-                steps.Add(Step(item, core.Contains(item) ? "Base OP.GG" : "Afinidad con tu campeón"));
+                steps.Add(Step(item, core.Contains(item) ? PublishedPick : ChampionFit));
         }
 
         foreach (var counter in Counters(role, rivals).OrderByDescending(counter => counter.Priority))
@@ -96,7 +98,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
             if (steps.Count == Slots)
                 break;
             if (CanAdd(item, steps))
-                steps.Add(Step(item, core.Contains(item) ? "Base OP.GG" : "Afinidad con tu campeón"));
+                steps.Add(Step(item, core.Contains(item) ? PublishedPick : ChampionFit));
         }
         return steps.Count == Slots ? new(steps.ToArray()) : null;
     }
@@ -133,33 +135,33 @@ internal sealed class ArenaBuilds(Ratings ratings)
         bool frontLine = role is "Tank" or "Support" or "Fighter";
 
         if (healing.Length > 0)
-            yield return new(90 + healing.Length, Reason("Curación rival", healing), role switch
+            yield return new(90 + healing.Length, Reason("Para reducir la curación de", healing), role switch
             {
                 "Tank" => [223075], "Mage" or "Support" => [223165], "Marksman" => [223033], _ => [226609]
             });
         if (critical.Length > 0 && frontLine)
-            yield return new(85, Reason("Críticos rivales", critical), [223143]);
+            yield return new(85, Reason("Contra los golpes críticos de", critical), [223143]);
         if (armored.Length >= 2 || armored.Any(rival => rival.Armor >= 2))
-            yield return new(80, Reason("Armadura comprada", armored), role switch
+            yield return new(80, Reason("Contra la armadura de", armored), role switch
             {
                 "Marksman" => [223036, 223302], "Fighter" => [223071, 226694], "Assassin" => [226694], _ => []
             });
         if ((resistant.Length >= 2 || resistant.Any(rival => rival.MagicResist >= 2)) && role == "Mage")
-            yield return new(80, Reason("Resistencia mágica comprada", resistant), [223135, 223137]);
+            yield return new(80, Reason("Contra la resistencia mágica de", resistant), [223135, 223137]);
         if (shielded.Length > 0 && role is "Assassin" or "Fighter")
-            yield return new(79, Reason("Escudos rivales", shielded), [226695]);
+            yield return new(79, Reason("Contra los escudos de", shielded), [226695]);
         if (magical.Length > physical.Length)
-            yield return new(70 + magical.Length, Reason("Daño mágico rival", magical), role switch
+            yield return new(70 + magical.Length, Reason("Contra el daño mágico de", magical), role switch
             {
                 "Tank" or "Support" => [222504, 224401, 223065], "Mage" => [223102], "Marksman" => [223091, 223156], _ => [223156]
             });
         if (physical.Length > magical.Length)
-            yield return new(70 + physical.Length, Reason("Daño físico rival", physical), role switch
+            yield return new(70 + physical.Length, Reason("Contra el daño físico de", physical), role switch
             {
                 "Tank" or "Support" => [223110, 223143, 223742], "Mage" => [223157], "Marksman" => [223026], _ => [226333, 223026]
             });
         if (tanks.Length > 0 && role is "Mage" or "Fighter" or "Marksman")
-            yield return new(60 + tanks.Length, Reason("Vida máxima rival", tanks), role == "Mage" ? [226653] : [223153]);
+            yield return new(60 + tanks.Length, Reason("Contra rivales con mucha vida como", tanks), role == "Mage" ? [226653] : [223153]);
     }
 
     private Rival? ReadRival(ArenaOpponent opponent)
@@ -211,7 +213,8 @@ internal sealed class ArenaBuilds(Ratings ratings)
     {
         "Mage" => 223020, "Marksman" => 223006, "Tank" => 223111, "Support" => 223158, _ => 223047
     };
-    private static string Reason(string label, Rival[] rivals) => $"{label} · {string.Join(", ", rivals.Take(2).Select(rival => rival.Champion.Name))}";
+    private static string Reason(string label, Rival[] rivals) =>
+        $"{label} {string.Join(" y ", rivals.Take(2).Select(rival => rival.Champion.Name))}";
     private static BuildStep Step(ArenaItem item, string detail, bool owned = false) => new(new(item.Id, item.Name), detail, owned);
     private sealed record Counter(int Priority, string Reason, int[] ItemIds);
     private sealed record Rival(Champion Champion, bool MagicDamage, bool PhysicalDamage, bool Healing, bool Shielded,

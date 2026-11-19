@@ -172,7 +172,7 @@ internal sealed class MayhemBuilds
             if (steps.Count == 6)
                 break;
             if (CanAdd(id, steps) && !items[id].Boots)
-                steps.Add(Step(id, "Opción general"));
+                steps.Add(Step(id, "Encaja con tu build"));
         }
         return steps.Count == 6 ? new(steps.ToArray()) : null;
     }
@@ -228,22 +228,22 @@ internal sealed class MayhemBuilds
 
         var healers = rivals.Where(rival => rival.Sustain || Healers.Contains(rival.Champion.Key)).ToArray();
         if (healers.Length >= 2 || healers.Any(rival => TeamHealers.Contains(rival.Champion.Key)))
-            threats.Add(new(Need.Healing, 7 + healers.Length, ChampionReason("Curación", healers)));
+            threats.Add(new(Need.Healing, 7 + healers.Length, ChampionReason("Para reducir la curación de", healers)));
         int shields = rivals.Count(rival => rival.Shields);
         if (shields >= 2)
-            threats.Add(new(Need.Shields, 6 + shields, "Varios rivales con escudos"));
+            threats.Add(new(Need.Shields, 6 + shields, "Contra rivales con escudos"));
         var divers = rivals.Where(rival => rival.Dive).ToArray();
         if (divers.Length > 0)
-            threats.Add(new(Need.Dive, 5 + divers.Length, ChampionReason("Amenaza de entrada", divers)));
+            threats.Add(new(Need.Dive, 5 + divers.Length, ChampionReason("Para resistir las entradas de", divers)));
         int health = rivals.Count(rival => rival.Health >= 500);
         if (health >= 2)
             threats.Add(new(Need.Health, 5 + health, PurchaseReason(health, "vida")));
         else if (rivals.Count(rival => rival.Champion.Roles[0] == "Tank") >= 2)
-            threats.Add(new(Need.Health, 6, "Varios tanques rivales"));
+            threats.Add(new(Need.Health, 6, "Contra varios tanques rivales"));
         if (rivals.Count(rival => rival.MagicDamage) >= 3)
-            threats.Add(new(Need.MagicDamage, 6, "Amenazas de daño mágico"));
+            threats.Add(new(Need.MagicDamage, 6, "Contra el daño mágico rival"));
         if (rivals.Count(rival => rival.PhysicalDamage) >= 3)
-            threats.Add(new(Need.PhysicalDamage, 6, "Amenazas de daño físico"));
+            threats.Add(new(Need.PhysicalDamage, 6, "Contra el daño físico rival"));
         return threats.OrderByDescending(threat => threat.Priority);
     }
 
@@ -267,10 +267,10 @@ internal sealed class MayhemBuilds
         opponent.Items.Select(id => items.GetValueOrDefault(id)).OfType<MayhemItem>();
 
     private static string PurchaseReason(int count, string stat) => count == 1
-        ? $"1 rival con compras de {stat}" : $"{count} rivales con compras de {stat}";
+        ? $"Contra 1 rival con objetos de {stat}" : $"Contra {count} rivales con objetos de {stat}";
 
     private static string ChampionReason(string label, Opponent[] opponents) =>
-        $"{label} · {string.Join(", ", opponents.Take(2).Select(rival => rival.Champion.Name))}";
+        $"{label} {string.Join(" y ", opponents.Take(2).Select(rival => rival.Champion.Name))}";
 
     private static int BaseId(int id) => id switch
     {

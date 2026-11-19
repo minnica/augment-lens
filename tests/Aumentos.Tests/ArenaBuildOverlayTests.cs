@@ -1,6 +1,6 @@
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using Aumentos;
 
 internal static class ArenaBuildOverlayTests
@@ -12,8 +12,8 @@ internal static class ArenaBuildOverlayTests
             new(new(223047, "Punteras de Acero Revestidas"), "Comprado", Owned: true),
             new(new(443054, "Garras de Acero Oscuro"), "Comprado", Owned: true),
             new(new(447116, "Jitte Kinkou"), "Comprado", Owned: true),
-            new(new(226609, "Sierraespada Quimpunk"), "Curación rival · Karma, Zed"),
-            new(new(223143, "Presagio de Randuin"), "Críticos rivales · Zed")
+            new(new(226609, "Sierraespada Quimpunk"), "Para reducir la curación de Karma y Zed"),
+            new(new(223143, "Presagio de Randuin"), "Contra los golpes críticos de Zed")
         ]);
         var clientPatch = ratings.Catalog.Patch;
         var build = new OpGgBuildSnapshot(Mode.Arena, "Jax", clientPatch, clientPatch, DateTimeOffset.UtcNow,
@@ -26,33 +26,35 @@ internal static class ArenaBuildOverlayTests
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             overlay.RenderContent(view);
             var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-            Check(blocks.Skip(2).SequenceEqual(["Daño rival estimado", "Rivales de rondas jugadas",
-                "Por comprar · 2", "Después", "Comprados · 4/6", "Referencia de prismáticos · OP.GG"]) &&
-                ReadText(panel.Children.OfType<StackPanel>().Single()).SequenceEqual(["67% AD", "33% AP"]),
+            Check(blocks.SequenceEqual(["Build de Jax", "Arena", "Después", "Equipados · 4 de 6",
+                "Daño rival estimado", "Según rivales de rondas jugadas", "Referencias de OP.GG", "Parche 26.23", "Objetos prismáticos"]) &&
+                ReadText(panel.Children.OfType<StackPanel>().Single()).SequenceEqual(["67% físico", "33% mágico"]),
                 "Arena muestra el daño rival junto a las compras y la referencia prismática");
             var next = panel.Children.OfType<Border>().Single();
             Check(next.BorderThickness.Left > 0 && next.Background is not null &&
-                ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Curación rival · Karma, Zed"]) &&
-                ReadText(panel.Children.OfType<DockPanel>().Single()).SequenceEqual(["2.", "Presagio de Randuin", "Críticos rivales · Zed"]),
+                ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
+                ReadText(panel.Children.OfType<DockPanel>().Single()).SequenceEqual(["2.", "Presagio de Randuin", "Contra los golpes críticos de Zed"]),
                 "la siguiente compra se destaca y el segundo objeto conserva posición y motivo");
-            var owned = panel.Children.OfType<Grid>().Take(2).SelectMany(row => row.Children.OfType<StackPanel>())
-                .Select(tile => AutomationProperties.GetName(((Border)tile.Children[0]).Child)).ToArray();
+            var owned = panel.Children.OfType<UniformGrid>().Take(2).SelectMany(ReadText);
             Check(owned.SequenceEqual(jaxRoute.Steps.Take(4).Select(step => step.Item.Name)),
                 "los objetos comprados se agrupan aparte y conservan sus iconos y nombres");
 
             var empty = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with
-                { Detail = "Afinidad con tu campeón", Owned = false }).ToArray());
+                { Detail = "Encaja con tu campeón", Owned = false }).ToArray());
             overlay.RenderContent(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null });
             var emptyLabels = ReadText(panel).ToArray();
-            Check(emptyLabels.Contains("Daño rival estimado · esperando rivales") &&
-                emptyLabels.Contains("Por comprar · 6") && emptyLabels.Contains("Comprados · 0/6") &&
+            Check(emptyLabels.Contains("Esperando confirmar rivales.") &&
+                emptyLabels.Contains("Equipados · 0 de 6") &&
                 emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<DockPanel>().Count() == 5 &&
-                !panel.Children.OfType<Grid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
+                !panel.Children.OfType<UniformGrid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
+            overlay.RenderContent(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null }, 215);
+            Check(ReadText(panel).Count(label => label == "Encaja con tu campeón") == 1 &&
+                panel.Children.OfType<DockPanel>().Count() == 5, "la vista estrecha agrupa las explicaciones genéricas consecutivas");
 
             var full = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with { Detail = null, Owned = true }).ToArray());
             overlay.RenderContent(view with { Plan = full, Source = null });
             var fullLabels = ReadText(panel).ToArray();
-            Check(fullLabels.Contains("Build completa") && fullLabels.Contains("Comprados · 6/6") &&
+            Check(fullLabels.Contains("Build completa") && fullLabels.Contains("Equipados · 6 de 6") &&
                 !fullLabels.Contains("Siguiente compra") && !panel.Children.OfType<DockPanel>().Any(),
                 "inventario lleno sin una compra pendiente");
         }

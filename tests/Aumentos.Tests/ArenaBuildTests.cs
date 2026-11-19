@@ -18,11 +18,11 @@ internal static class ArenaBuildTests
         var defense = planner.Recommend(cho, match, source);
         Check(defense is not null && defense.Steps.Select(step => step.Item.Id).SequenceEqual([..equipped, 222504]) &&
             defense.Steps.Take(5).All(step => step is { Detail: "Comprado", Owned: true }) && !defense.Steps[5].Owned &&
-            defense.Steps[5].Item.Name == "Rukerno Kaénico" && defense.Steps[5].Detail == "Daño mágico rival · Brand, Lux",
+            defense.Steps[5].Item.Name == "Rukerno Kaénico" && defense.Steps[5].Detail == "Contra el daño mágico de Brand y Lux",
             "Cho'Gath conserva dos prismáticos y sus botas, y completa el sexto hueco contra daño mágico");
 
         var physical = match with { Opponents = [new("Jinx", [223031, 223032]), new("Caitlyn", [223031]), new("Graves", [223031])] };
-        Check(planner.Recommend(cho, physical, source)?.Steps[5] is { Item.Id: 223143, Detail: "Críticos rivales · Jinx" },
+        Check(planner.Recommend(cho, physical, source)?.Steps[5] is { Item.Id: 223143, Detail: "Contra los golpes críticos de Jinx" },
             "el sexto objeto cambia ante un rival con varios objetos de críticos");
 
         var damageMix = match with { Opponents = [new("Lux", [223031]), new("Jinx", [223031]), new("Brand", []), new("Caitlyn", [])] };
@@ -36,7 +36,7 @@ internal static class ArenaBuildTests
         var jinx = new GameContext(Mode.Arena, "Jinx");
         var antiHeal = planner.Recommend(jinx, new ArenaMatch([223006, 223032, 223031, 223072],
             [new("Aatrox", [223074, 223075]), new("Ornn", [223110, 226665]), new("Lux", [])]), null);
-        Check(antiHeal is { Steps.Length: 6 } && antiHeal.Steps[4] is { Item.Id: 223033, Detail: "Curación rival · Aatrox" } &&
+        Check(antiHeal is { Steps.Length: 6 } && antiHeal.Steps[4] is { Item.Id: 223033, Detail: "Para reducir la curación de Aatrox" } &&
             antiHeal.Steps.All(step => step.Item.Id is not (223036 or 223302 or 226694)),
             "contra curación y armadura conserva un solo objeto de Último Suspiro");
 
@@ -44,15 +44,15 @@ internal static class ArenaBuildTests
         var pen = planner.Recommend(brand, new ArenaMatch([223020, 226655, 223089, 224645],
             [new("Ornn", [222504, 226665]), new("Swain", [224401])]), null);
         Check(pen is { Steps.Length: 6 } && pen.Steps[4] is { Item.Id: 223165 } &&
-            pen.Steps[5] is { Item.Id: 223135, Detail: "Resistencia mágica comprada · Ornn, Swain" },
+            pen.Steps[5] is { Item.Id: 223135, Detail: "Contra la resistencia mágica de Ornn y Swain" },
             "el mago encuentra heridas graves y penetración frente a inventarios que las justifican");
 
         var fallback = planner.Recommend(cho, new ArenaMatch([], []), null);
         Check(fallback is { Steps.Length: 6 } &&
-            fallback.Steps.All(step => step.Detail != "Base OP.GG" && step.Item.Id < 440000),
+            fallback.Steps.All(step => step.Detail != "De la build de OP.GG" && step.Item.Id < 440000),
             "la ruta local de seis objetos sigue disponible sin fuente ni información de rivales");
         var hosted = planner.Recommend(cho, new ArenaMatch([], []), source);
-        Check(hosted is { Steps.Length: 6 } && hosted.Steps.Take(4).All(step => step.Detail == "Base OP.GG") &&
+        Check(hosted is { Steps.Length: 6 } && hosted.Steps.Take(4).All(step => step.Detail == "De la build de OP.GG") &&
             hosted.Steps.All(step => step.Item.Id != 447119), "se aprovecha el parche anterior sin recomendar comprar prismáticos");
 
         var mixedSource = source with { Groups = [

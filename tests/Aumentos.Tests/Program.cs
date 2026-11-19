@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -536,19 +537,20 @@ internal static class Program
                 .StartsWith("El Tormento de Liandry", StringComparison.Ordinal), "orden de objetos en la ruta");
             var shopPanel = (Border)((Viewbox)overlay.Content).Child;
             var rows = (StackPanel)shopPanel.Child;
-            var route = rows.Children.OfType<Grid>().Single();
-            var displayedIcons = route.Children.OfType<StackPanel>().Select(tile => (Image)((Border)tile.Children[0]).Child).ToArray();
+            var route = rows.Children.OfType<UniformGrid>().Single();
+            var displayedIcons = BuildElements<Image>(route).ToArray();
             Check(displayedIcons.Length == 2 && displayedIcons.All(icon => icon.Source is BitmapSource) &&
                 displayedIcons.Select(icon => System.Windows.Automation.AutomationProperties.GetName(icon))
                     .SequenceEqual(["El Tormento de Liandry", "Cetro de Cristal de Rylai"]) &&
-                route.Children.OfType<TextBlock>().Single().Text == "→",
-                "iconos y flechas en el orden de compra");
+                BuildElements<TextBlock>(route).Select(text => text.Text)
+                    .SequenceEqual(["1.", "El Tormento de Liandry", "2.", "Cetro de Cristal de Rylai"]),
+                "iconos y pasos numerados en el orden de compra");
 
             var plan = new MayhemBuildPlan([
                 new(new(6653, "El Tormento de Liandry"), "Comprado", Owned: true), new(new(3020, "Botas del Hechicero")),
                 new(new(3116, "Cetro de Cristal de Rylai")), new(new(3089, "Sombrero Mortífero de Rabadon")),
-                new(new(3135, "Báculo del Vacío"), "2 rivales con compras de resistencia mágica"),
-                new(new(3165, "Morellonomicón"), "Curación rival")
+                new(new(3135, "Báculo del Vacío"), "Contra 2 rivales con objetos de resistencia mágica"),
+                new(new(3165, "Morellonomicón"), "Para reducir la curación rival")
             ]);
             var build = data with { Groups = [new(OpGgBuildSection.Start, [[new(1056, "Sortija de Doran")]]),
                 new(OpGgBuildSection.Boots, [[new(3020, "Botas del Hechicero")]]), ..data.Groups] };
@@ -558,16 +560,16 @@ internal static class Program
             var nextRow = (DockPanel)next.Child;
             var nextLabels = PurchaseText(nextRow);
             var after = rows.Children.OfType<DockPanel>().ToArray();
-            var boughtRow = rows.Children.OfType<Grid>().First();
+            var boughtRow = rows.Children.OfType<UniformGrid>().First();
             var bought = boughtRow.Children.OfType<StackPanel>().Single();
-            Check(shopPanel.Width == 400 && nextRow.Children.OfType<Image>().Single().Width == 50 &&
+            Check(nextRow.Children.OfType<Border>().Single().Width > after[0].Children.OfType<Border>().Single().Width &&
                 nextLabels.Select(text => text.Text).SequenceEqual(["Siguiente compra", "Botas del Hechicero"]) &&
                 nextLabels[1].FontSize > PurchaseText(after[0])[0].FontSize &&
                 rows.Children.IndexOf(next) < rows.Children.IndexOf(boughtRow) &&
                 bought.Children.OfType<TextBlock>().Single().Text == "El Tormento de Liandry" &&
                 after.Select(row => PurchaseText(row)[0].Text).SequenceEqual(plan.Steps.Skip(2).Select(step => step.Item.Name)) &&
-                after.SelectMany(PurchaseText).Any(text => text.Text == "2 rivales con compras de resistencia mágica") &&
-                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Comprados · 1/6"),
+                after.SelectMany(PurchaseText).Any(text => text.Text == "Contra 2 rivales con objetos de resistencia mágica") &&
+                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Equipados · 1 de 6"),
                 "ARAM Caos destaca la primera compra pendiente por encima del inventario y las referencias");
             CheckDamageBar(rows, 78);
             Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "Objetos iniciales"),
@@ -575,7 +577,7 @@ internal static class Program
             view = view with { HideStartingItems = true };
             overlay.Render(view);
             Check(rows.Children.OfType<TextBlock>().All(text => text.Text != "Objetos iniciales") &&
-                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Botas") && rows.Children.OfType<Grid>().Count() == 2 &&
+                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Botas") && rows.Children.OfType<UniformGrid>().Count() == 2 &&
                 PurchaseText((DockPanel)rows.Children.OfType<Border>().Single().Child)[1].Text == "Botas del Hechicero",
                 "al terminar las compras iniciales desaparece solo esa sección y se mantiene la siguiente compra");
             overlay.Render(view with { EnemyDamage = new(60) });
@@ -587,8 +589,27 @@ internal static class Program
             overlay.Render(view with { Plan = new MayhemBuildPlan([plan.Steps[0], plan.Steps[1] with { Owned = true }, ..plan.Steps.Skip(2)]) });
             var updatedNext = (DockPanel)rows.Children.OfType<Border>().Single().Child;
             Check(PurchaseText(updatedNext)[1].Text == "Cetro de Cristal de Rylai" &&
-                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Comprados · 2/6"),
+                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Equipados · 2 de 6"),
                 "la siguiente compra avanza cuando el inventario confirma la recomendación anterior");
+
+            double dpi = VisualTreeHelper.GetDpi(overlay).DpiScaleX;
+            int Pixels(int dips) => (int)Math.Round(dips * dpi);
+            var compactBounds = new Int32Rect(-30000, -30000, Pixels(1040), Pixels(640));
+            var shop = new Int32Rect(Pixels(220), Pixels(50), Pixels(560), Pixels(520));
+            var core = plan.Steps.Select(step => step.Item).ToArray();
+            var reference = data with { Groups = [new(OpGgBuildSection.Core, [core])] };
+            overlay.Render(view with { Bounds = compactBounds, Shop = shop, Plan = null, Source = new(reference, "Prueba") });
+            var compactRows = rows.Children.OfType<DockPanel>().ToArray();
+            placement = Native.Bounds(handle);
+            Check(placement.X >= compactBounds.X + shop.X + shop.Width &&
+                placement.X + placement.Width <= compactBounds.X + compactBounds.Width &&
+                compactRows.SelectMany(row => row.Children.OfType<TextBlock>().Select(text => text.Text))
+                    .SequenceEqual(core.SelectMany((item, index) => new[] { $"{index + 1}.", item.Name })),
+                "la ruta de seis objetos conserva nombres y orden en el formato estrecho junto a la tienda");
+            overlay.Render(view with { Plan = null, Source = new(data with { Groups = [] }, "Prueba"), EnemyDamage = null });
+            Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "OP.GG no tiene recomendaciones de objetos disponibles."),
+                "una respuesta con solo hechizos muestra un estado vacío de objetos");
+
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la build se oculta al desactivarla");
             Console.WriteLine("Panel de builds de OP.GG verificado.");
@@ -606,12 +627,27 @@ internal static class Program
             var bar = (Grid)distribution.Children[1];
             var segments = bar.Children.OfType<Border>().ToArray();
             Check(labels.Children.OfType<TextBlock>().Select(label => label.Text)
-                    .SequenceEqual([$"{physical}% AD", $"{100 - physical}% AP"]) &&
+                    .SequenceEqual([$"{physical}% físico", $"{100 - physical}% mágico"]) &&
                 bar.ActualWidth > 0 && segments.Length == 2 &&
                 Math.Abs(segments[0].ActualWidth - bar.ActualWidth * physical / 100) <= 1 &&
                 Math.Abs(segments[1].ActualWidth - bar.ActualWidth * (100 - physical) / 100) <= 1,
                 "la barra muestra ambos porcentajes y actualiza las proporciones aunque la ruta siga igual");
         }
+    }
+
+    private static IEnumerable<T> BuildElements<T>(UIElement element) where T : UIElement
+    {
+        if (element is T match)
+            yield return match;
+        var children = element switch
+        {
+            Panel panel => panel.Children.Cast<UIElement>(),
+            Decorator { Child: { } child } => new[] { child },
+            _ => []
+        };
+        foreach (var child in children)
+        foreach (var descendant in BuildElements<T>(child))
+            yield return descendant;
     }
 
     private static void ArenaBuildOverlaySmoke(Ratings ratings)
@@ -630,11 +666,11 @@ internal static class Program
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
-            var tiles = panel.Children.OfType<Grid>().SelectMany(row => row.Children.OfType<StackPanel>()).ToArray();
+            var equipped = panel.Children.Cast<UIElement>().SkipWhile(element => element is not TextBlock { Text: "Equipados · 5 de 6" })
+                .TakeWhile(element => element is not System.Windows.Shapes.Rectangle).SelectMany(BuildElements<Image>).ToArray();
             Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X + shop.X + shop.Width &&
-                placement.X + placement.Width <= bounds.X + bounds.Width && tiles.Length == 5 &&
-                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Comprados · 5/6") &&
-                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Rivales de rondas jugadas"),
+                placement.X + placement.Width <= bounds.X + bounds.Width && equipped.Length == 5 &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Faltan datos para estimar el daño rival."),
                 "la ruta de Arena distingue la compra pendiente y cinco equipadas junto a la tienda");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "la ruta de Arena se oculta al cerrar el panel");

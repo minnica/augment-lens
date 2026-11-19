@@ -39,7 +39,8 @@ internal static class MayhemBuildTests
             "los objetos iniciales se ocultan tras una pieza recomendada o un objeto terminado");
         var initial = source.Recommend(game, match!.Mayhem, build);
         Check(initial?.Steps.Select(step => step.Item.Id).SequenceEqual([6655, 3020, 4645, 3089, 3135, 3165]) == true &&
-            initial.Steps[4].Detail == "2 rivales con compras de resistencia mágica" && initial.Steps[5].Detail == "Curación · Soraka",
+            initial.Steps[4].Detail == "Contra 2 rivales con objetos de resistencia mágica" &&
+            initial.Steps[5].Detail == "Para reducir la curación de Soraka",
             "las compras de resistencia y la sanadora determinan los dos últimos objetos terminados");
 
         var flat = match.Mayhem! with { Opponents = [new("Jinx", []), new("Brand", []), new("Caitlyn", [])] };
