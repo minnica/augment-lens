@@ -40,6 +40,8 @@ internal static class Program
         Check(ratings.Recognize(Mode.Caos, "Qxzblw") is null, "texto ambiguo o desconocido");
         Check(ratings.Recognize(Mode.Caos, "Pan y") is null, "títulos parciales");
         Check(ratings.Rate(Mode.Caos, "DrMundo", reading!.Id) == Tier.S, "prioridad de la excepción editorial");
+        var bees = ratings.Recognize(Mode.Caos, "¡¡¡ABEJAS!!!");
+        Check(bees is not null && ratings.Rate(Mode.Caos, "Lux", bees.Id) == Tier.A, "Abejas con Lux en ARAM Caos");
         Check(ratings.Rate(Mode.Arena, "DrMundo", -1) is null, "aumento sin valoración");
         var cards = ratings.Catalog.Augments.Where(card => card.Mode == "Arena").ToArray();
         Check(cards.GroupBy(card => ratings.Rate(Mode.Arena, "Jinx", card.Id)).Any(group => group.Count() >= 3),
