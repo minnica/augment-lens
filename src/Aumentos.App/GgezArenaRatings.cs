@@ -89,7 +89,7 @@ internal sealed class GgezArenaRatings
         var path = Path.Combine(directory, $"{champion}.json");
         var data = entry.View.Data ?? ReadCache(path, champion);
         var interval = data?.IsPrevious == true ? RetryInterval : RefreshInterval;
-        if (data is not null && data.FetchedAt + interval > DateTimeOffset.UtcNow)
+        if (data is { PlacementSchemaRead: true } && data.FetchedAt + interval > DateTimeOffset.UtcNow)
         {
             SetView(entry, data, Describe(data), data.FetchedAt + interval);
             return;
@@ -142,12 +142,20 @@ internal sealed class GgezArenaRatings
         try
         {
             var cached = Ratings.Read<GgezArenaSnapshot>(path);
-            return cached.ClientPatch == patch && cached.SourcePatch is not null &&
-                (cached.SourcePatch == patch || cached.SourcePatch == previousPatch) &&
-                string.Equals(cached.Champion, champion, StringComparison.OrdinalIgnoreCase) &&
-                cached.FetchedAt <= DateTimeOffset.UtcNow && cached.SampleGames > 0 && cached.Picks is { Count: > 0 } &&
-                cached.Picks.All(item => cardIds.Contains(item.Key) && item.Value is { Percent: >= 0 and <= 100, GamesPicked: >= 0 } &&
-                    item.Value.GamesPicked <= cached.SampleGames) ? cached : null;
+            if (cached.ClientPatch != patch || cached.SourcePatch is null ||
+                (cached.SourcePatch != patch && cached.SourcePatch != previousPatch) ||
+                !string.Equals(cached.Champion, champion, StringComparison.OrdinalIgnoreCase) ||
+                cached.FetchedAt > DateTimeOffset.UtcNow || cached.SampleGames <= 0 || cached.Picks is not { Count: > 0 } ||
+                !cached.Picks.All(item => cardIds.Contains(item.Key) &&
+                    item.Value is { Percent: >= 0 and <= 100, GamesPicked: >= 0 } && item.Value.GamesPicked <= cached.SampleGames))
+                return null;
+
+            var placementCount = cached.PlacementCount is >= 2 and <= 8 ? cached.PlacementCount : null;
+            return cached with
+            {
+                PlacementCount = placementCount,
+                Picks = cached.Picks.ToDictionary(item => item.Key, item => item.Value.ValidatePlacement(placementCount))
+            };
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {

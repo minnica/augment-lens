@@ -4,7 +4,7 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 
 | Función | ARAM Caos | Arena |
 | --- | --- | --- |
-| Comparación de aumentos en partida | OP.GG, estimación local y ARAMMayhem.com | Tier local por campeón, objetos y nivel con mecánicas de LoL Wiki. Elección en OP.GG y GGEZ.GG |
+| Comparación de aumentos en partida | OP.GG, estimación local, respaldo de AramHex y popularidad de ARAMMayhem.com | Posiciones observadas de GGEZ.GG y afinidad local por campeón, objetos y nivel con mecánicas de LoL Wiki |
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
 | Hechizos de OP.GG | En la selección de campeón | — |
 | Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
@@ -22,7 +22,7 @@ Se guarda una calibración por modo, tamaño de ventana y número de cartas. Se 
 
 ## Comparar aumentos en partida
 
-El distintivo centra la letra principal y coloca sus etiquetas y detalles debajo. En **ARAM Caos** se apoya sobre el borde superior de la carta y deja visibles el icono y la tecla de la habilidad. La letra principal es el tier de **OP.GG** para tu campeón (S, A, B, C, D o E). Cuando hay una afinidad calculada por la app, su letra aparece más pequeña junto a **Local**, incluso si coincide con la de OP.GG. Si falta el tier publicado, la afinidad local toma el lugar principal. En **Arena** el borde superior de cada carta de aumento, fragmento u objeto cruza el centro de su distintivo. En la vista compacta quedan visibles el icono y las estrellas. Su letra principal siempre es local (S+, A, B o C). Las etiquetas **S+** se distinguen con un fondo ámbar y un marco dorado, tanto en la vista compacta como en la detallada.
+El distintivo centra la letra principal y coloca sus etiquetas y detalles debajo. En **ARAM Caos** se apoya sobre el borde superior de la carta y deja visibles el icono y la tecla de la habilidad. La letra principal es el tier de **OP.GG** para tu campeón (S, A, B, C, D o E) cuando está publicado. La estimación local y los datos compatibles de AramHex cubren huecos en la publicación. En **Arena** el borde superior de cada carta de aumento, fragmento u objeto cruza el centro de su distintivo. En la vista compacta quedan visibles el icono y las estrellas. La letra identifica su origen con **GGEZ.GG**, **GGEZ global** o **Local**. Las mejoras de aumentos, los fragmentos, los objetos y las sinergias locales específicas conservan su valoración propia. Las etiquetas locales **S+** se distinguen con un fondo ámbar y un marco dorado.
 
 Activa **Detalles de las cartas** en el icono de la bandeja para ver porcentajes de elección, parches y motivos. Regresa a League para ver el cambio. La vista compacta conserva las recomendaciones de Arena, el nivel y las condiciones de afinidad variable.
 
@@ -32,7 +32,7 @@ Activa **Detalles de las cartas** en el icono de la bandeja para ver porcentajes
 | A | Estimación local para una mecánica afín al perfil del campeón |
 | B | Estimación local intermedia para la sinergia evaluada |
 | C | Estimación local para una mecánica con poca afinidad con el perfil |
-| Sin tier | La carta se reconoció y la fuente carece de una valoración para el campeón, el modo y el parche |
+| Sin muestra suficiente | La carta se reconoció y falta evidencia compatible para asignarle una letra |
 | Afinidad variable | La utilidad depende de una condición de la partida. El overlay muestra cuál |
 | Leyendo carta… | La app está intentando identificar la carta |
 
@@ -43,6 +43,8 @@ Al detectar el modo y el campeón, la app carga en segundo plano la tabla de su 
 La copia por parche, modo y campeón se guarda en `%LOCALAPPDATA%\AumentosLoL\opgg` y se actualiza tras 12 horas de antigüedad cuando vuelves a usar ese campeón. En Arena, si OP.GG solo publica el parche inmediatamente anterior de la misma temporada, el overlay identifica el parche junto al porcentaje y vuelve a consultar a los 15 minutos. Si falla la red, la app puede seguir usando su copia. El diagnóstico indica cuándo se actualizó o por qué falta. [Datos de aumentos de OP.GG](https://op.gg/lol/modes/aram-mayhem/lux/augments) · [Uso de los datos de OP.GG](https://help.op.gg/hc/en-us/articles/31091405109401-Can-I-use-OP-GG-data)
 
 En **Arena**, **GGEZ.GG** muestra el porcentaje de elección del aumento con ese campeón y el número de partidas que lo respalda, por ejemplo «59/760 partidas · 26.23». La muestra abarca todas las regiones que recoge la fuente. Se usa el parche vigente o el inmediatamente anterior de la misma temporada con la marca «parche ant.». El menú **Datos de GGEZ.GG** abre la página del último campeón de Arena que detectó la app. [Ejemplo en Arena de Elise](https://ggez.gg/champion/Elise/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
+
+**GGEZ.GG** también aporta posiciones medias. La app calcula un tier observado para el parche vigente con al menos **50 partidas** de esa carta para ese campeón. La referencia usa otras cartas de la misma rareza de la misma muestra y se modera la diferencia cuando hay pocas partidas. **GGEZ global** cubre huecos si faltan tanto el tier por campeón como el local, usando al menos **100 participaciones** del formato global validado. El número junto a la letra indica cuántas observaciones tiene la carta. **Recomendado** por datos requiere que la oferta completa tenga muestra compatible del campeón y una ventaja clara, con al menos 100 partidas para la ganadora. Las comparaciones locales específicas siguen usando la mecánica, los objetos y el nivel. [Resultados globales de aumentos de Arena](https://ggez.gg/tierlist/arena/augments)
 
 **League of Legends Wiki** aporta las mecánicas de cartas de Arena. Cuando una mecánica ayuda a valorar tu oferta, aparece **Mecánica de LoL Wiki**. La app calcula la letra a partir de esa mecánica, las características de tu campeón y los objetos que el cliente confirma en tu inventario. Con Jax y la misma oferta, **Goliat** puede quedar primero si llevas Corazón de Acero y Égida de Fuego Solar. Con Espada del Rey Arruinado y Espadafuria de Guinsoo puede quedar primero **Tifón**, porque aplica sus efectos al impacto a un segundo rival. Cuando las dos opciones tienen igual respaldo, ambas conservan su letra. La comparación usa la copia de la Wiki incluida en la app. El menú **Mecánicas de League of Legends Wiki** abre la revisión que se usó. [Módulo de los colaboradores de League of Legends Wiki, revisión 4070515](https://wiki.leagueoflegends.com/en-us/Special:PermanentLink/4070515) · [Datos de la Wiki adaptados bajo CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/)
 
@@ -57,6 +59,10 @@ Para ajustar el panel **Top 5 prismáticos**, pulsa **Tamaño…** encima del pa
 Las cartas de aumentos de Arena muestran **Recomendado** cuando la comparación de la oferta completa identifica una ganadora. Con Renata Glasc, **Bendición Oscura** gana el empate en A frente a **Fuego Sagrado** y **Sacrificio Voluntario** porque su E permite acumular aceleración al escudar aliados. Con Jax sin compras que cambien el desempate, **Bailarín de Tap** gana ante **Goliat** para sostener ataques y **Hábil** gana ante **Tifón** para atacar a un solo objetivo. **¡Enciéndelos! Nv. 2** muestra el cambio de cuatro a cinco fuegos y el modificador de daño del 90 % al 100 %, y puede ganar el empate frente a **Cerbero**. El porcentaje de elección indica la frecuencia observada en la muestra de cada fuente.
 
 En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global de la carta en la muestra de esa fuente. La app prioriza el archivo del parche actual y, si aún falta, usa el inmediatamente anterior de la misma temporada. En ese caso, debajo del porcentaje aparece «Parche anterior» con el número. La fuente se consulta en segundo plano y se comparte entre todos los campeones. La app vuelve a comprobar los archivos anteriores cada 15 minutos y los del parche actual cada 12 horas mientras se usa el modo. [Datos de ARAMMayhem.com · CC BY 4.0](https://arammayhem.com/data/)
+
+**AramHex** aporta una letra de respaldo para el campeón a partir de partidas de **China** con reglas normales, con al menos **300 partidas** para la combinación. Los detalles identifican el origen, el parche y la muestra. Cuando se usa el parche anterior, solo entran cartas con mecánicas verificadas entre ambos parches y la letra publicada de OP.GG o la estimación local conserva prioridad. La app guarda las letras y el tamaño de la muestra. [AramHex · CC BY-NC 4.0](https://github.com/czgreat/aramhex-data)
+
+Para auditar la cobertura desde PowerShell sin entrar a una partida, ejecuta `.\dist\win-x64-wiki\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
 
 ## Builds de OP.GG en partida
 
@@ -113,6 +119,8 @@ Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El scrip
 Para preparar una versión mientras se usa la anterior, puedes publicar en otra carpeta con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-wiki`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
 
 Para actualizar el catálogo, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar. El overlay se suspende si detecta que el parche del juego difiere del catálogo.
+
+Después de actualizar el catálogo, ejecuta `powershell -File scripts/Get-AramHexCompatibility.ps1` para verificar las cartas de ARAM Caos cuyas mecánicas coinciden con el parche anterior de la misma temporada.
 
 Después de regenerar el catálogo, ejecuta `powershell -File scripts/Get-ArenaWikiMechanics.ps1` para vincularlo con la revisión pública más reciente. Con `-Revision 4070515` puedes reproducir la revisión incluida, del 29 de septiembre de 2026. El generador conserva los textos, la atribución y la licencia de la Wiki, y vincula títulos en inglés con IDs y claves del catálogo en español. Comprueba las reglas de `ArenaAugmentAffinity.cs` al cambiar de revisión. Las cifras que muestra el overlay provienen de los datos del parche del catálogo. [Módulo de mecánicas de Arena](https://wiki.leagueoflegends.com/en-us/Module:ArenaAugmentData/data) · [Datos del parche 16.23](https://raw.communitydragon.org/16.23/cdragon/arena/es_mx.json)
 

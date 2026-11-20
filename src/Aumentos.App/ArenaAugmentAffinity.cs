@@ -40,6 +40,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
             {
                 Local = local,
                 LocalReason = fit.Reason,
+                PreferLocalArenaTier = badge.PreferLocalArenaTier || fit.Contextual || fit.Priority is not null,
                 UsesWiki = badge.UsesWiki || fit.Contextual || local != badge.Local || fit.Reason != badge.LocalReason
             };
         }

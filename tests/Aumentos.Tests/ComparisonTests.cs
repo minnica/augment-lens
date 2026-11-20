@@ -432,8 +432,12 @@ internal static class ComparisonTests
         var second = source.ForCaptureAsync(elise, default);
         var ready = await work;
         var data = ready?.Data;
-        Check(data is { IsPrevious: false, SampleGames: 760 } && (await second)?.Data == data && server.Requests == 1 &&
+        Check(data is { IsPrevious: false, SampleGames: 760, PlacementCount: 6, PlacementSchemaRead: true } &&
+            (await second)?.Data == data && server.Requests == 1 &&
             source.SourceUrl == GgezArenaPage.Address(elise.Champion).AbsoluteUri, "una descarga por campeón y enlace a la fuente");
+        Check(data?.Picks[97] is { AveragePlace: 3.4m, Rarity: 0 } &&
+            data.Picks[120] is { AveragePlace: null, Rarity: null, GamesPicked: 17 } &&
+            !data.Picks.ContainsKey(30), "lee la posición media y la rareza y descarta duplicados contradictorios");
         var labels = CardComparison.ForOffer(ratings, elise, [97, 120, 1034, null], new bool[4], null, ggez: data);
         Check(labels[0]?.Arena is { GamesPicked: 59, SampleGames: 760, Percent: 7.7631578947368425m } &&
             labels[1]?.Arena?.GamesPicked == 17 && labels[2]?.Arena is null && labels[3] == CardComparison.Unread,
@@ -452,6 +456,25 @@ internal static class ComparisonTests
         File.WriteAllText(cache, JsonSerializer.Serialize(stale));
         Check((await new GgezArenaRatings(ratings.Catalog, folder.Path, offline).ForCaptureAsync(elise, default))?.Data?.SampleGames == 760 &&
             broken.Requests == 1, "conserva la copia al fallar la red");
+
+        File.WriteAllText(cache, JsonSerializer.Serialize(new
+        {
+            data.Champion, data.ClientPatch, data.SourcePatch, data.FetchedAt, data.SampleGames,
+            Picks = data.Picks.ToDictionary(item => item.Key, item => new { item.Value.Percent, item.Value.GamesPicked })
+        }));
+        var legacyFallback = await new GgezArenaRatings(ratings.Catalog, folder.Path, offline).ForCaptureAsync(elise, default);
+        Check(legacyFallback?.Data is { PlacementSchemaRead: false } && legacyFallback.Data.Picks[97].GamesPicked == 59 &&
+            broken.Requests == 2, "intenta completar la caché antigua y conserva sus elecciones cuando la red falla");
+        var upgraded = await new GgezArenaRatings(ratings.Catalog, folder.Path, http).ForCaptureAsync(elise, default);
+        Check(upgraded?.Data is { PlacementSchemaRead: true, PlacementCount: 6 } &&
+            upgraded.Data.Picks[97].AveragePlace == 3.4m && server.Requests == 2 &&
+            (await new GgezArenaRatings(ratings.Catalog, folder.Path, offline).ForCaptureAsync(elise, default))?.Data?.Picks[97].AveragePlace == 3.4m &&
+            broken.Requests == 2, "renueva y guarda la evidencia de posición para la próxima sesión");
+
+        var unknownFormat = GgezArenaPage.Read(Page(elise.Champion, patch, "patch").Replace(
+            "places:[90,120,90,90,112,108]", "places:[90,120]"), elise.Champion, patch, ids);
+        Check(unknownFormat.PlacementCount is null && unknownFormat.Picks[97].AveragePlace is null &&
+            unknownFormat.Picks[97].GamesPicked == 59, "un histograma inválido conserva las elecciones sin afirmar posiciones");
 
         if (LeaguePatch.Previous(patch) is { } previous)
         {
@@ -477,9 +500,12 @@ internal static class ComparisonTests
 
         static string Page(string champion, string pagePatch, string window) => $$$"""
             <link rel="canonical" href="{{{GgezArenaPage.Address(champion)}}}"/>
-            <script>kit.start({data:[{type:"data",data:{champion:"{{{champion}}}",id:60,filters:{region:"all",window:"{{{window}}}"},available:true,patch:"{{{pagePatch}}}",matches:8047,row:{games:610},augments:[
-            {id:97,games:59,avgPlace:3.4,top3Rate:53.7,pickShare:7.7631578947368425,name:"Witchful Thinking"},
-            {id:120,games:17,pickShare:2.236842105263158,name:"Serve Beyond Death"},
+            <script>kit.start({data:[{type:"data",data:{champion:"{{{champion}}}",id:60,filters:{region:"all",window:"{{{window}}}"},available:true,patch:"{{{pagePatch}}}",matches:8047,row:{id:60,games:610,places:[90,120,90,90,112,108]},augments:[
+            {id:97,games:59,avgPlace:3.4,top3Rate:53.7,pickShare:7.7631578947368425,name:"Witchful Thinking",rarity:0},
+            {id:120,games:17,avgPlace:9,pickShare:2.236842105263158,name:"Example,avgPlace:1,rarity:2",rarity:8},
+            {id:30,games:76,avgPlace:3.4,pickShare:10,rarity:2},
+            {id:30,games:76,avgPlace:3.8,pickShare:10,rarity:2},
+            {id:30,games:76,avgPlace:3.4,pickShare:10,rarity:2},
             {id:1034,games:70,pickShare:10,name:"mismatched"},
             {id:99999,games:0,pickShare:0}],augOk:true,namesOk:true,teamsOk:true,augTotal:760}}]});</script>
             """;

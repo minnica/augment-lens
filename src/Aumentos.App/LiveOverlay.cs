@@ -26,6 +26,8 @@ internal sealed class LiveOverlay
     private readonly OpGgRatings opgg;
     private readonly AramMayhemRatings aramMayhem;
     private readonly GgezArenaRatings ggez;
+    private readonly GgezArenaGlobalRatings ggezGlobal;
+    private readonly AramHexRatings aramHex;
     private readonly OpGgBuilds builds;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
@@ -35,7 +37,8 @@ internal sealed class LiveOverlay
     private int paused;
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
-        AramMayhemRatings aramMayhem, GgezArenaRatings ggez, OpGgBuilds builds, string assets,
+        AramMayhemRatings aramMayhem, GgezArenaRatings ggez, GgezArenaGlobalRatings ggezGlobal, AramHexRatings aramHex,
+        OpGgBuilds builds, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild)
     {
         this.ratings = ratings;
@@ -44,6 +47,8 @@ internal sealed class LiveOverlay
         this.opgg = opgg;
         this.aramMayhem = aramMayhem;
         this.ggez = ggez;
+        this.ggezGlobal = ggezGlobal;
+        this.aramHex = aramHex;
         this.builds = builds;
         this.assets = assets;
         this.dispatcher = dispatcher;
@@ -321,8 +326,10 @@ internal sealed class LiveOverlay
                 var source = opgg.Current(current, cancellation);
                 var mayhem = aramMayhem.Current(current.Mode, cancellation);
                 var arena = ggez.Current(current, cancellation);
-                var extraStatus = mayhem?.Status ?? arena?.Status;
-                var sources = extraStatus is null ? source.Status : $"{source.Status} · {extraStatus}";
+                var global = current.Mode == Mode.Arena ? ggezGlobal.Current(cancellation) : null;
+                var hex = current.Mode == Mode.Caos ? aramHex.Current(cancellation) : null;
+                var sources = string.Join(" · ", new[] { source.Status, mayhem?.Status, arena?.Status, global?.Status, hex?.Status }
+                    .OfType<string>());
                 idle = $"{label} · {name} · Esperando cartas… · {sources}";
                 var candidates = layouts.Find(current.Mode, scan.Width, scan.Height);
                 if (candidates.Length == 0)
@@ -356,7 +363,8 @@ internal sealed class LiveOverlay
                         previous = candidate;
                         var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
                             source.Data, source.Loading, mayhem?.Data, arena?.Data,
-                            upgradeLevels: result.UpgradeLevels, arenaItems: arenaItems);
+                            upgradeLevels: result.UpgradeLevels, arenaItems: arenaItems, ggezGlobal: global?.Data,
+                            aramHex: hex?.Data);
                         if (arenaUpgradeHeading is null && result.UpgradeLevels?.Any(level => level.HasValue) == true)
                             arenaUpgradeHeading = detector.HasArenaUpgradeHeading(frame);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
@@ -364,7 +372,7 @@ internal sealed class LiveOverlay
                         lastOffer = Environment.TickCount64;
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
                         var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
-                            badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.LocalText}" +
+                            badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.VisibleTierText}" +
                             (badge.RecommendedUpgrade ? " · Mejora recomendada" :
                                 badge.RecommendedAugment ? " · Recomendado" : "")));
                         return new OverlayUpdate($"{label} · {name} · {sources} · OP.GG / local · {displayed}",

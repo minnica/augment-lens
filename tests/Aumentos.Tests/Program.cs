@@ -26,6 +26,9 @@ internal static class Program
         CheckHistory(ratings, legacyColumns: 14);
         CheckHistory(ratings, legacyColumns: 18);
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
+        GgezArenaGlobalTests.Run(ratings).GetAwaiter().GetResult();
+        AramHexRatingsTests.Run(ratings.Catalog).GetAwaiter().GetResult();
+        ArenaPlacementRatingsTests.Run(ratings);
         ArenaWikiMechanicsTests.Run(ratings, assets);
         ArenaAugmentAffinityTests.Run(ratings);
         ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"),
@@ -1034,6 +1037,31 @@ internal static class Program
             var goldSurface = sPlusAugment.Background;
             var goldOutline = sPlusAugment.BorderBrush;
             var regularSurface = firstBadge.Background;
+            var observed = new ArenaPlacementRating(Tier.A, 319, "26.23", false, 2.74m, .23m, 1);
+            var evidenceOffer = new OverlayUpdate("Arena", bounds, layout,
+                [new("B", IsArenaAugment: true, ArenaPlacement: observed, RecommendedAugment: true),
+                 new(CardComparison.Missing, IsArenaAugment: true, ArenaPlacement: observed with { Global = true, Games = 9999 }),
+                 new(CardComparison.Missing, IsArenaAugment: true)], Mode: Mode.Arena);
+            overlay.Render(evidenceOffer);
+            var compactMetadata = BuildElements<TextBlock>(firstBadge).Last();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var evidenceMetadata = string.Concat(compactMetadata.Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text));
+            Check(VisibleLines(first).First() == "A" &&
+                evidenceMetadata is "GGEZ.GG · 319 p. · Recomendado" or "GGEZ.GG · 319 p. · Mejor" &&
+                compactMetadata.ActualHeight < compactMetadata.FontSize * 2 &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "GGEZ global · 9,999 p."]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["Sin muestra suficiente"]),
+                "el distintivo compacto identifica el alcance de la muestra y la recomendación cabe en una línea");
+            overlay.ShowDetails = true;
+            overlay.Render(evidenceOffer);
+            Check(VisibleLines(first).Contains("Estimación local") && VisibleLines(first).Contains("Posición media") &&
+                VisibleLines(first).Contains("319 partidas · Parche 26.23"),
+                "los detalles conservan el contexto local junto con la muestra de GGEZ.GG");
+            overlay.ShowDetails = false;
+            overlay.Render(new("Caos", bounds, layout, [new(CardComparison.Missing,
+                MayhemObserved: new(Tier.B, 1300, "26.22", true))], Mode: Mode.Caos));
+            Check(VisibleLines(first).SequenceEqual(["B", "AramHex · China", "Parche anterior 26.22"]),
+                "el respaldo de ARAM muestra la región y el parche incluso en la vista compacta");
             var prismatics = new OverlayUpdate("Prismáticos", bounds, layout,
                 [new("S", ArenaChoice: new("Objeto prismático", Tier.S, "Se adapta a tu campeón", TopPosition: 5)),
                  new("S", new OpGgCard("S")),

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,6 +22,8 @@ internal static class Program
         using var http = OpGgRatings.CreateClient();
         if (args.FirstOrDefault() == "--verificar-build")
             return VerifyBuild(args, assets, settings, http);
+        if (args.FirstOrDefault() == "--verificar-tiers")
+            return VerifyCoverage(args, assets, settings, http);
         if (Array.IndexOf(args, "--verificar") >= 0)
         {
             try
@@ -53,15 +56,21 @@ internal static class Program
                         itemChoices = shardChoices ?? prismatics?.Badges ?? ratings.Legendaries.ForOffer(game, result);
                         if (itemChoices is null)
                         {
-                            var (source, mayhem, arena) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
-                                new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http));
+                            var (source, mayhem, arena, global, hex) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
+                                new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http),
+                                new GgezArenaGlobalRatings(ratings.Catalog, settings, http), new AramHexRatings(ratings.Catalog, settings, http));
                             comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
-                                mayhem: mayhem?.Data, ggez: arena?.Data, upgradeLevels: result.UpgradeLevels);
+                                mayhem: mayhem?.Data, ggez: arena?.Data, upgradeLevels: result.UpgradeLevels,
+                                ggezGlobal: global?.Data, aramHex: hex?.Data);
                             Console.WriteLine(source.Status);
                             if (mayhem is not null)
                                 Console.WriteLine(mayhem.Status);
                             if (arena is not null)
                                 Console.WriteLine(arena.Status);
+                            if (global is not null)
+                                Console.WriteLine(global.Status);
+                            if (hex is not null)
+                                Console.WriteLine(hex.Status);
                         }
                     }
                     for (int index = 0; index < result.Cards.Length; index++)
@@ -76,14 +85,18 @@ internal static class Program
                                 (choice.Recommended ? " · Recomendado" : "");
                         if (card is not null && comparisons?[index] is { } comparison)
                         {
-                            if (comparison.IsArenaAugment && comparison.Local != CardComparison.Missing)
+                            if (comparison.IsArenaAugment)
                             {
                                 label += $" · {comparison.ArenaTitle.Replace("   ", " ")}";
                                 if (comparison.External is not null)
                                     label += $" · OP.GG {comparison.ExternalText}";
                             }
+                            else if (comparison.DisplayedMayhemObserved is { } observed)
+                                label += $" · Tier AramHex {observed.Tier} · {observed.Sample} · China · {observed.PatchText}";
                             else
                                 label += $" · OP.GG {comparison.ExternalText} · Est. local {comparison.Local}";
+                            if (comparison is { MayhemObserved: { } secondary, DisplayedMayhemObserved: null })
+                                label += $" · AramHex {secondary.Tier} · {secondary.Sample} · China · {secondary.PatchText}";
                             if (comparison.DetailText.Length > 0)
                                 label += $" · {comparison.DetailText.Replace("\n", " · ")}";
                             if (comparison.UsesWiki)
@@ -124,6 +137,8 @@ internal static class Program
             var opgg = new OpGgRatings(ratings.Catalog, settings, http);
             var aramMayhem = new AramMayhemRatings(ratings.Catalog, settings, http);
             var ggez = new GgezArenaRatings(ratings.Catalog, settings, http);
+            var ggezGlobal = new GgezArenaGlobalRatings(ratings.Catalog, settings, http);
+            var aramHex = new AramHexRatings(ratings.Catalog, settings, http);
             var builds = new OpGgBuilds(ratings.Catalog, settings, http);
             if (args.FirstOrDefault() == "--registrar-capturas")
                 return ImportCaptures(args, assets, ratings, layouts, history, opgg, aramMayhem, ggez);
@@ -166,7 +181,8 @@ internal static class Program
                 app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render);
             using var stop = new CancellationTokenSource();
             string previous = "";
-            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, builds, assets, app.Dispatcher, state =>
+            var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, ggezGlobal, aramHex,
+                builds, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
@@ -202,6 +218,10 @@ internal static class Program
                 OpenProviderPage(AramMayhemRatings.AttributionUrl, AramMayhemRatings.Attribution));
             menu.Items.Add($"Datos de {GgezArenaPage.Attribution}", null, (_, _) =>
                 OpenProviderPage(ggez.SourceUrl, GgezArenaPage.Attribution));
+            menu.Items.Add("Aumentos globales de GGEZ.GG", null, (_, _) =>
+                OpenProviderPage(GgezArenaGlobalRatings.Address.AbsoluteUri, GgezArenaPage.Attribution));
+            menu.Items.Add("Datos de AramHex", null, (_, _) =>
+                OpenProviderPage(AramHexRatings.AttributionUrl, AramHexRatings.Attribution));
             if (ratings.Wiki is { } wiki)
                 menu.Items.Add($"Mecánicas de {ArenaWikiMechanics.Attribution}", null, (_, _) =>
                     OpenProviderPage($"https://wiki.leagueoflegends.com/en-us/Special:PermanentLink/{wiki.SourceRevision}",
@@ -430,13 +450,58 @@ internal static class Program
         catch (System.ComponentModel.Win32Exception) { MessageBox.Show(url, attribution); }
     }
 
-    private static (OpGgView OpGg, AramMayhemView? Mayhem, GgezArenaView? Arena) CaptureSources(
-        GameContext game, OpGgRatings opgg, AramMayhemRatings aramMayhem, GgezArenaRatings ggez)
+    private static int VerifyCoverage(string[] args, string assets, string settings, HttpClient http)
+    {
+        try
+        {
+            if (args.Length != 3 || !Enum.TryParse<Mode>(args[1], true, out var mode) || !Enum.IsDefined(mode))
+                throw new ArgumentException("Usa --verificar-tiers Arena|Caos ClaveDelCampeón.");
+
+            var ratings = new Ratings(assets);
+            var catalog = ratings.Catalog;
+            var champion = catalog.Champions.SingleOrDefault(item => item.Key.Equals(args[2], StringComparison.OrdinalIgnoreCase))
+                ?? throw new ArgumentException($"No se reconoce el campeón {args[2]}.");
+            var game = new GameContext(mode, champion.Key);
+            var (source, mayhem, arena, global, hex) = CaptureSources(game, new OpGgRatings(catalog, settings, http),
+                new AramMayhemRatings(catalog, settings, http), new GgezArenaRatings(catalog, settings, http),
+                new GgezArenaGlobalRatings(catalog, settings, http), new AramHexRatings(catalog, settings, http));
+            var cards = catalog.Augments.Where(card => card.Mode == mode.ToString()).Select(card =>
+            {
+                var comparison = CardComparison.ForOffer(ratings, game, [card.Id], [false], source.Data,
+                    mayhem: mayhem?.Data, ggez: arena?.Data, ggezGlobal: global?.Data, aramHex: hex?.Data)[0]!;
+                return comparison.DisplayedArenaPlacement?.Source ??
+                    (comparison.External?.Tier is not null ? "OP.GG" :
+                     comparison.DisplayedMayhemObserved is not null ? "AramHex" :
+                     comparison.Local == CardComparison.Missing ? "Sin muestra suficiente" :
+                     comparison.Local == "Variable" ? "Afinidad variable" : "Estimación local");
+            }).ToArray();
+            Console.WriteLine($"{champion.Name} · {mode} · {LeaguePatch.Public(catalog.Patch)} · {cards.Length} cartas");
+            foreach (var group in cards.GroupBy(label => label).OrderBy(group => group.Key))
+                Console.WriteLine($"{group.Key} · {group.Count()} · {CardComparison.FormatPercent(100m * group.Count() / cards.Length)}");
+            if (hex?.Data?.Champions.TryGetValue(champion.Key, out var hexCards) == true)
+                Console.WriteLine($"AramHex · {hexCards.Count} cartas con muestra para {champion.Name}");
+            foreach (var status in new[] { source.Status, mayhem?.Status, arena?.Status, global?.Status, hex?.Status }.OfType<string>())
+                Console.WriteLine(status);
+            return 0;
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine(error.Message);
+            return 1;
+        }
+    }
+
+    private static (OpGgView OpGg, AramMayhemView? Mayhem, GgezArenaView? Arena, GgezArenaView? Global, AramHexView? Hex) CaptureSources(
+        GameContext game, OpGgRatings opgg, AramMayhemRatings aramMayhem, GgezArenaRatings ggez,
+        GgezArenaGlobalRatings? ggezGlobal = null, AramHexRatings? aramHex = null)
     {
         var opggWork = opgg.ForCaptureAsync(game, CancellationToken.None);
         var mayhemWork = aramMayhem.ForCaptureAsync(game.Mode, CancellationToken.None);
         var arenaWork = ggez.ForCaptureAsync(game, CancellationToken.None);
-        return (opggWork.GetAwaiter().GetResult(), mayhemWork.GetAwaiter().GetResult(), arenaWork.GetAwaiter().GetResult());
+        var globalWork = game.Mode == Mode.Arena ? ggezGlobal?.ForCaptureAsync(CancellationToken.None) : null;
+        var hexWork = game.Mode == Mode.Caos ? aramHex?.ForCaptureAsync(CancellationToken.None) : null;
+        return (opggWork.GetAwaiter().GetResult(), mayhemWork.GetAwaiter().GetResult(), arenaWork.GetAwaiter().GetResult(),
+            globalWork?.GetAwaiter().GetResult(), hexWork?.GetAwaiter().GetResult());
     }
 
     private static int ImportCaptures(string[] args, string assets, Ratings ratings, LayoutStore layouts, CardHistory history,
@@ -460,7 +525,7 @@ internal static class Program
                 var read = detector.ReadPanel(image, bounds, options, mode, null);
                 if (read is not { Result: var result } || !result.CanShow(false))
                     throw new InvalidDataException($"No se pudieron verificar los aumentos de {Path.GetFileName(file)}.");
-                var (source, mayhem, arena) = CaptureSources(new GameContext(mode, champion.Key), opgg, aramMayhem, ggez);
+                var (source, mayhem, arena, _, _) = CaptureSources(new GameContext(mode, champion.Key), opgg, aramMayhem, ggez);
                 history.Import(File.GetLastWriteTime(file), mode, champion.Key, Path.GetFileName(file), result.Cards,
                     source.Data, mayhem?.Data, arena?.Data, result.UpgradeLevels);
                 Console.WriteLine($"{champion.Name} · {Path.GetFileName(file)} · {result.Cards.Count(card => card.HasValue)} cartas");

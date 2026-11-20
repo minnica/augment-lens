@@ -12,6 +12,7 @@ namespace Aumentos;
 internal sealed class Overlay
 {
     private const int SummaryWidth = 160;
+    private const int ArenaEvidenceWidth = 200;
     private const int DetailWidth = 260;
     private const double MayhemTitleToCardEdge = 0.213;
     // Limit the overlap to the upper frame, where there are no ability icons.
@@ -152,10 +153,12 @@ internal sealed class Overlay
                 continue;
             }
 
-            int desiredHeight = badge.Prepare(label, width, dpi, ShowDetails, arenaCards && !ShowDetails);
+            int badgeWidth = !ShowDetails && label.DisplayedArenaPlacement is not null
+                ? Math.Min(widthLimit, Math.Max(1, (int)(ArenaEvidenceWidth * dpi))) : width;
+            int desiredHeight = badge.Prepare(label, badgeWidth, dpi, ShowDetails, arenaCards && !ShowDetails);
             int height = Math.Min((int)Math.Ceiling(desiredHeight * itemScale), heightLimit);
             int bottom = anchor + Math.Min(height / 2, maxOverlap);
-            int fittedWidth = Math.Clamp(width * height / desiredHeight, 1, widthLimit);
+            int fittedWidth = Math.Clamp(badgeWidth * height / desiredHeight, 1, widthLimit);
             int x = bounds.X + Math.Clamp(center - fittedWidth / 2, 0, bounds.Width - fittedWidth);
             badge.Display(new(x, bounds.Y + bottom - height, fittedWidth, height), dpi, allowUpscale: arenaItems);
         }
@@ -296,8 +299,9 @@ internal sealed class Overlay
             bool arena = value.IsArenaAugment || value.ArenaChoice is not null;
             bool variable = value.Local == "Variable";
             string? local = value.Local is CardComparison.Missing or "Variable" ? null : value.LocalText;
+            var observed = value.DisplayedArenaPlacement;
             string? published = arena ? null : value.External?.Tier;
-            bool sPlus = (published ?? local) == "S+";
+            bool sPlus = value.VisibleTierText == "S+";
             Background = sPlus ? SPlusSurface : Surface;
             BorderBrush = sPlus ? SPlusOutline : recommended ? Gold : Outline;
             BorderThickness = new Thickness(sPlus ? 2 : 1);
@@ -312,6 +316,12 @@ internal sealed class Overlay
             var recommendation = recommended ? (value.RecommendedUpgrade && showDetails ? "Mejora recomendada" : "Recomendado") : null;
             if (published is { } tier)
                 AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
+            else if (observed is not null)
+                AddGrade(observed.Tier.ToString(), observed.Source, compactArena ? observed.ShortSample : observed.Sample,
+                    compactArena && width < 170 && recommended ? "Mejor" : recommendation, narrow, compactArena: compactArena);
+            else if (value.DisplayedMayhemObserved is { } mayhemObserved)
+                AddGrade(mayhemObserved.Tier.ToString(), "AramHex · China", mayhemObserved.IsPrevious ? mayhemObserved.PatchText : null,
+                    null, narrow, localTier: local);
             else if (local is not null)
                 AddGrade(local, "Local", context, recommendation, narrow, compactArena: compactArena);
 
@@ -329,12 +339,18 @@ internal sealed class Overlay
             if (content.Children.Count > headerLength)
                 AddDivider(headerLength > 0 ? headerLength : content.Children.Count, sPlus ? SPlusDivider : Divider);
             if (headerLength == 0)
-                AddStatus(variable ? "Afinidad variable" : arena ? "Sin tier local" :
-                    value.Loading ? "Consultando OP.GG…" : "Sin tier", context);
+                AddStatus(variable ? "Afinidad variable" : value.IsArenaAugment ? "Sin muestra suficiente" : arena ? "Sin tier local" :
+                    value.Loading ? "Consultando OP.GG…" : "Sin muestra suficiente", context);
         }
 
         private void AddMayhemStats(CardComparison value, bool published, bool hasLocalTier, bool variable, bool narrow)
         {
+            if (value.MayhemObserved is { } observed)
+            {
+                if (value.DisplayedMayhemObserved is null)
+                    AddStat("AramHex · China", observed.Tier.ToString());
+                content.Children.Add(Line($"{observed.Sample} · {observed.PatchText}", 11, Muted, top: 3));
+            }
             if (published && variable)
                 AddStat("Afinidad local", "Variable", Muted);
             if (!published && hasLocalTier && value.Loading)
@@ -350,6 +366,15 @@ internal sealed class Overlay
 
         private void AddArenaStats(CardComparison value)
         {
+            if (value.ArenaPlacement is { } observed)
+            {
+                if (value.DisplayedArenaPlacement is null)
+                    AddStat(observed.Source, observed.Tier.ToString());
+                else if (value.Local != CardComparison.Missing)
+                    AddStat("Estimación local", value.LocalText);
+                AddStat("Posición media", observed.AveragePlaceText);
+                content.Children.Add(Line($"{observed.Sample} · Parche {observed.Patch}", 11, Muted, top: 2));
+            }
             if (value.UsesWiki)
                 content.Children.Add(Line("Mecánica de LoL Wiki", 11, Muted, top: 3));
 

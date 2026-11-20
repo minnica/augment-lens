@@ -19,16 +19,30 @@ internal sealed record ArenaPopularity(decimal Percent, int GamesPicked, int Sam
         (IsPrevious ? $"parche ant. {Patch}" : Patch);
 }
 
+internal sealed record MayhemObservedTier(Tier Tier, int Games, string Patch, bool IsPrevious)
+{
+    internal string Sample => $"{Games.ToString("N0", CultureInfo.GetCultureInfo("es-MX"))} partidas";
+    internal string PatchText => $"{(IsPrevious ? "Parche anterior" : "Parche")} {Patch}";
+}
+
 internal sealed record CardComparison(string Local, OpGgCard? External = null, bool Loading = false,
     MayhemPopularity? Mayhem = null, ArenaPopularity? Arena = null, string? ExternalPreviousPatch = null,
     ArenaChoiceRating? ArenaChoice = null, bool IsArenaAugment = false, string? LocalReason = null,
     bool RecommendedUpgrade = false, bool RecommendedAugment = false, bool UsesWiki = false,
-    int? UpgradeLevel = null, string? UpgradeEffect = null)
+    int? UpgradeLevel = null, string? UpgradeEffect = null,
+    ArenaPlacementRating? ArenaPlacement = null, bool PreferLocalArenaTier = false, MayhemObservedTier? MayhemObserved = null)
 {
     internal static readonly CardComparison Unread = new("?");
     internal const string Missing = "Sin dato";
     internal string LocalText => ArenaChoice?.TierText ?? (Local == "S" && IsArenaAugment ? "S+" : Local);
-    internal string ArenaTitle => (Local == "Variable" ? "Valoración variable" : $"Tier local   {LocalText}") +
+    internal ArenaPlacementRating? DisplayedArenaPlacement => PreferLocalArenaTier ? null : ArenaPlacement;
+    internal MayhemObservedTier? DisplayedMayhemObserved => External?.Tier is null &&
+        MayhemObserved is { } observed && (!observed.IsPrevious || Local == Missing) ? observed : null;
+    internal string VisibleTierText => DisplayedArenaPlacement?.Tier.ToString() ?? External?.Tier ??
+        DisplayedMayhemObserved?.Tier.ToString() ?? LocalText;
+    internal string ArenaTitle => (DisplayedArenaPlacement is { } observed
+        ? $"Tier {observed.Source} {observed.Tier} · {observed.Sample} · {observed.Patch}"
+        : Local == "Variable" ? "Valoración variable" : Local == Missing ? "Sin muestra suficiente" : $"Tier local   {LocalText}") +
         (UpgradeLevel is { } level ? $" · Nv. {level}" : "") +
         (RecommendedUpgrade ? " · Mejora recomendada" : RecommendedAugment ? " · Recomendado" : "");
     internal string DetailText
@@ -50,13 +64,15 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
 
     internal static CardComparison?[] ForOffer(Ratings ratings, GameContext game, int?[] ids,
         bool[] items, OpGgSnapshot? snapshot, bool loading = false, AramMayhemSnapshot? mayhem = null,
-        GgezArenaSnapshot? ggez = null, int?[]? upgradeLevels = null, IReadOnlyList<int>? arenaItems = null)
+        GgezArenaSnapshot? ggez = null, int?[]? upgradeLevels = null, IReadOnlyList<int>? arenaItems = null,
+        GgezArenaSnapshot? ggezGlobal = null, AramHexSnapshot? aramHex = null)
     {
         var external = snapshot?.Mode == game.Mode && snapshot.Patch == ratings.Catalog.Patch &&
             string.Equals(snapshot.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ? snapshot.Cards : null;
         var externalPrevious = external is not null && snapshot is { IsPrevious: true }
             ? LeaguePatch.Public(snapshot.DataPatch) : null;
         var global = game.Mode == Mode.Caos && mayhem?.ClientPatch == ratings.Catalog.Patch ? mayhem : null;
+        var hex = game.Mode == Mode.Caos && aramHex?.ClientPatch == ratings.Catalog.Patch ? aramHex : null;
         var previous = global?.IsPrevious == true;
         var championStats = game.Mode == Mode.Arena && ggez?.ClientPatch == ratings.Catalog.Patch &&
             string.Equals(ggez.Champion, game.Champion, StringComparison.OrdinalIgnoreCase) ? ggez : null;
@@ -83,10 +99,16 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
                 ? new ArenaPopularity(pick.Percent, pick.GamesPicked, championStats.SampleGames, arenaPatch, championStats.IsPrevious)
                 : null;
             var published = external?.GetValueOrDefault(id.Value);
+            var observed = hex is not null && variable is null && hex.Find(game.Champion, id.Value) is { } sample
+                ? new MayhemObservedTier(sample.Tier, sample.Games, LeaguePatch.Public(hex.SourcePatch),
+                    hex.SourcePatch != hex.ClientPatch)
+                : null;
             return new CardComparison(local, published, loading, popularity, arena,
                 published is null ? null : externalPrevious, IsArenaAugment: game.Mode == Mode.Arena,
                 LocalReason: variable ?? ratings.DefaultReason(game.Mode, id.Value), UpgradeLevel: levels?[i],
-                UpgradeEffect: levels?[i] is { } level ? ratings.ArenaAugment(id.Value)?.EffectAt(level) : null);
+                UpgradeEffect: levels?[i] is { } level ? ratings.ArenaAugment(id.Value)?.EffectAt(level) : null,
+                PreferLocalArenaTier: game.Mode == Mode.Arena && ratings.HasOverride(Mode.Arena, game.Champion, id.Value),
+                MayhemObserved: observed);
         }).ToArray();
         if (game.Mode == Mode.Arena)
         {
@@ -101,8 +123,41 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
             ratings.AugmentAffinity.Apply(game, ids, levels, arenaItems, badges);
             if (!isUpgrade)
                 RecommendArenaControlTieBreak(ratings, game, ids, badges);
+            if (!isUpgrade)
+                ApplyArenaPlacement(ids, badges, championStats,
+                    ggezGlobal is { Champion: "" } && ggezGlobal.ClientPatch == ratings.Catalog.Patch ? ggezGlobal : null);
         }
         return badges;
+    }
+
+    private static void ApplyArenaPlacement(int?[] ids, CardComparison?[] badges,
+        GgezArenaSnapshot? championStats, GgezArenaSnapshot? globalStats)
+    {
+        if (championStats is null && globalStats is null)
+            return;
+
+        var championRatings = ArenaPlacementRatings.Calculate(championStats);
+        var globalRatings = ArenaPlacementRatings.Calculate(globalStats);
+        bool localComparison = badges.Any(badge => badge is { RecommendedAugment: true, PreferLocalArenaTier: true });
+        for (int index = 0; index < badges.Length; index++)
+        {
+            if (ids[index] is not { } id || badges[index] is not { IsArenaAugment: true, Local: not "Variable" } badge)
+                continue;
+            var observed = championRatings.GetValueOrDefault(id);
+            if (observed is null && badge.Local == Missing)
+                observed = globalRatings.GetValueOrDefault(id);
+            if (observed is not null)
+                badges[index] = badge with { ArenaPlacement = observed, PreferLocalArenaTier = localComparison || badge.PreferLocalArenaTier };
+        }
+
+        if (!badges.Any(badge => badge?.DisplayedArenaPlacement is not null))
+            return;
+        int? winner = ArenaPlacementRatings.Recommend(badges);
+        for (int index = 0; index < badges.Length; index++)
+        {
+            if (badges[index] is { IsArenaAugment: true } badge)
+                badges[index] = badge with { RecommendedAugment = winner == index };
+        }
     }
 
     private const int Deft = 22;
@@ -175,6 +230,7 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
         badges[winner] = badges[winner]! with
         {
             RecommendedAugment = true,
+            PreferLocalArenaTier = true,
             LocalReason = "Tus inmovilizaciones aplican una quemadura acumulable que escala con la vida máxima del rival",
             UsesWiki = true
         };
