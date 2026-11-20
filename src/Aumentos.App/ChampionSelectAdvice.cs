@@ -27,13 +27,10 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
     {
         using var lobby = new ChampionSelectClient(Path.Combine(assets, "riotgames.pem"));
         var catalog = ratings.Catalog;
-        var draftReader = new ArenaDraftReader(catalog);
         var mayhemReader = new MayhemDraftReader(catalog);
         using var draftOcr = new Detection(ratings, Path.Combine(assets, "tessdata"));
         WindowCapture? capture = null;
         (nint Handle, Int32Rect Bounds, Int32Rect Frame)? scanWindow = null;
-        Mode? scanMode = null;
-        ArenaDraftOffer[]? offers = null;
         MayhemDraftChoice[]? choices = null;
         MayhemBenchChoice[] bench = [];
         SpellDisplay? previous = null;
@@ -41,7 +38,6 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         MayhemChampionDisplay? previousMayhem = null;
         long checkPatchAt = 0;
         long scanAt = 0;
-        long lastOffer = 0;
         long lastChoice = 0;
         bool patchMatches = false;
         try
@@ -68,15 +64,14 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                     var session = patchMatches ? await ReadSession(lobby, cancellation).ConfigureAwait(false) : null;
                     if (session is not null && !Paused && Native.GetForegroundWindow() == window.Handle)
                     {
-                        scanning = true;
-                        if (scanWindow != window || scanMode != session.Mode)
-                        {
-                            StopCapture();
-                            scanWindow = window;
-                            scanMode = session.Mode;
-                        }
                         if (session.Mode == Mode.Caos)
                         {
+                            scanning = true;
+                            if (scanWindow != window)
+                            {
+                                StopCapture();
+                                scanWindow = window;
+                            }
                             var source = mayhemTiers.Current(cancellation);
                             ScanMayhem(window);
                             if (choices is { } visible)
@@ -102,16 +97,15 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                         else if (session.Mode == Mode.Arena)
                         {
                             var source = tiers.Current(cancellation);
-                            ScanArena(window);
-                            arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source, offers);
+                            var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam);
+                            arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source, session.ArenaChampion, composition);
                         }
                     }
                 }
-                if (!scanning)
+                if (!scanning && scanWindow is not null)
                 {
                     StopCapture();
                     scanWindow = null;
-                    scanMode = null;
                 }
                 if (display is not null || previous is not null || arena is not null || previousArena is not null ||
                     mayhem is not null || previousMayhem is not null)
@@ -152,26 +146,6 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
             }
         }
 
-        void ScanArena((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
-        {
-            var now = Environment.TickCount64;
-            if (now - lastOffer > 2000)
-                offers = null;
-            if (now < scanAt)
-                return;
-
-            scanAt = now + 800;
-            if (ReadFrame(window, now) is { } frame && draftReader.Read(frame, draftOcr) is { Length: > 0 } recognized)
-            {
-                if (offers is null || recognized.Length >= offers.Length ||
-                    recognized.Any(candidate => !offers.Any(known => known.Champion.Key == candidate.Champion.Key)))
-                {
-                    offers = recognized;
-                    lastOffer = now;
-                }
-            }
-        }
-
         System.Windows.Media.Imaging.BitmapSource? ReadFrame((nint Handle, Int32Rect Bounds, Int32Rect Frame) window, long now)
         {
             try
@@ -196,11 +170,9 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         {
             capture?.Dispose();
             capture = null;
-            offers = null;
             choices = null;
             bench = [];
             scanAt = 0;
-            lastOffer = 0;
             lastChoice = 0;
         }
     }

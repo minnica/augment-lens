@@ -14,7 +14,7 @@ namespace Aumentos;
 
 internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
     CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null, Mode? Mode = null,
-    int? ArenaCardTop = null, bool ArenaUpgradeHeading = false);
+    int? ArenaCardTop = null, bool ArenaUpgradeHeading = false, bool ArenaItemOffer = false);
 
 internal sealed class LiveOverlay
 {
@@ -70,6 +70,7 @@ internal sealed class LiveOverlay
         (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
         MayhemBuildPlan? plan = null;
         EnemyDamageMix? enemyDamage = null;
+        EnemyDamageMix? lobbyDamage = null;
         bool hideStartingItems = false;
         long nextPoll = 0;
         Task<LiveMatchState?>? pendingMatch = null;
@@ -210,12 +211,13 @@ internal sealed class LiveOverlay
                                     enemyDamage = currentGame.Mode == Mode.Arena
                                         ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
                                         : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
+                                    lobbyDamage = arenaBuilds.EstimateLobbyDamage(match?.Arena);
                                     hideStartingItems = mayhemBuilds.HasStartingPurchase(match?.Mayhem, suggestion.Data);
                                 }
                                 build = new BuildDisplay(window.Bounds, window.Handle, champion,
                                     currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
                                     ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
-                                    HideStartingItems: hideStartingItems);
+                                    HideStartingItems: hideStartingItems, LobbyDamage: lobbyDamage);
                             }
                         }
                         else if (showShopBuild)
@@ -345,7 +347,7 @@ internal sealed class LiveOverlay
                         return new OverlayUpdate($"{label} · {name} · {offers} · Tier local · {tiers}",
                             window.Bounds, candidate, choices, window.Handle,
                             prismatics is null ? null : new(prismatics.Top, candidate, ratings.Catalog.Patch), current.Mode,
-                            ArenaCardTop: arenaCardTop);
+                            ArenaCardTop: arenaCardTop, ArenaItemOffer: shards is null);
                     }
                     if (result.CanShow(candidate == previous))
                     {

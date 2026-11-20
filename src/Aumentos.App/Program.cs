@@ -139,6 +139,11 @@ internal static class Program
                 }
             };
             var overlay = new Overlay();
+            var itemTierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"));
+            int itemTierSize = itemTierSizePreference.Load();
+            overlay.SetItemTierSize(itemTierSize);
+            BuildSizeWindow? itemTierSizeWindow = null;
+            overlay.ItemSizeRequested += OpenItemTierSize;
             var itemIcons = new BuildItemIcons(http);
             var buildOverlay = new BuildOverlay(itemIcons);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
@@ -203,6 +208,7 @@ internal static class Program
             var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
             cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
             menu.Items.Add(cardDetails);
+            menu.Items.Add("Tamaño de los tiers de objetos…", null, (_, _) => OpenItemTierSize());
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
             var resizeBuild = new Forms.ToolStripMenuItem("Tamaño de las builds…", null, (_, _) => OpenBuildSize());
@@ -238,7 +244,9 @@ internal static class Program
                     showBuild.ShortcutKeyDisplayString = "Ctrl+Alt+B";
                 if (shortcuts.Size)
                     resizeBuild.ShortcutKeyDisplayString = BuildOverlay.SizeShortcutLabel;
-                if (Array.IndexOf(args, "--bandeja") < 0)
+                if (Array.IndexOf(args, "--ajustar-tiers-objetos") >= 0)
+                    OpenItemTierSize();
+                else if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
                 _ = Task.Run(async () =>
                 {
@@ -300,6 +308,28 @@ internal static class Program
                 });
                 buildSizeWindow = window;
                 window.Closed += (_, _) => buildSizeWindow = null;
+                window.Show();
+                window.Activate();
+            }
+
+            void OpenItemTierSize()
+            {
+                if (itemTierSizeWindow is not null)
+                {
+                    if (itemTierSizeWindow.WindowState == WindowState.Minimized)
+                        itemTierSizeWindow.WindowState = WindowState.Normal;
+                    itemTierSizeWindow.Activate();
+                    return;
+                }
+
+                var window = new BuildSizeWindow(itemTierSize, overlay.CreateItemTierPreview(), percent =>
+                {
+                    itemTierSize = percent;
+                    overlay.SetItemTierSize(percent);
+                    return itemTierSizePreference.Save(percent);
+                });
+                itemTierSizeWindow = window;
+                window.Closed += (_, _) => itemTierSizeWindow = null;
                 window.Show();
                 window.Activate();
             }

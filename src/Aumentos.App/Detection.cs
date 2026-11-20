@@ -77,6 +77,7 @@ public sealed class OfferState
 
 internal sealed class Detection : IDisposable
 {
+    private const int ChemtechPutrifierAugment = 347;
     private readonly Ratings ratings;
     private readonly TesseractEngine engine;
     private readonly OfferState state = new();
@@ -217,9 +218,28 @@ internal sealed class Detection : IDisposable
                         item = true;
                         text = itemTitle;
                     }
+                    else if (RecoverCenteredArenaTitle(image, rect, text, alternative) is { } centered)
+                    {
+                        candidates = [centered];
+                        text = centered.Name;
+                    }
                 }
                 var card = candidates is [var unique] ? unique : null;
                 byte[]? detail = null;
+                if (item && descriptions is { } sharedDescription &&
+                    ratings.ArenaAugment(ChemtechPutrifierAugment) is { } chemtech &&
+                    Ratings.Normalize(text) == Ratings.Normalize(chemtech.Name))
+                {
+                    detail = description ?? Signature(image, sharedDescription);
+                    var effect = Ratings.Normalize(ReadTitle(image, sharedDescription, PageSegMode.SingleBlock, minimumScale: 2));
+                    // The item says that dealing damage applies 40% Grievous Wounds for 3 seconds.
+                    if (effect.Contains("todo el dano que infliges aplica heridas graves", StringComparison.Ordinal))
+                    {
+                        card = chemtech;
+                        item = false;
+                        text = chemtech.Name;
+                    }
+                }
                 if (candidates.Length > 1 && descriptions is { } crop &&
                     candidates.All(candidate => candidate.AnvilCount.HasValue) &&
                     candidates.Select(candidate => candidate.AnvilCount).Distinct().Count() == candidates.Length)
@@ -255,6 +275,21 @@ internal sealed class Detection : IDisposable
             }
         }
         return new DetectionResult(true, ids, texts, items, shards, upgrades);
+    }
+
+    private Augment? RecoverCenteredArenaTitle(BitmapSource image, Int32Rect title, string first, string second)
+    {
+        // A bright card frame can look like stray characters beside a short, centered title.
+        int inset = title.Width / 10;
+        var middle = new Int32Rect(title.X + inset, title.Y, title.Width - inset * 2, title.Height);
+        var text = Ratings.Normalize(ReadTitle(image, middle, PageSegMode.SingleLine, minimumScale: 2));
+        if (text.Length < 5 || text.Contains(' ') || ratings.Recognize(Mode.Arena, text) is not { } card ||
+            Ratings.Normalize(card.Name) != text)
+            return null;
+        string word = $" {text} ";
+        return Includes(first) || Includes(second) ? card : null;
+
+        bool Includes(string reading) => $" {Ratings.Normalize(reading)} ".Contains(word, StringComparison.Ordinal);
     }
 
     internal static string? RecoverArenaCraftingTitle(string text)

@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Interop;
 
 namespace Aumentos;
@@ -11,9 +12,14 @@ internal sealed partial class BuildSizeButton : Window
     private nint handle;
     private Int32Rect placement;
 
-    internal BuildSizeButton(Action open)
+    internal BuildSizeButton(Action open, string? title = null)
     {
         InitializeComponent();
+        if (title is not null)
+        {
+            Title = title;
+            AutomationProperties.SetName(OpenButton, title);
+        }
         OpenButton.Background = BuildPanel.WindowSurface;
         OpenButton.BorderBrush = BuildPanel.WindowFrame;
         OpenButton.Click += (_, _) => open();

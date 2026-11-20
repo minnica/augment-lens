@@ -12,7 +12,7 @@ internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layou
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string? Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
     string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null,
-    bool HideStartingItems = false);
+    bool HideStartingItems = false, EnemyDamageMix? LobbyDamage = null);
 
 internal sealed class BuildVisibility
 {
@@ -215,7 +215,8 @@ internal sealed class BuildOverlay : Window
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
             displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected ||
-            displayed.EnemyDamage != view.EnemyDamage || displayed.HideStartingItems != view.HideStartingItems ||
+            displayed.EnemyDamage != view.EnemyDamage || displayed.LobbyDamage != view.LobbyDamage ||
+            displayed.HideStartingItems != view.HideStartingItems ||
             panel.Compact != (layoutWidth < BuildPanel.CompactWidth))
         {
             panel.Render(view, layoutWidth);

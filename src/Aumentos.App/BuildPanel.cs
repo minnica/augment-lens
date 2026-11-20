@@ -92,6 +92,8 @@ internal sealed class BuildPanel : Border
 
         if (view.Plan is not null || view.EnemyDamage is not null || build is { Groups.Length: > 0 })
             AddEnemyDamage(view);
+        if (view.Mode == Mode.Arena)
+            AddLobbyDamage(view.LobbyDamage);
     }
 
     private void AddSourceBuild(BuildDisplay view, OpGgBuildSnapshot build)
@@ -169,6 +171,24 @@ internal sealed class BuildPanel : Border
 
         if (view.Mode == Mode.Arena)
             AddLine("Según rivales de rondas jugadas", 12, Muted);
+        AddDamageDistribution(mix);
+    }
+
+    private void AddLobbyDamage(EnemyDamageMix? mix)
+    {
+        AddLine("Daño del lobby", 14, Brushes.WhiteSmoke, bold: true, top: 10);
+        if (mix is not { } damage)
+        {
+            AddLine("Esperando datos de los equipos.", 12, Muted, top: 2);
+            return;
+        }
+
+        AddLine("Incluye a tu equipo", 12, Muted);
+        AddDamageDistribution(damage);
+    }
+
+    private void AddDamageDistribution(EnemyDamageMix mix)
+    {
         var distribution = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         var labels = new Grid();
         labels.Children.Add(new TextBlock { Text = $"{mix.PhysicalPercent}% físico", Foreground = PhysicalDamage,

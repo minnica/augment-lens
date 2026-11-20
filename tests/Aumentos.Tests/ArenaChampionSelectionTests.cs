@@ -1,0 +1,52 @@
+using System.Text.Json;
+using Aumentos;
+
+internal static class ArenaChampionSelectionTests
+{
+    internal static void Run()
+    {
+        using var intended = JsonDocument.Parse("""
+            {"localPlayerCellId":4,"myTeam":[{"cellId":1,"championId":164,"championPickIntent":1},
+                {"cellId":4,"championId":0,"championPickIntent":902}]}
+            """);
+        using var locked = JsonDocument.Parse("""
+            {"localPlayerCellId":4,"myTeam":[{"cellId":4,"championId":902,"championPickIntent":164}]}
+            """);
+        using var random = JsonDocument.Parse("""
+            {"localPlayerCellId":4,"myTeam":[{"cellId":1,"championId":164},
+                {"cellId":4,"championId":0,"championPickIntent":-1}]}
+            """);
+        using var absent = JsonDocument.Parse("""
+            {"localPlayerCellId":4,"myTeam":[{"cellId":1,"championId":164,"championPickIntent":902}]}
+            """);
+
+        if (ChampionSelectClient.ArenaDraftIds(intended.RootElement).Champion != 902 ||
+            ChampionSelectClient.ArenaDraftIds(locked.RootElement).Champion != 902 ||
+            ChampionSelectClient.ArenaDraftIds(random.RootElement).Champion is not null ||
+            ChampionSelectClient.ArenaDraftIds(absent.RootElement).Champion is not null ||
+            ChampionSelectClient.OwnPick(intended.RootElement) is not null)
+            throw new InvalidOperationException("Falló la preselección o elección de Arena en la celda local.");
+
+        using var teamDraft = JsonDocument.Parse("""
+            {"localPlayerCellId":4,
+             "myTeam":[{"cellId":4,"team":3,"championId":902},
+               {"cellId":5,"team":3,"championId":86,"championPickIntent":122},
+               {"cellId":6,"team":3,"championId":0,"championPickIntent":61},
+               {"cellId":7,"team":4,"championId":99,"championPickIntent":16}],
+             "theirTeam":[{"cellId":8,"team":5,"championId":103},
+               {"cellId":9,"team":5,"championId":0,"championPickIntent":17}],
+             "bans":{"myTeamBans":[1,1,0,-1],"theirTeamBans":[2]},
+             "actions":[[{"actorCellId":5,"championId":86,"completed":true,"type":"pick"},
+               {"actorCellId":9,"championId":11,"completed":true,"type":"pick"},
+               {"actorCellId":10,"championId":12,"completed":true,"type":"ban"},
+               {"actorCellId":8,"championId":19,"completed":false,"type":"pick"},
+               {"actorCellId":10,"championId":20,"completed":false,"type":"ban"}]]}
+            """);
+        var (self, allies, unavailable) = ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement);
+        if (self != 902 || !allies.SequenceEqual([86, 61]) || unavailable.Length != 6 ||
+            !unavailable.ToHashSet().SetEquals([1, 2, 11, 12, 99, 103]))
+            throw new InvalidOperationException("Falló el alcance de equipo o las exclusiones confirmadas en Arena.");
+
+        Console.WriteLine("Preselección, aliados y bloqueos de Arena verificados sin cambiar los hechizos de ARAM Caos.");
+    }
+}

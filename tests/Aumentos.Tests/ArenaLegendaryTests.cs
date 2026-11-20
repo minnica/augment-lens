@@ -1,5 +1,8 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Aumentos;
 
 internal static class ArenaLegendaryTests
@@ -28,6 +31,7 @@ internal static class ArenaLegendaryTests
             offer with { Texts = ["Flautas de Bandle", "Convergencia de Zeke", ""], Items = [true, true, false] });
         Check(partial is [ { ArenaChoice: { Tier: Tier.S, Recommended: false } }, { Local: "A" }, null ],
             "una carta ilegible conserva los tiers conocidos sin elegir la mejor de toda la oferta");
+        CheckSharedChemtechTitle(ratings, assets);
 
         if (screenshot is not null)
         {
@@ -54,6 +58,51 @@ internal static class ArenaLegendaryTests
                 { ArenaChoice: { Tier: Tier.A, Recommended: false } } ] &&
             badges.All(badge => badge!.External is null),
             $"el control de Rell activa Flautas de Bandle: {string.Join(" / ", offer.Texts)}");
+    }
+
+    private static void CheckSharedChemtechTitle(Ratings ratings, string assets)
+    {
+        var bounds = new Int32Rect(0, 0, 2560, 1440);
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        var item = Offer("Infligir daño aplica un 40% de Heridas Graves", "a campeones enemigos durante 3 seg.");
+        var augment = Offer("Todo el daño que infliges aplica Heridas", "Graves.");
+
+        var first = detector.Scan(item, bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(first.Items[2] && first.Cards[2] is null,
+            $"la descripción de Toxina Fúngica conserva el objeto: {first.Texts[2]}");
+        var offered = detector.Scan(augment, bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(!offered.Items[2] && offered.Cards[2] == 347,
+            $"cambiar solo la descripción reconoce el aumento Putrificador Quimtech: {offered.Texts[2]}");
+        var restored = detector.Scan(item, bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(restored.Items[2] && restored.Cards[2] is null,
+            "la misma posición recupera su clasificación de objeto al cambiar otra vez la descripción");
+
+        BitmapSource Offer(string firstLine, string secondLine)
+        {
+            var visual = new DrawingVisual();
+            using (var draw = visual.RenderOpen())
+            {
+                draw.DrawRectangle(Brushes.Black, null, new Rect(0, 0, bounds.Width, bounds.Height));
+                var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
+                var typeface = new Typeface("Georgia");
+                Write("Flautas de Bandle", titles[0], 13, 27);
+                Write("Convergencia de Zeke", titles[1], 13, 27);
+                Write("Putrificador Quimtech", titles[2], 13, 27);
+                Write(firstLine, titles[2], 121, 17);
+                Write(secondLine, titles[2], 145, 17);
+
+                void Write(string value, Int32Rect title, int offset, double size)
+                {
+                    var text = new FormattedText(value, CultureInfo.GetCultureInfo("es-MX"), FlowDirection.LeftToRight,
+                        typeface, size, Brushes.White, 1);
+                    draw.DrawText(text, new Point(title.X + (title.Width - text.Width) / 2, title.Y + offset));
+                }
+            }
+            var frame = new RenderTargetBitmap(bounds.Width, bounds.Height, 96, 96, PixelFormats.Pbgra32);
+            frame.Render(visual);
+            return frame;
+        }
     }
 
     private static void Check(bool condition, string message)

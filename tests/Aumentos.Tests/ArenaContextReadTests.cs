@@ -21,6 +21,7 @@ internal static class ArenaContextReadTests
 
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
         CheckSharedAnvilTitle(detector, assets, ratings);
+        CheckCenteredArenaTitle(detector, assets, ratings);
         if (levels is not null)
         {
             CheckOffer(detector, assets, levels, [364, 1034, 180], [null, 2, 2]);
@@ -33,6 +34,43 @@ internal static class ArenaContextReadTests
         if (fireworks is not null)
             CheckOffer(detector, assets, fireworks, null, [null, 2, null]);
         Console.WriteLine("Contexto de Arena verificado con inventario propio y niveles por posición.");
+    }
+
+    private static void CheckCenteredArenaTitle(Detection detector, string assets, Ratings ratings)
+    {
+        var bounds = new Int32Rect(0, 0, 2560, 1440);
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        var title = layout.Titles[0].Pixels(bounds.Width, bounds.Height);
+        var font = new Typeface("Georgia");
+        var visual = new DrawingVisual();
+        using (var draw = visual.RenderOpen())
+        {
+            draw.DrawRectangle(Brushes.Black, null, new Rect(0, 0, bounds.Width, bounds.Height));
+            string[] names = ["Omnialma", "Atormentador", "De Vuelta a lo Básico"];
+            string[] context = ["Almas al azar", "Nv. 3", "Escudos"];
+            for (int index = 0; index < names.Length; index++)
+            {
+                var position = layout.Titles[index].Pixels(bounds.Width, bounds.Height);
+                var words = new FormattedText(names[index], CultureInfo.GetCultureInfo("es-MX"), FlowDirection.LeftToRight,
+                    font, 24, Brushes.White, 1);
+                draw.DrawText(words, new Point(position.X + (position.Width - words.Width) / 2, position.Y + 13));
+                var detail = new FormattedText(context[index], CultureInfo.GetCultureInfo("es-MX"), FlowDirection.LeftToRight,
+                    font, 19, Brushes.White, 1);
+                draw.DrawText(detail, new Point(position.X + (position.Width - detail.Width) / 2, position.Y + 99));
+            }
+            var frameNoise = new FormattedText("YY", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                font, 16, Brushes.White, 1);
+            draw.DrawText(frameNoise, new Point(title.X + 13, title.Y + 20));
+            draw.DrawText(frameNoise, new Point(title.X + title.Width - frameNoise.Width - 13, title.Y + 20));
+        }
+        var image = new RenderTargetBitmap(bounds.Width, bounds.Height, 96, 96, PixelFormats.Pbgra32);
+        image.Render(visual);
+        var raw = detector.ReadTitle(image, title, Tesseract.PageSegMode.SingleLine);
+        var read = detector.Scan(image, bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(ratings.Recognize(Mode.Arena, raw) is null && read.Cards.SequenceEqual([62, 85, 4]) &&
+            read.Texts[0] == "Omnialma" && read.UpgradeLevels?[1] == 3,
+            $"el centro recupera el título exacto al descartar el ruido lateral: {raw} / {read.Texts[0]}");
+        detector.Clear();
     }
 
     private static void CheckSharedAnvilTitle(Detection detector, string assets, Ratings ratings)

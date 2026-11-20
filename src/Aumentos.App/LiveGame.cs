@@ -14,8 +14,9 @@ namespace Aumentos;
 internal record GameContext(Mode Mode, string Champion);
 internal sealed record MayhemOpponent(string Champion, int[] Items);
 internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
-internal sealed record ArenaOpponent(string Champion, int[] Items);
-internal sealed record ArenaMatch(int[] Items, ArenaOpponent[] Opponents, bool InventoryKnown = true);
+internal sealed record ArenaParticipant(string Champion, int[] Items);
+internal sealed record ArenaMatch(int[] Items, ArenaParticipant[] Opponents, bool InventoryKnown = true,
+    ArenaParticipant[]? Roster = null);
 internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
     double? GameTime = null)
@@ -127,7 +128,8 @@ internal sealed class LiveGame : IDisposable
             if (!aliases.TryGetValue(active, out int current) || ChampionKey(roster[current]) is not { } champion)
                 return null;
             var items = ReadItems(roster[current]);
-            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null));
+            var participants = roster.Select(ReadArenaParticipant).OfType<ArenaParticipant>().ToArray();
+            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null, participants));
         }
 
         foreach (var player in roster)
@@ -168,6 +170,7 @@ internal sealed class LiveGame : IDisposable
 
         var context = new GameContext(Mode.Arena, champion);
         var items = ReadItems(roster[current]);
+        var participants = roster.Select(ReadArenaParticipant).ToArray();
         if (!snapshot.TryGetProperty("events", out var eventData) || eventData.ValueKind != JsonValueKind.Object ||
             !eventData.TryGetProperty("Events", out var events) || events.ValueKind != JsonValueKind.Array)
             return CreateMatch([]);
@@ -196,17 +199,15 @@ internal sealed class LiveGame : IDisposable
                 lastSeen[opponentTeam] = kill.Time;
         }
 
-        var opponents = roster.Select((player, index) => (Player: player, Team: TeamOf(index)))
+        var opponents = participants.Select((player, index) => (Player: player, Team: TeamOf(index)))
             .Where(player => lastSeen.ContainsKey(player.Team))
             .OrderByDescending(player => lastSeen[player.Team])
-            .Select(player => (Champion: ChampionKey(player.Player), Items: ReadItems(player.Player)))
-            .Where(player => player.Champion is not null)
-            .Select(player => new ArenaOpponent(player.Champion!, player.Items ?? []))
-            .ToArray();
+            .Select(player => player.Player).OfType<ArenaParticipant>().ToArray();
         return CreateMatch(opponents);
 
-        LiveMatch CreateMatch(ArenaOpponent[] rivals) => new(context,
-            Arena: new(items ?? [], rivals, items is not null), GameTime: ReadGameTime(game));
+        LiveMatch CreateMatch(ArenaParticipant[] rivals) => new(context,
+            Arena: new(items ?? [], rivals, items is not null, participants.OfType<ArenaParticipant>().ToArray()),
+            GameTime: ReadGameTime(game));
 
         int TeamOf(int index)
         {
@@ -215,6 +216,9 @@ internal sealed class LiveGame : IDisposable
             return index;
         }
     }
+
+    private static ArenaParticipant? ReadArenaParticipant(JsonElement player) => ChampionKey(player) is { } champion
+        ? new(champion, ReadItems(player) ?? []) : null;
 
     private sealed record ArenaKill(int Killer, int Victim, int[] Assisters, double Time);
 

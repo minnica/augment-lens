@@ -32,6 +32,17 @@ internal static class ArenaBuildTests
             planner.EstimateEnemyDamage(physical) is { PhysicalPercent: 100, MagicPercent: 0 } &&
             planner.EstimateEnemyDamage(match with { Opponents = [] }) is null,
             "el daño estimado usa las compras de hasta tres rivales confirmados y espera si aún no hay rivales");
+        var lobby = damageMix with
+        {
+            Roster = [new("Ashe", []), .. damageMix.Opponents, new("Lux", [223089]), new("Ornn", []), new("Unknown", [223031])]
+        };
+        var lobbyWithPurchase = lobby with { Roster = [new("Ashe", []), .. updatedMix.Opponents, new("Lux", [223089])] };
+        Check(planner.EstimateLobbyDamage(lobby) is { PhysicalPercent: 58, MagicPercent: 42 } &&
+            planner.EstimateLobbyDamage(lobbyWithPurchase) is { PhysicalPercent: 50, MagicPercent: 50 } &&
+            planner.EstimateEnemyDamage(lobby) is { PhysicalPercent: 50, MagicPercent: 50 } &&
+            planner.EstimateLobbyDamage(lobby with { Opponents = [] }) == planner.EstimateLobbyDamage(lobby) &&
+            planner.EstimateLobbyDamage(damageMix) is null,
+            "la mezcla de la lobby usa todas las compras conocidas, cada jugador por separado y sin esperar enfrentamientos");
 
         var jinx = new GameContext(Mode.Arena, "Jinx");
         var antiHeal = planner.Recommend(jinx, new ArenaMatch([223006, 223032, 223031, 223072],

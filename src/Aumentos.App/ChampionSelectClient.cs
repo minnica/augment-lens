@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography.X509Certificates;
@@ -14,10 +15,13 @@ using System.Threading.Tasks;
 namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
-internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null);
+internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable);
+internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
+    string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null);
 
 internal sealed class ChampionSelectClient : IDisposable
 {
+    private const string SelectionEndpoint = "/lol-champ-select/v1/session";
     private readonly X509Certificate2 root;
     private HttpClient? client;
     private string? install;
@@ -38,31 +42,67 @@ internal sealed class ChampionSelectClient : IDisposable
         if (flow is null || SelectMode(flow.RootElement) is not { } mode)
             return null;
         if (mode == Mode.Arena)
-            return new ChampionSelectSession(mode);
+        {
+            var (champion, team) = await ReadArenaDraft(connection, cancellation).ConfigureAwait(false);
+            return new ChampionSelectSession(mode, ArenaChampion: champion, ArenaTeam: team);
+        }
 
         var pick = await ReadMayhemPick(connection, cancellation).ConfigureAwait(false);
         return new ChampionSelectSession(mode, pick);
     }
 
+    private async Task<(string? Champion, ArenaDraftTeam? Team)> ReadArenaDraft(HttpClient connection, CancellationToken cancellation)
+    {
+        try
+        {
+            using var selection = await Get(connection, SelectionEndpoint, cancellation).ConfigureAwait(false);
+            if (selection is null)
+                return default;
+            var (champion, teammates, unavailable) = ArenaDraftIds(selection.RootElement);
+            if (champion is null && teammates.Length == 0 && unavailable.Length == 0)
+                return default;
+            if (await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
+                return default;
+
+            return (champion is { } id ? names.GetValueOrDefault(id) : null,
+                new ArenaDraftTeam(Keys(teammates), Keys(unavailable)));
+
+            string[] Keys(int[] ids) => ids.Select(id => names.GetValueOrDefault(id)).OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+        catch (Exception error) when (!cancellation.IsCancellationRequested &&
+            error is IOException or HttpRequestException or JsonException or OperationCanceledException)
+        {
+            return default;
+        }
+    }
+
     private async Task<ChampionSelection?> ReadMayhemPick(HttpClient connection, CancellationToken cancellation)
     {
-        using var selection = await Get(connection, "/lol-champ-select/v1/session", cancellation).ConfigureAwait(false);
+        using var selection = await Get(connection, SelectionEndpoint, cancellation).ConfigureAwait(false);
         if (selection is null || OwnPick(selection.RootElement) is not { } pick)
             return null;
 
-        if (champions is null)
-        {
-            using var championData = await Get(connection, "/lol-game-data/assets/v1/champion-summary.json", cancellation).ConfigureAwait(false);
-            champions = ReadNames(championData, "alias");
-        }
+        var names = await ChampionNames(connection, cancellation).ConfigureAwait(false);
+        var key = names?.GetValueOrDefault(pick.Champion);
         if (spells is null)
         {
             using var spellData = await Get(connection, "/lol-game-data/assets/v1/summoner-spells.json", cancellation).ConfigureAwait(false);
             spells = ReadNames(spellData, "name");
         }
-        return champions?.TryGetValue(pick.Champion, out var key) == true
+        return key is not null
             ? new ChampionSelection(key, spells?.GetValueOrDefault(pick.Spell1), spells?.GetValueOrDefault(pick.Spell2))
             : null;
+    }
+
+    private async Task<Dictionary<int, string>?> ChampionNames(HttpClient connection, CancellationToken cancellation)
+    {
+        if (champions is null)
+        {
+            using var championData = await Get(connection, "/lol-game-data/assets/v1/champion-summary.json", cancellation).ConfigureAwait(false);
+            champions = ReadNames(championData, "alias");
+        }
+        return champions;
     }
 
     internal static Mode? SelectMode(JsonElement root)
@@ -85,16 +125,89 @@ internal sealed class ChampionSelectClient : IDisposable
 
     internal static (int Champion, int Spell1, int Spell2)? OwnPick(JsonElement root)
     {
-        if (root.ValueKind != JsonValueKind.Object || Number(root, "localPlayerCellId") is not >= 0 ||
+        if (OwnPlayer(root) is not { } player)
+            return null;
+        return Number(player, "championId") is > 0 and var champion
+            ? (champion, Number(player, "spell1Id"), Number(player, "spell2Id")) : null;
+    }
+
+    internal static (int? Champion, int[] Teammates, int[] Unavailable) ArenaDraftIds(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            return (null, [], []);
+
+        var own = OwnPlayer(root);
+        int localCell = Number(root, "localPlayerCellId");
+        int localTeam = own is { } player ? ArenaTeamId(player) : -1;
+        var teammates = new HashSet<int>();
+        var unavailable = new HashSet<int>();
+        var enemyCells = new HashSet<int>();
+        foreach (var ally in Elements(root, "myTeam"))
+        {
+            if (ally.ValueKind != JsonValueKind.Object || Number(ally, "cellId") < 0 || Number(ally, "cellId") == localCell)
+                continue;
+            if (localTeam >= 0 && ArenaTeamId(ally) is >= 0 and var team && team != localTeam)
+                AddEnemy(ally);
+            else if (own is not null && ArenaPick(ally) is { } teammate)
+                teammates.Add(teammate);
+        }
+        foreach (var enemy in Elements(root, "theirTeam"))
+            if (enemy.ValueKind == JsonValueKind.Object)
+                AddEnemy(enemy);
+
+        if (root.TryGetProperty("bans", out var bans))
+        {
+            foreach (var ban in Elements(bans, "myTeamBans").Concat(Elements(bans, "theirTeamBans")))
+                if (ban.ValueKind == JsonValueKind.Number && ban.TryGetInt32(out var id) && id > 0)
+                    unavailable.Add(id);
+        }
+        foreach (var group in Elements(root, "actions"))
+        {
+            if (group.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var action in group.EnumerateArray())
+            {
+                if (action.ValueKind != JsonValueKind.Object || Number(action, "championId") is not > 0 ||
+                    !action.TryGetProperty("completed", out var complete) || complete.ValueKind != JsonValueKind.True)
+                    continue;
+                if (TextIs(action, "type", "ban") || (TextIs(action, "type", "pick") &&
+                    enemyCells.Contains(Number(action, "actorCellId"))))
+                    unavailable.Add(Number(action, "championId"));
+            }
+        }
+        return (own is { } local ? ArenaPick(local) : null, [.. teammates], [.. unavailable]);
+
+        void AddEnemy(JsonElement enemy)
+        {
+            if (Number(enemy, "cellId") is >= 0 and var cell)
+                enemyCells.Add(cell);
+            if (Number(enemy, "championId") is > 0 and var champion)
+                unavailable.Add(champion);
+        }
+    }
+
+    private static IEnumerable<JsonElement> Elements(JsonElement root, string key) =>
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty(key, out var array) &&
+        array.ValueKind == JsonValueKind.Array ? array.EnumerateArray() : [];
+
+    private static int ArenaTeamId(JsonElement player) => Number(player, "teamId") is >= 0 and var team
+        ? team : Number(player, "team");
+
+    private static int? ArenaPick(JsonElement player) => Number(player, "championId") is > 0 and var picked
+        ? picked : Number(player, "championPickIntent") is > 0 and var intended ? intended : null;
+
+    private static JsonElement? OwnPlayer(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object ||
             !root.TryGetProperty("myTeam", out var team) || team.ValueKind != JsonValueKind.Array)
             return null;
         var myCell = Number(root, "localPlayerCellId");
+        if (myCell < 0)
+            return null;
         foreach (var player in team.EnumerateArray())
         {
-            if (player.ValueKind != JsonValueKind.Object || Number(player, "cellId") != myCell)
-                continue;
-            var champion = Number(player, "championId");
-            return champion > 0 ? (champion, Number(player, "spell1Id"), Number(player, "spell2Id")) : null;
+            if (player.ValueKind == JsonValueKind.Object && Number(player, "cellId") == myCell)
+                return player;
         }
         return null;
     }

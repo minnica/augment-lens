@@ -98,60 +98,67 @@ internal static class ChampionSelectTests
                 data.Champions[key] = new(key, "B", 50 + i, 100);
             }
             var source = new ArenaChampionTierView(data, "Prueba");
-            var offers = catalog.Champions.Where(champion => champion.Key is "Jax" or "Rell" or "Aurora")
-                .Select(champion => new ArenaDraftOffer(champion, Int32Rect.Empty)).ToArray();
-            var options = ArenaChampionDisplay.Create(bounds, 0, catalog, source, offers);
-            Check(options.VisibleOptions && options.Rows.Select(row => row.Rating?.Champion).SequenceEqual(["Rell", "Jax", null]) &&
-                options.Rows[^1].Champion == "Aurora", "ordena las opciones visibles y conserva a quien carece de tier");
             var global = ArenaChampionDisplay.Create(bounds, 0, catalog, source, null);
             var ranked = new[] { "Lillia", "Rell", "Jax" }.Concat(otherChampions.Skip(1).Reverse().Select(champion => champion.Key));
-            Check(!global.VisibleOptions && global.Rows.Length == 15 &&
+            Check(global.Selection is null && global.Rows.Length == 15 &&
                 global.Rows.Select(row => row.Rating?.Champion).SequenceEqual(ranked),
                 "el ranking global toma hasta quince campeones por tier y resultados");
 
-            overlay.Render(options);
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            var handle = new WindowInteropHelper(overlay).Handle;
-            var placement = Native.Bounds(handle);
-            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
-            Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X && placement.Y >= bounds.Y &&
-                placement.X + placement.Width <= bounds.X + bounds.Width &&
-                placement.Y + placement.Height <= bounds.Y + bounds.Height &&
-                (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                panel.Children.OfType<TextBlock>().Select(row => row.Text).SequenceEqual(
-                    ["Arena · Opciones visibles", $"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}",
-                     "1. Rell · S · 58 % top 3", "2. Jax · A · 53 % top 3", "Aurora · Sin tier"]),
-                "muestra las opciones de Arena dentro del cliente con fuente y parche");
-
             overlay.Render(global);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            placement = Native.Bounds(handle);
-            var header = (DockPanel)panel.Children[0];
-            var table = (Grid)panel.Children[1];
-            var columns = table.Children.OfType<Grid>().ToArray();
-            Check(placement.X >= bounds.X + bounds.Width * 0.57 &&
-                placement.X + placement.Width <= bounds.X + bounds.Width &&
-                placement.Y + placement.Height <= bounds.Y + bounds.Height * 0.90 &&
-                header.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(
-                    [$"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}", "Arena · Top 15 general"]) &&
-                columns.Length == 2 && Ranks(columns[0]).SequenceEqual(Enumerable.Range(1, 8)) &&
-                Ranks(columns[1]).SequenceEqual(Enumerable.Range(9, 7)),
-                "muestra las quince posiciones en dos columnas dentro de la zona lateral");
+            var handle = new WindowInteropHelper(overlay).Handle;
+            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            Check(Native.IsWindowVisible(handle) &&
+                (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
+                "el ranking lateral se muestra sin interceptar los clics");
+            Check(panel.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(
+                    ["Arena · Top 15 general", $"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}"]),
+                "el Top 15 muestra la fuente y el parche");
+            CheckRail(bounds);
 
-            var narrow = new Int32Rect(bounds.X, bounds.Y, 600, 400);
-            overlay.Render(global with { Bounds = narrow });
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            placement = Native.Bounds(handle);
-            Check(placement.X >= narrow.X && placement.X + placement.Width <= narrow.X + narrow.Width &&
-                placement.Y >= narrow.Y && placement.Y + placement.Height <= narrow.Y + narrow.Height * 0.79,
-                "el ranking deja espacio para Fijar en clientes estrechos");
+            var excludedChampion = otherChampions[0];
+            ArenaCompositionPick[] composition = [new("Amumu", "A", "Aporta primera línea y control"),
+                new("Lux", "B", "Aporta daño mágico")];
+            var selected = ArenaChampionDisplay.Create(bounds, 0, catalog, source, excludedChampion.Key, composition);
+            Check(selected.Rows.SequenceEqual(global.Rows) && selected.Selection?.Rating?.Tier == "B",
+                "el campeón preseleccionado conserva su tier aunque quede fuera del Top 15");
+            overlay.Render(selected);
+            var badge = panel.Children.OfType<DockPanel>().Single();
+            Check(((TextBlock)((Border)badge.Children[0]).Child).Text == "B" &&
+                ((StackPanel)badge.Children[1]).Children.OfType<TextBlock>().First().Text == excludedChampion.Name &&
+                panel.Children.OfType<TextBlock>().Any(text => text.Text == "Para tu equipo") &&
+                panel.Children.OfType<StackPanel>().Select(pick => ((TextBlock)pick.Children[1]).Text)
+                    .SequenceEqual(composition.Select(pick => pick.Reason)),
+                "muestra la preselección y los motivos de la composición junto al ranking");
+
+            var narrow = new Int32Rect(bounds.X, bounds.Y, 800, 450);
+            overlay.Render(selected with { Bounds = narrow });
+            CheckRail(narrow);
+            var unavailable = ArenaChampionDisplay.Create(bounds, 0, catalog, source, "Aurora");
+            overlay.Render(unavailable);
+            Check(panel.Children.OfType<DockPanel>().Single().Children.OfType<StackPanel>().Single()
+                .Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(["Aurora", "Sin tier publicado"]),
+                "muestra el campeón cuando la fuente carece de una valoración");
+            overlay.Render(global);
+            Check(!panel.Children.OfType<DockPanel>().Any(), "al quitar la preselección desaparece su distintivo");
 
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "se oculta el panel de Arena al salir de selección");
             Console.WriteLine("Panel de campeones de Arena en WPF verificado.");
 
-            static IEnumerable<int> Ranks(Grid column) => column.Children.OfType<TextBlock>()
-                .Where(cell => Grid.GetColumn(cell) == 0).Select(cell => int.Parse(cell.Text));
+            void CheckRail(Int32Rect client)
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                var placement = Native.Bounds(handle);
+                var table = panel.Children.OfType<Grid>().Single();
+                Check(placement.X >= client.X + client.Width * .74 &&
+                    placement.X + placement.Width <= client.X + client.Width &&
+                    placement.Y >= client.Y && placement.Y + placement.Height <= client.Y + client.Height * .90 &&
+                    table.RowDefinitions.Count == 16 &&
+                    table.Children.OfType<TextBlock>().Where(cell => Grid.GetColumn(cell) == 0)
+                        .Select(cell => int.Parse(cell.Text)).SequenceEqual(Enumerable.Range(1, 15)),
+                    "muestra las quince posiciones en una sola lista vertical dentro del lateral");
+            }
         }
         finally { overlay.Close(); }
     }

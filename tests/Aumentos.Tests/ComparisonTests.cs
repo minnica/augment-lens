@@ -76,6 +76,7 @@ internal static class ComparisonTests
         CheckIvernOffer(ratings);
         CheckRellPrismaticAugments(ratings, patch);
         CheckRellSilverAugments(ratings, patch);
+        CheckArenaControlTieBreak(ratings, patch);
         CheckChoGathSlowAugment(ratings);
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
@@ -278,6 +279,37 @@ internal static class ComparisonTests
         var badges = CardComparison.ForOffer(ratings, game, [card?.Id], [false], null);
         Check(card?.Id == 44 && badges[0] is { Local: "A", External: null },
             "las ralentizaciones repetidas de Cho'Gath permiten un tier local aunque falten estadísticas");
+    }
+
+    private static void CheckArenaControlTieBreak(Ratings ratings, string patch)
+    {
+        var rell = new GameContext(Mode.Arena, "Rell");
+        int?[] ids = new[] { "Atormentador", "A Bofetadas", "No Parpadees" }
+            .Select(name => ratings.Recognize(rell.Mode, name)?.Id).ToArray();
+        var source = new OpGgSnapshot(patch, rell.Mode, rell.Champion, DateTimeOffset.UtcNow,
+            new() { [85] = new(PickPercent: 2m), [136] = new(PickPercent: 98m) });
+        var ggez = new GgezArenaSnapshot(rell.Champion, patch, patch, DateTimeOffset.UtcNow, 1000,
+            new() { [85] = new(3m, 30), [136] = new(97m, 970) });
+        var offer = CardComparison.ForOffer(ratings, rell, ids, new bool[3], source, ggez: ggez);
+        Check(ids.SequenceEqual([85, 136, 26]) && offer is
+            [ { Local: "A", RecommendedAugment: true, UsesWiki: true, External.PickPercent: 2m },
+              { Local: "A", RecommendedAugment: false, Arena.Percent: 97m }, { Local: "B", RecommendedAugment: false } ] &&
+            offer[0]!.LocalReason!.Contains("vida máxima del rival", StringComparison.Ordinal),
+            "Rell desempata con la quemadura por inmovilización aunque A Bofetadas sea más elegida");
+
+        var reversed = CardComparison.ForOffer(ratings, rell, [136, 26, 85], new bool[3], null);
+        Check(reversed is [ { RecommendedAugment: false }, { RecommendedAugment: false }, { RecommendedAugment: true } ],
+            "el desempate sigue al aumento tras cambiar su posición");
+        var leona = CardComparison.ForOffer(ratings, rell with { Champion = "Leona" }, [85, 136, 82], new bool[3], null);
+        var lux = CardComparison.ForOffer(ratings, rell with { Champion = "Lux" }, [85, 136, 82], new bool[3], null);
+        Check(leona[0]?.RecommendedAugment == true && lux.Take(2).All(card => card is { Local: "A", RecommendedAugment: false }),
+            "compara el mismo activador para otros tanques de apoyo y conserva el empate en un perfil distinto");
+
+        var mixed = CardComparison.ForOffer(ratings, rell, [85, 136, 12], new bool[3], null);
+        var unread = CardComparison.ForOffer(ratings, rell, [85, 136, null], new bool[3], null);
+        Check(mixed.All(card => card is { Local: "A", RecommendedAugment: false }) &&
+            unread.All(card => card?.RecommendedAugment != true),
+            "una tercera carta competitiva o todavía sin leer impide declarar un desempate parcial");
     }
 
     private static async Task CheckZileanOffer(Ratings ratings, GameContext lux, string patch, string settings)

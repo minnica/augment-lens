@@ -18,6 +18,34 @@ internal static class ArenaAugmentAffinityTests
         Check(affinity.Evaluate("Chogath", 35) is { Tier: Tier.A } && affinity.Evaluate("Chogath", 5) is { Tier: Tier.B },
             "los perfiles de primera línea aprovechan Siente el Ardor y reciben una valoración general para Estandarte");
 
+        var rellSpeed = Offer("Rell", [85, 1405, 305]);
+        Check(rellSpeed[0] is { LocalText: "A" } &&
+            rellSpeed[1] is { LocalText: "B", UsesWiki: true, LocalReason: "Dañar a un campeón con habilidades da un impulso breve de velocidad" } &&
+            rellSpeed[2] is { LocalText: "A", UsesWiki: true } && rellSpeed[2]!.LocalReason!.Contains("resistencia a ralentizaciones"),
+            "Rell distingue el impulso reactivo de Demonio Veloz del posicionamiento constante de Día de Pierna");
+        var rellDamage = Offer("Rell", [85, 136, 26]);
+        Check(rellDamage[2] is { LocalText: "B", UsesWiki: true, LocalReason: "Infliges más daño mientras seas más rápido que tu objetivo" } &&
+            affinity.Evaluate("Ashe", 26) is { Tier: Tier.A } && affinity.Evaluate("Ahri", 1405) is { Tier: Tier.A },
+            "No Parpadees depende de una ventaja de velocidad y los lanzadores aprovechan Demonio Veloz");
+
+        var rellPrismatic = Offer("Rell", [85, 317, 224], [2, null, null]);
+        Check(rellPrismatic[0] is { LocalText: "A", UpgradeLevel: 2 } &&
+            rellPrismatic[1] is { LocalText: "Variable", LocalReason: "Cambia tus aumentos por prismáticos aleatorios" } &&
+            rellPrismatic[2] is { LocalText: "Variable", LocalReason: "Eclosiona con 5 derribos, uno por rival y ronda" } &&
+            rellPrismatic.All(badge => badge is { RecommendedAugment: false, RecommendedUpgrade: false }),
+            "Pandora y Huevo muestran condiciones concretas sin promover una oferta de resultado incierto");
+        var rellSoul = Offer("Rell", [62, 85, 4], [null, 3, null]);
+        Check(rellSoul[0] is { LocalText: "Variable", LocalReason: "Las Almas de Dragón que recibes son aleatorias" } &&
+            rellSoul[1] is { LocalText: "A", UpgradeLevel: 3 } &&
+            rellSoul[2] is { LocalText: "C", UsesWiki: true, LocalReason: "Bloquea Tormenta Magnética, clave para agrupar rivales" },
+            "Omnialma depende de las almas que salgan y De Vuelta a lo Básico penaliza la pérdida de la definitiva de Rell");
+
+        var rellDealer = Offer("Rell", [349, 350, 347]);
+        Check(rellDealer[0] is { LocalText: "B", UsesWiki: false } && rellDealer[0]!.LocalReason!.Contains("10 % de vida") &&
+            rellDealer[1] is { LocalText: "A", UsesWiki: false } && rellDealer[1]!.LocalReason!.Contains("cada 10 s") &&
+            rellDealer[2] is { LocalText: "Variable", LocalReason: "Aplica Heridas Graves, útiles contra la curación rival" },
+            "las cartas del Mercader usan las mecánicas del cliente y el Putrificador depende de la curación rival");
+
         int[] choBuild = [443083, 223111, 444644, 223084, 223068];
         var cho = Offer("Chogath", [181, 110, 44], equipped: choBuild);
         Check(cho[0] is { LocalText: "S+", UsesWiki: true, RecommendedAugment: true } &&

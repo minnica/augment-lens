@@ -50,10 +50,18 @@ internal sealed class ArenaBuilds(Ratings ratings)
     internal void ResetSwap() => suggestedSwap = null;
 
     internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match) => match is null ? null :
-        EnemyDamageMix.Estimate(RecentOpponents(match).Where(opponent => champions.ContainsKey(opponent.Champion)).Select(opponent =>
+        EstimateDamage(RecentOpponents(match));
+
+    internal EnemyDamageMix? EstimateLobbyDamage(ArenaMatch? match) => match?.Roster is { } roster
+        ? EstimateDamage(roster) : null;
+
+    private EnemyDamageMix? EstimateDamage(IEnumerable<ArenaParticipant> participants) =>
+        EnemyDamageMix.Estimate(participants.Select(participant =>
         {
-            var items = EquippedItems(opponent).Where(item => !IsBoot(item)).ToArray();
-            return EnemyDamageMix.PhysicalShare(ratings, champions[opponent.Champion],
+            if (!champions.TryGetValue(participant.Champion, out var champion))
+                return null;
+            var items = EquippedItems(participant).Where(item => !IsBoot(item)).ToArray();
+            return EnemyDamageMix.PhysicalShare(ratings, champion,
                 items.Count(item => Has(item, "Damage") || Has(item, "CriticalStrike")), items.Count(item => Has(item, "SpellDamage")));
         }));
 
@@ -239,7 +247,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
                 role == "Mage" ? [226653] : [223153]);
     }
 
-    private Rival? ReadRival(ArenaOpponent opponent, bool purchasesOnly = false)
+    private Rival? ReadRival(ArenaParticipant opponent, bool purchasesOnly = false)
     {
         if (!champions.TryGetValue(opponent.Champion, out var champion))
             return null;
@@ -261,9 +269,9 @@ internal sealed class ArenaBuilds(Ratings ratings)
             items.Count(item => Has(item, "CriticalStrike")), items.Count(item => Has(item, "Health")));
     }
 
-    private static IEnumerable<ArenaOpponent> RecentOpponents(ArenaMatch match) => match.Opponents.Take(3);
-    private IEnumerable<ArenaItem> EquippedItems(ArenaOpponent opponent) =>
-        opponent.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => item.Id);
+    private static IEnumerable<ArenaParticipant> RecentOpponents(ArenaMatch match) => match.Opponents.Take(3);
+    private IEnumerable<ArenaItem> EquippedItems(ArenaParticipant participant) =>
+        participant.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => item.Id);
     private IEnumerable<ArenaItem> OwnedItems(ArenaMatch match) =>
         match.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => BaseId(item.Id)).Take(Slots);
 

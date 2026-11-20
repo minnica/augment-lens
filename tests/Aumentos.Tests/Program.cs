@@ -47,8 +47,8 @@ internal static class Program
             Option("--mayhem-bench-swap-shot") is { } benchSwap)
             MayhemChampionTests.ReadBench(ratings.Catalog, benchTemplates, benchFirst, benchSwap);
         ArenaChampionTierTests.Run(ratings, Option("--arena-champion-tier-html"));
-        if (Option("--arena-draft-shot") is { } draftShot)
-            ArenaDraftReaderTests.Run(ratings, assets, draftShot);
+        ArenaChampionSelectionTests.Run();
+        ArenaCompositionTests.Run(ratings);
         if (Option("--arena-jax-upgrade-shot") is { } fireworksShot)
         {
             var image = Diagnostics.OpenBitmap(fireworksShot);
@@ -141,7 +141,10 @@ internal static class Program
             MayhemChampionTests.Smoke(ratings.Catalog);
         }
         if (args.Contains("--capture-smoke") || args.Contains("--card-overlay-smoke"))
+        {
             OverlaySmoke(assets);
+            ArenaItemTierSizeTests.Smoke();
+        }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
             PrismaticOverlaySmoke(ratings, assets);
         if (args.Contains("--capture-smoke") || args.Contains("--arena-build-overlay-smoke"))

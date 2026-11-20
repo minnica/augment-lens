@@ -19,15 +19,16 @@ internal static class ArenaBuildOverlayTests
         var build = new OpGgBuildSnapshot(Mode.Arena, "Jax", clientPatch, clientPatch, DateTimeOffset.UtcNow,
             [new(OpGgBuildSection.Prismatic, [[new(443090, "Cuota del Segador")]])]);
         var view = new BuildDisplay(new Int32Rect(0, 0, 1600, 900), 0, "Jax", Mode.Arena, new(build, "Prueba"),
-            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67));
+            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67), LobbyDamage: new(45));
         var renderer = new BuildPanel(null);
         var panel = (StackPanel)renderer.Child;
         renderer.Render(view);
         var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
         Check(blocks.SequenceEqual(["Después", "Equipados · 4 de 6", "Objetos prismáticos",
-            "Daño rival estimado", "Según rivales de rondas jugadas"]) &&
-            ReadText(panel.Children[^1]).SequenceEqual(["67% físico", "33% mágico"]),
-            "Arena abre directo en los objetos y muestra la estimación de daño al pie");
+            "Daño rival estimado", "Según rivales de rondas jugadas", "Daño del lobby", "Incluye a tu equipo"]) &&
+            ReadText(panel.Children[^4]).SequenceEqual(["67% físico", "33% mágico"]) &&
+            ReadText(panel.Children[^1]).SequenceEqual(["45% físico", "55% mágico"]),
+            "Arena separa la estimación de los rivales de la de todo el lobby");
         var next = panel.Children.OfType<Border>().Single();
         Check(panel.Children[0] == next && next.BorderThickness.Left > 0 && next.Background is not null &&
             ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk"]) &&
@@ -39,15 +40,25 @@ internal static class ArenaBuildOverlayTests
 
         var empty = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with
             { Detail = "Encaja con tu campeón", Owned = false }).ToArray());
-        renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null });
+        renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null, LobbyDamage = null });
         var emptyLabels = ReadText(panel).ToArray();
         Check(emptyLabels.Contains("Esperando confirmar rivales.") &&
+            emptyLabels.Contains("Esperando datos de los equipos.") && !emptyLabels.Any(label => label.EndsWith("% físico")) &&
             emptyLabels.Contains("Equipados · 0 de 6") &&
             emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<DockPanel>().Count() == 5 &&
             !panel.Children.OfType<UniformGrid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
         renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null }, 215);
-        Check(!ReadText(panel).Contains("Encaja con tu campeón") &&
-            panel.Children.OfType<DockPanel>().Count() == 5, "la vista estrecha muestra las compras sin explicaciones genéricas");
+        renderer.Measure(new Size(215, double.PositiveInfinity));
+        var narrowLabels = ReadText(panel).ToArray();
+        Check(!narrowLabels.Contains("Encaja con tu campeón") && narrowLabels.Contains("Esperando confirmar rivales.") &&
+            narrowLabels.Contains("45% físico") && narrowLabels.Contains("55% mágico") &&
+            renderer.DesiredSize.Width <= 215 && panel.Children.OfType<DockPanel>().Count() == 5,
+            "la vista estrecha permite ver el daño del lobby mientras se confirman los rivales");
+
+        renderer.Render(view with { Mode = Mode.Caos, Source = null });
+        var mayhemLabels = ReadText(panel).ToArray();
+        Check(mayhemLabels.Contains("Daño rival estimado") && !mayhemLabels.Contains("Daño del lobby") &&
+            !mayhemLabels.Contains("45% físico"), "la barra del lobby pertenece a la tienda de Arena");
 
         var full = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with { Detail = null, Owned = true }).ToArray());
         renderer.Render(view with { Plan = full, Source = null });
@@ -71,7 +82,28 @@ internal static class ArenaBuildOverlayTests
             Check(ReadText(panel).Contains($"OP.GG · Parche anterior {LeaguePatch.Public(previous)}"),
                 "se conserva el aviso solo para recomendaciones de un parche anterior");
         }
+        CheckResizeAndRefresh(view);
         Console.WriteLine("Tienda de Arena verificada con próximas compras, inventario separado y ruta completa.");
+    }
+
+    private static void CheckResizeAndRefresh(BuildDisplay view)
+    {
+        var overlay = new BuildOverlay { Left = -30000, Top = -30000 };
+        try
+        {
+            view = view with { Bounds = new Int32Rect(-30000, -30000, 2560, 1440), Shop = new Int32Rect(420, 220, 1100, 810) };
+            overlay.Render(view);
+            var panel = (BuildPanel)((Viewbox)overlay.Content).Child;
+            double initialHeight = overlay.Height;
+            overlay.SetSize(BuildSizePreference.Maximum);
+            Check(overlay.Height > initialHeight && ReadText(panel).Contains("45% físico"),
+                "el tamaño de la tienda amplía ambas barras de daño");
+            overlay.Render(view with { LobbyDamage = new(58) });
+            var labels = ReadText(panel).ToArray();
+            Check(labels.Contains("58% físico") && labels.Contains("42% mágico") && labels.Contains("67% físico") &&
+                !labels.Contains("45% físico"), "los cambios del lobby refrescan la barra sin modificar la de rivales");
+        }
+        finally { overlay.Close(); }
     }
 
     private static IEnumerable<string> ReadText(UIElement element) => element switch

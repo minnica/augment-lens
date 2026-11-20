@@ -204,6 +204,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
     private static ArenaAugmentFit? Unlock(Profile p, int id) => id switch
     {
         1 => Fit(p.Casting, "Lanzar habilidades acumula aceleración durante el combate"),
+        4 when p.Champion.Key == "Rell" => new(Tier.C, "Bloquea Tormenta Magnética, clave para agrupar rivales"),
         5 => Fit(p.Ally, "Potencia temporalmente la vida, el DA, el PH y la velocidad de ataque de tu aliado"),
         7 => Fit(p.Attacks || p.Physical, "Aumenta el daño de ataque"),
         11 => new(Tier.B, "Lanzar tu definitiva te vuelve invulnerable brevemente"),
@@ -213,6 +214,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         20 => new(Tier.B, "Recuperas vida al quedar por debajo del umbral"),
         21 => Fit(p.Ally, "Barrera y Curación para tu equipo"),
         23 => Fit(p.Attacks || p.Frontline, "Potencia ataques que recuperan vida"),
+        26 => Fit(p.FrequentSlow, "Infliges más daño mientras seas más rápido que tu objetivo"),
         27 => Fit(p.Mobility, "Desplazarte deja una estela que detona"),
         28 => Fit(p.Attacks || p.Casting, "El daño repetido reduce ambas resistencias"),
         33 => new(Tier.B, "Lanza un gancho automático al enemigo cercano"),
@@ -253,11 +255,14 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         231 => new(Tier.B, "Una luz protectora escuda a los aliados que atraviesa"),
         232 => Fit(p.Frontline, "Daña a enemigos cercanos y deja curación al impactar"),
         301 => new(Tier.B, "La estrella concede invulnerabilidad breve cerca de ti"),
+        305 => Fit(p.Frontline && p.Control || p.Range && !p.Mobility,
+            "Velocidad de movimiento constante y resistencia a ralentizaciones para colocarte"),
         316 => new(Tier.B, "Tu daño aplica Heridas Graves y reduce escudos"),
         321 => Fit(p.Mobility, "Tu desplazamiento te protege y puede escudar aliados", Tier.C),
         330 => Fit(p.Mobility, "Desplazarte cerca del enemigo acumula velocidad de movimiento", Tier.C),
         343 => Fit(p.Ally || p.Sustain, "Curar y escudar aumenta tu daño de habilidad", Tier.C),
         357 => Fit(p.Attacks && (p.Hybrid || p.Casting), "Alternar ataques y habilidades aumenta su daño"),
+        1405 => Fit(p.Casting, "Dañar a un campeón con habilidades da un impulso breve de velocidad"),
         _ => null
     };
 

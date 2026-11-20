@@ -99,6 +99,8 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
             else
                 RecommendArenaAugment(jax, ids, badges);
             ratings.AugmentAffinity.Apply(game, ids, levels, arenaItems, badges);
+            if (!isUpgrade)
+                RecommendArenaControlTieBreak(ratings, game, ids, badges);
         }
         return badges;
     }
@@ -106,7 +108,9 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
     private const int Deft = 22;
     private const int Goliath = 41;
     private const int TapDancer = 81;
+    private const int Tormentor = 85;
     private const int Typhoon = 87;
+    private const int SlapAround = 136;
 
     private static void DescribeJaxChoices(int?[] ids, int?[]? levels, CardComparison?[] badges)
     {
@@ -133,14 +137,9 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
 
     private static void RecommendArenaAugment(bool jax, int?[] ids, CardComparison?[] badges)
     {
-        if (badges.Length < 2 || badges.Any(badge => badge?.Local is not ("S" or "A" or "B" or "C")))
-            return;
-        var bestTier = badges.Select(badge => Enum.Parse<Tier>(badge!.Local)).Min();
-        if (bestTier is not (Tier.S or Tier.A))
-            return;
-        var best = Enumerable.Range(0, badges.Length).Where(index => badges[index]!.Local == bestTier.ToString()).ToArray();
+        var best = ArenaLeaders(badges);
         var index = best.Length == 1 ? best[0] : -1;
-        if (jax && bestTier == Tier.A && best.Length == 2)
+        if (jax && best.Length == 2 && badges[best[0]]?.Local == "A")
         {
             if (best.Any(i => ids[i] == Goliath))
                 index = best.FirstOrDefault(i => ids[i] == TapDancer, -1);
@@ -149,6 +148,46 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
         }
         if (index >= 0)
             badges[index] = badges[index]! with { RecommendedAugment = true };
+    }
+
+    private static void RecommendArenaControlTieBreak(Ratings ratings, GameContext game, int?[] ids, CardComparison?[] badges)
+    {
+        if (badges.Any(badge => badge?.RecommendedAugment == true) || ArenaLeaders(badges) is not [var first, var second])
+            return;
+        var winner = (ids[first], ids[second]) switch
+        {
+            (Tormentor, SlapAround) => first,
+            (SlapAround, Tormentor) => second,
+            _ => -1
+        };
+        if (winner < 0 || ratings.Wiki?.Find(Tormentor) is not { Disabled: not true, Removed: not true } ||
+            ratings.Wiki.Find(SlapAround) is not { Disabled: not true, Removed: not true })
+            return;
+
+        var champion = ratings.Catalog.Champions.FirstOrDefault(champion =>
+            string.Equals(champion.Key, game.Champion, StringComparison.OrdinalIgnoreCase));
+        if (champion is not { Roles: ["Tank", ..] } || !champion.Roles.Contains("Support") ||
+            !ratings.HasTrait(game.Champion, "control") || ratings.HasTrait(game.Champion, "ap") ||
+            ratings.HasTrait(game.Champion, "attacks"))
+            return;
+
+        // Both cards trigger from the same control. A tank support can secure the burn with the engage itself.
+        badges[winner] = badges[winner]! with
+        {
+            RecommendedAugment = true,
+            LocalReason = "Tus inmovilizaciones aplican una quemadura acumulable que escala con la vida máxima del rival",
+            UsesWiki = true
+        };
+    }
+
+    private static int[] ArenaLeaders(CardComparison?[] badges)
+    {
+        if (badges.Length < 2 || badges.Any(badge => badge?.Local is not ("S" or "A" or "B" or "C")))
+            return [];
+        var tier = badges.Min(badge => Enum.Parse<Tier>(badge!.Local));
+        if (tier is not (Tier.S or Tier.A))
+            return [];
+        return Enumerable.Range(0, badges.Length).Where(index => badges[index]!.Local == tier.ToString()).ToArray();
     }
 }
 
