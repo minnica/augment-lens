@@ -260,7 +260,10 @@ $catalog = [ordered]@{
     locale='es_MX'
     sources=[ordered]@{ champions="Data Dragon $ChampionVersion"; augments=$cdn; arenaItems=$arenaItemSource; arenaAugmentOverrides=$arenaModeSource }
     champions=@($champions | Sort-Object id | ForEach-Object {
-        [ordered]@{ key=$_.id; name=$_.name; roles=@($_.tags) }
+        [ordered]@{
+            key=$_.id; name=$_.name; roles=@($_.tags)
+            magicResist=$_.stats.spellblock; magicResistPerLevel=$_.stats.spellblockperlevel
+        }
     })
     augments=@($cards | Sort-Object { $_.mode }, { [int]$_.id })
     arenaItems=$arenaItems

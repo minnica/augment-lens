@@ -78,6 +78,8 @@ public sealed class OfferState
 internal sealed class Detection : IDisposable
 {
     private const int ChemtechPutrifierAugment = 347;
+    private const int WolfReward = 358;
+    private const int LambReward = 359;
     private readonly Ratings ratings;
     private readonly TesseractEngine engine;
     private readonly OfferState state = new();
@@ -108,6 +110,9 @@ internal sealed class Detection : IDisposable
             if (layout != previous)
                 state.Clear();
             var result = Scan(image, scan, layout, mode, panelConfirmed: true);
+            if (mode == Mode.Arena && layout.Titles.Length == 2 &&
+                result.Cards is not ([LambReward, WolfReward] or [WolfReward, LambReward]))
+                continue;
             if (!marker && result.Matched < 2)
                 continue;
             if (layout == previous && (result.CanShow(true) || StatShardRatings.Identify(result) is not null))

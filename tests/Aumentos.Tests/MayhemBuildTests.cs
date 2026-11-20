@@ -39,7 +39,7 @@ internal static class MayhemBuildTests
             "los objetos iniciales se ocultan tras una pieza recomendada o un objeto terminado");
         var initial = source.Recommend(game, match!.Mayhem, build);
         Check(initial?.Steps.Select(step => step.Item.Id).SequenceEqual([6655, 3020, 4645, 3089, 3135, 3165]) == true &&
-            initial.Steps[4].Detail == "Contra 2 rivales con objetos de resistencia mágica" &&
+            initial.Steps[4].Detail == "Contra 1 rival con objetos de resistencia mágica" &&
             initial.Steps[5].Detail == "Para reducir la curación de Soraka",
             "las compras de resistencia y la sanadora determinan los dos últimos objetos terminados");
 
@@ -82,6 +82,62 @@ internal static class MayhemBuildTests
             source.EstimateEnemyDamage(updatedMix) is { PhysicalPercent: 60, MagicPercent: 40 } &&
             source.EstimateEnemyDamage(damageMix with { Opponents = [new("Ornn", []), new("Desconocido", [])] }) is null,
             "la proporción cambia con las compras rivales y queda pendiente sin perfiles de daño identificables");
+
+        var leona = new GameContext(Mode.Caos, "Leona");
+        var leonaBuild = build with { Champion = leona.Champion, Groups =
+        [
+            new(OpGgBuildSection.Boots, [[new(3111, "Botas de Mercurio")]]),
+            new(OpGgBuildSection.Core,
+                [[new(3084, "Corazón de Acero"), new(3121, "Invierno Nórdico"), new(2502, "Desesperación Eterna")],
+                 [new(3084, "Corazón de Acero"), new(2502, "Desesperación Eterna"), new(3075, "Cota de Espinas")]])
+        ] };
+        var leonaMatch = new MayhemMatch([3084, 3111, 3119, 3067],
+            [new("Ezreal", [1052]), new("Karma", [1058]), new("Lux", []), new("Nocturne", [6696]), new("Ashe", [])]);
+        var apPurchases = leonaMatch with { Opponents = [new("Ezreal", [6655, 3118]), new("Karma", [3118, 6655]),
+            new("Lux", [4646, 6655]), new("Nocturne", [6676, 6696]), new("Ashe", [3153, 3085])] };
+        var reactive = source.Recommend(leona, apPurchases, leonaBuild);
+        Check(source.Recommend(leona, leonaMatch, leonaBuild)?.Steps[3] is { Item.Id: 2502, Detail: "Núcleo de OP.GG" } &&
+            reactive?.Steps[3] is { Item.Id: 2504, Detail: "Por el AP comprado por Ezreal y Karma" } &&
+            reactive.Steps[4].Item.Id == 2502 && reactive.Steps.Take(3).Select(step => step.Item.Id).SequenceEqual([3084, 3111, 3119]) &&
+            source.Recommend(leona, apPurchases with { Items = [..leonaMatch.Items, 2504] }, leonaBuild)?.Steps[4].Item.Id == 2502,
+            "las compras confirmadas de AP adelantan resistencia mágica, respetan el inventario y dan paso al núcleo tras comprarla");
+
+        var aurelion = new GameContext(Mode.Caos, "AurelionSol");
+        var aurelionBuild = build with { Champion = aurelion.Champion, Groups =
+        [
+            new(OpGgBuildSection.Core, [[new(2503, "Antorcha de Fuegoscuro"), new(3116, "Cetro de Cristal de Rylai"),
+                new(6653, "El Tormento de Liandry")]])
+        ] };
+        var mercurysOnly = new MayhemMatch([2503, 3116, 6653, 3020, 3916],
+            [new("Quinn", [226668, 3006]), new("Rengar", [3111, 3031, 6699]), new("Sivir", [3032, 3006, 3031, 3153]),
+             new("Ziggs", [6655, 4645, 3020]), new("Warwick", [226668, 3111, 1053])]);
+        var resisted = mercurysOnly with { Opponents = [..mercurysOnly.Opponents.Take(4), new("Warwick", [226668, 3111, 2504])] };
+        Check(source.Recommend(aurelion, mercurysOnly, aurelionBuild)?.Steps.All(step => step.Item.Id != 3135) == true &&
+            source.Recommend(aurelion, resisted, aurelionBuild)?.Steps[4] is
+                { Item.Id: 3135, Detail: "Contra 1 rival con objetos de resistencia mágica" },
+            "dos pares de Mercurio no activan penetración porcentual, pero una compra fuerte de resistencia mágica sí");
+        var noResistance = mercurysOnly with { Items = [2503, 3116, 6653, 3020, 3089], Opponents = [] };
+        Check(source.Recommend(aurelion, noResistance, aurelionBuild)?.Steps[5].Item.Id == 4646,
+            "Báculo del Vacío no rellena un espacio por defecto sin resistencia rival");
+
+        var lightResistance = new MayhemMatch([2503, 3116, 6653, 3020, 4630],
+            [new("Ziggs", [1033], 14), new("Sivir", [1033], 14)], new(20, .71775));
+        Check(source.Recommend(aurelion, lightResistance with { MagicPenetration = null }, aurelionBuild)?.Steps[4].Item.Id == 3135 &&
+            source.Recommend(aurelion, lightResistance, aurelionBuild)?.Steps[4] is { Item.Id: 3089 } &&
+            source.Recommend(aurelion, lightResistance with { Opponents = [new("Ziggs", [1033], 14), new("Warwick", [2504], 14)] },
+                aurelionBuild)?.Steps[4].Item.Id == 3135,
+            "la penetración en vivo y la Joya Maldita evitan Báculo contra compras leves y lo conservan contra un rival muy resistente");
+        var extraPenInSource = aurelionBuild with { Groups = [new(OpGgBuildSection.Core,
+            [[new(2503, "Antorcha de Fuegoscuro"), new(3116, "Cetro de Cristal de Rylai"), new(3135, "Báculo del Vacío")]])] };
+        Check(source.Recommend(aurelion, lightResistance, extraPenInSource)?.Steps.All(step => step.Item.Id != 3135) == true &&
+            source.Recommend(aurelion, lightResistance with { Opponents = [new("Ziggs", [1033]), new("Sivir", [1033], 14)] },
+                extraPenInSource)?.Steps.Any(step => step.Item.Id == 3135) == true,
+            "la ruta publicada también se adapta cuando hay medidas completas y sigue disponible si falta el nivel rival");
+        var fullWithPenetration = new MayhemMatch([2503, 3116, 6653, 3020, 3089, 4646],
+            [new("Ziggs", [3050], 14), new("Sivir", [3050], 14)], new(35, .60));
+        Check(source.Recommend(aurelion, fullWithPenetration with { MagicPenetration = null }, aurelionBuild)?.Swap?.Incoming.Id == 3135 &&
+            source.Recommend(aurelion, fullWithPenetration, aurelionBuild) is { Swap: null },
+            "la build completa tampoco propone cambiar a Báculo cuando la penetración acumulada ya cubre a los rivales");
 
         var marksman = game with { Champion = "Jinx" };
         var marksmanBuild = build with { Champion = "Jinx", Groups =

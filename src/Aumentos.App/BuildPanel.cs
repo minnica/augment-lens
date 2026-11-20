@@ -132,7 +132,7 @@ internal sealed class BuildPanel : Border
             {
                 if (group.Choices.ElementAtOrDefault(1) is { } alternative)
                 {
-                    AddSourceLabel("Ruta alternativa");
+                    AddSourceLabel("Ruta alternativa · OP.GG");
                     AddItems(alternative, build.SourcePatch, ordered: true);
                 }
                 continue;
@@ -169,8 +169,7 @@ internal sealed class BuildPanel : Border
             return;
         }
 
-        if (view.Mode == Mode.Arena)
-            AddLine("Según rivales de rondas jugadas", 12, Muted);
+        AddLine(view.Mode == Mode.Arena ? "Según rivales de rondas jugadas" : "Según campeones y objetos rivales", 12, Muted);
         AddDamageDistribution(mix);
     }
 
@@ -218,7 +217,8 @@ internal sealed class BuildPanel : Border
         var pending = byPurchase[false].ToArray();
         if (pending.Length > 0)
         {
-            AddPurchase(pending[0].Item, patch, 1);
+            var reason = pending[0].Detail;
+            AddPurchase(pending[0].Item, patch, 1, reason is ArenaBuilds.ChampionFit or ArenaBuilds.PublishedPick ? null : reason);
             if (pending.Length > 1)
                 AddLine("Después", 14, Brushes.WhiteSmoke, bold: true, top: 10);
             for (int index = 1; index < pending.Length; index++)
@@ -262,7 +262,7 @@ internal sealed class BuildPanel : Border
         }
     }
 
-    private void AddPurchase(OpGgBuildItem item, string patch, int position)
+    private void AddPurchase(OpGgBuildItem item, string patch, int position, string? reason = null)
     {
         bool next = position == 1;
         var row = new DockPanel { Margin = next ? new Thickness(0) : new Thickness(0, 4, 0, 0) };
@@ -288,6 +288,9 @@ internal sealed class BuildPanel : Border
         double nameSize = next ? (Compact ? 17 : 19) : 14;
         text.Children.Add(new TextBlock { Text = item.Name, FontSize = nameSize, Foreground = Brushes.WhiteSmoke,
             FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        if (reason is not null)
+            text.Children.Add(new TextBlock { Text = reason, FontSize = 12.5, Foreground = Muted,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
         row.Children.Add(text);
 
         if (next)

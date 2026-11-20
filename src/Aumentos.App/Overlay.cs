@@ -146,15 +146,17 @@ internal sealed class Overlay
                 minimumTop = Math.Max(margin, (int)Math.Ceiling(bounds.Height * headerBottom));
             }
             int roomAbove = anchor - minimumTop;
-            int heightLimit = arenaCards ? 2 * Math.Min(roomAbove, maxOverlap) : roomAbove + Math.Min(roomAbove, maxOverlap);
+            int overlap = Math.Min(roomAbove, maxOverlap);
+            int heightLimit = arenaCards && !label.IsArenaVariable ? 2 * overlap : roomAbove + overlap;
             if (heightLimit <= 0)
             {
                 badge.HideBadge();
                 continue;
             }
 
-            int badgeWidth = !ShowDetails && label.DisplayedArenaPlacement is not null
-                ? Math.Min(widthLimit, Math.Max(1, (int)(ArenaEvidenceWidth * dpi))) : width;
+            int preferredWidth = label.IsArenaVariable ? DetailWidth : label.DisplayedArenaPlacement is not null
+                ? ArenaEvidenceWidth : SummaryWidth;
+            int badgeWidth = ShowDetails ? width : Math.Min(widthLimit, Math.Max(1, (int)(preferredWidth * dpi)));
             int desiredHeight = badge.Prepare(label, badgeWidth, dpi, ShowDetails, arenaCards && !ShowDetails);
             int height = Math.Min((int)Math.Ceiling(desiredHeight * itemScale), heightLimit);
             int bottom = anchor + Math.Min(height / 2, maxOverlap);
@@ -314,7 +316,13 @@ internal sealed class Overlay
             var context = value.UpgradeLevel is { } level ? $"Nv. {level}" :
                 value.ArenaChoice?.TopPosition is { } position ? $"Top #{position}" : null;
             var recommendation = recommended ? (value.RecommendedUpgrade && showDetails ? "Mejora recomendada" : "Recomendado") : null;
-            if (published is { } tier)
+            if (value.IsArenaVariable)
+            {
+                content.Children.Add(Line("Afinidad variable", 20, Brushes.WhiteSmoke, bold: true, centered: true));
+                if (value.DetailText is { Length: > 0 } reason)
+                    content.Children.Add(Line(reason, 15, Muted, top: 2, centered: true));
+            }
+            else if (published is { } tier)
                 AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
             else if (observed is not null)
                 AddGrade(observed.Tier.ToString(), observed.Source, compactArena ? observed.ShortSample : observed.Sample,
@@ -326,7 +334,7 @@ internal sealed class Overlay
                 AddGrade(local, "Local", context, recommendation, narrow, compactArena: compactArena);
 
             int headerLength = content.Children.Count;
-            if (showDetails || variable)
+            if (!value.IsArenaVariable && (showDetails || variable))
                 AddDetail(value.ArenaChoice?.Reason ?? value.DetailText, narrow);
             if (showDetails)
             {

@@ -12,11 +12,12 @@ using System.Threading.Tasks;
 namespace Aumentos;
 
 internal record GameContext(Mode Mode, string Champion);
-internal sealed record MayhemOpponent(string Champion, int[] Items);
-internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
+internal readonly record struct MayhemMagicPenetration(double Flat, double Remaining);
+internal sealed record MayhemOpponent(string Champion, int[] Items, int? Level = null);
+internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents, MayhemMagicPenetration? MagicPenetration = null);
 internal sealed record ArenaParticipant(string Champion, int[] Items);
 internal sealed record ArenaMatch(int[] Items, ArenaParticipant[] Opponents, bool InventoryKnown = true,
-    ArenaParticipant[]? LobbyOpponents = null);
+    ArenaParticipant[]? LobbyOpponents = null, ArenaParticipant[]? Allies = null);
 internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
     double? GameTime = null)
@@ -89,16 +90,35 @@ internal sealed class LiveGame : IDisposable
 
         try
         {
-            using var name = await ReadJson("activeplayername").ConfigureAwait(false);
+            var (active, penetration) = await ReadActivePlayer().ConfigureAwait(false);
             using var players = await ReadJson("playerlist").ConfigureAwait(false);
-            var active = name.RootElement.ValueKind == JsonValueKind.String ? name.RootElement.GetString() : null;
             var match = ParseMatch(mode.Value, players.RootElement, active);
+            if (match?.Mayhem is { } mayhem && penetration.HasValue)
+                match = match with { Mayhem = mayhem with { MagicPenetration = penetration } };
             return new(mode.Value, match is null ? null : match with { GameTime = gameTime });
         }
         catch (Exception error) when (!cancellation.IsCancellationRequested &&
             error is HttpRequestException or JsonException or TaskCanceledException)
         {
             return new(mode.Value);
+        }
+
+        async Task<(string? Name, MayhemMagicPenetration? Penetration)> ReadActivePlayer()
+        {
+            if (mode == Mode.Caos)
+            {
+                try
+                {
+                    using var player = await ReadJson("activeplayer").ConfigureAwait(false);
+                    if (ArenaIdentity(player.RootElement) is { Length: > 0 } identity)
+                        return (identity, ReadMagicPenetration(player.RootElement));
+                }
+                catch (Exception error) when (!cancellation.IsCancellationRequested &&
+                    error is HttpRequestException or JsonException or TaskCanceledException) { }
+            }
+
+            using var name = await ReadJson("activeplayername").ConfigureAwait(false);
+            return (name.RootElement.ValueKind == JsonValueKind.String ? name.RootElement.GetString() : null, null);
         }
 
         async Task<JsonDocument> ReadJson(string path)
@@ -142,10 +162,10 @@ internal sealed class LiveGame : IDisposable
                 return new(game);
 
             var enemyTeam = team == "ORDER" ? "CHAOS" : "ORDER";
-            var opponents = players.EnumerateArray().Where(rival => Identity(rival, "team") == enemyTeam)
-                .Select(rival => (Champion: ChampionKey(rival), Items: ReadItems(rival)))
+            var opponents = roster.Where(rival => Identity(rival, "team") == enemyTeam)
+                .Select(rival => (Champion: ChampionKey(rival), Items: ReadItems(rival), Level: ReadLevel(rival)))
                 .Where(rival => rival.Champion is not null)
-                .Select(rival => new MayhemOpponent(rival.Champion!, rival.Items ?? []))
+                .Select(rival => new MayhemOpponent(rival.Champion!, rival.Items ?? [], rival.Level))
                 .ToArray();
             return new(game, new MayhemMatch(owned, opponents));
         }
@@ -211,10 +231,12 @@ internal sealed class LiveGame : IDisposable
         var lobbyOpponents = members.Where(member => member.Team != ownTeam && !conflicting.Contains(member.Team) &&
             (ownTeamComplete || lastSeen.ContainsKey(member.Team) || (knownFormat && counts[member.Team] == teamSize)))
             .Select(member => member.Player).OfType<ArenaParticipant>().ToArray();
-        return CreateMatch(opponents, lobbyOpponents);
+        var allies = members.Where((member, index) => index != current && member.Team == ownTeam)
+            .Select(member => member.Player).OfType<ArenaParticipant>().ToArray();
+        return CreateMatch(opponents, lobbyOpponents, allies);
 
-        LiveMatch CreateMatch(ArenaParticipant[] rivals, ArenaParticipant[] lobbyRivals) => new(context,
-            Arena: new(items ?? [], rivals, items is not null, lobbyRivals),
+        LiveMatch CreateMatch(ArenaParticipant[] rivals, ArenaParticipant[] lobbyRivals, ArenaParticipant[]? allies = null) => new(context,
+            Arena: new(items ?? [], rivals, items is not null, lobbyRivals, allies),
             GameTime: ReadGameTime(game));
 
         int TeamOf(int index)
@@ -278,6 +300,21 @@ internal sealed class LiveGame : IDisposable
         game.ValueKind == JsonValueKind.Object && game.TryGetProperty("gameTime", out var elapsed) &&
         elapsed.ValueKind == JsonValueKind.Number && elapsed.TryGetDouble(out var seconds) &&
         double.IsFinite(seconds) && seconds >= 0 ? seconds : null;
+
+    private static int? ReadLevel(JsonElement player) => player.TryGetProperty("level", out var value) &&
+        value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out int level) && level is >= 1 and <= 18 ? level : null;
+
+    private static MayhemMagicPenetration? ReadMagicPenetration(JsonElement player)
+    {
+        if (player.ValueKind != JsonValueKind.Object || !player.TryGetProperty("championStats", out var stats) ||
+            stats.ValueKind != JsonValueKind.Object || Number("magicPenetrationFlat") is not { } flat || flat < 0 ||
+            Number("magicPenetrationPercent") is not { } remaining || remaining is < 0 or > 1)
+            return null;
+        return new(flat, remaining);
+
+        double? Number(string name) => stats.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number &&
+            value.TryGetDouble(out double number) && double.IsFinite(number) ? number : null;
+    }
 
     private static string? ChampionKey(JsonElement player)
     {

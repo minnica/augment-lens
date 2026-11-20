@@ -76,6 +76,13 @@ internal static class BuildVisibilityTests
         game.MissingChampion = false;
         var loaded = await LiveGame.ReadMatch(http, CancellationToken.None);
         Check(loaded is { Mode: Mode.Caos, Match.Game.Champion: "Gragas" }, "el aviso puede dar paso a una build al reconocer el campeón");
+        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":0.71775}""";
+        var withStatistics = await LiveGame.ReadMatch(http, CancellationToken.None);
+        Check(withStatistics?.Match?.Mayhem is { MagicPenetration: { Flat: 20, Remaining: 0.71775 },
+            Opponents: [{ Champion: "Lux", Level: 14 }] }, "la API entrega la penetración acumulada y el nivel de los rivales");
+        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":"desconocido"}""";
+        Check(await LiveGame.ReadMatch(http, CancellationToken.None) is { Match.Mayhem: { MagicPenetration: null, Items: [3020] } },
+            "un campo de penetración inválido no oculta el inventario de la partida");
         game.SupportedMode = false;
         Check(await LiveGame.ReadMatch(http, CancellationToken.None) is null, "los modos incompatibles no muestran el aviso de campeón");
     }
@@ -84,6 +91,7 @@ internal static class BuildVisibilityTests
     {
         internal bool MissingChampion { get; set; } = true;
         internal bool SupportedMode { get; set; } = true;
+        internal string? ActiveStats { get; set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -93,8 +101,11 @@ internal static class BuildVisibilityTests
                 "/liveclientdata/activeplayername" when !MissingChampion => """
                     "Player#000"
                     """,
+                "/liveclientdata/activeplayer" when ActiveStats is not null =>
+                    $$"""{"riotId":"Player#000","championStats":{{ActiveStats}}}""",
                 "/liveclientdata/playerlist" => """
-                    [{"riotId":"Player#000","rawChampionName":"game_character_displayname_Gragas"}]
+                    [{"riotId":"Player#000","rawChampionName":"game_character_displayname_Gragas","team":"ORDER","items":[{"itemID":3020}]},
+                     {"rawChampionName":"game_character_displayname_Lux","team":"CHAOS","level":14,"items":[]}]
                     """,
                 _ => null
             };

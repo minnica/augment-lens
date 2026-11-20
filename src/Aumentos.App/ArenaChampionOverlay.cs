@@ -15,7 +15,7 @@ internal sealed record ArenaChampionRow(string Champion, ArenaChampionTier? Rati
 internal sealed record ArenaChampionDisplay(Int32Rect Bounds, nint Target, ArenaChampionTierView Source,
     ArenaChampionRow[] Rows, ArenaChampionRow? Selection, ArenaCompositionPick[] Composition, ArenaCompositionGrade? Grade)
 {
-    internal const int RankingColumnCapacity = 15;
+    private const int RankingLimit = 30;
 
     internal static ArenaChampionDisplay Create(Int32Rect bounds, nint target, Catalog catalog,
         ArenaChampionTierView source, string? championKey, ArenaCompositionPick[]? composition = null,
@@ -28,7 +28,7 @@ internal sealed record ArenaChampionDisplay(Int32Rect Bounds, nint Target, Arena
                 ? tiers.IndexOf(rating.Tier[0]) : tiers.Length)
             .ThenByDescending(row => row.Rating?.TopThreePercent)
             .ThenBy(row => row.Champion, StringComparer.OrdinalIgnoreCase)
-            .Take(2 * RankingColumnCapacity).ToArray() ?? [];
+            .Take(RankingLimit).ToArray() ?? [];
         var selection = championKey is null ? null :
             new ArenaChampionRow(Name(championKey), source.Data?.Champions.GetValueOrDefault(championKey));
         return new(bounds, target, source, rows, selection, composition ?? [], grade);
@@ -40,12 +40,8 @@ internal sealed record ArenaChampionDisplay(Int32Rect Bounds, nint Target, Arena
 
 internal sealed class ArenaChampionOverlay : Window
 {
-    private const double RankingWidth = 454;
-    private const double CompactRankingWidth = 332;
-    private const double RailStart = 0.74;
-    private const double CompactRailStart = 0.71;
-    private const double PanelTop = 0.16;
-    private const double PanelBottom = 0.90;
+    private const double RankingWidth = 326;
+    private const double CompactRankingWidth = 268;
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-MX");
     private static readonly Brush SecondaryText = Overlay.Paint("#A9BCD6");
     private static readonly Brush Divider = Overlay.Paint("#394B65");
@@ -109,13 +105,12 @@ internal sealed class ArenaChampionOverlay : Window
         var margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         panel.Measure(new Size(panel.Width, double.PositiveInfinity));
         var canvas = panel.DesiredSize;
-        int bottom = Math.Min(bounds.Height - margin, (int)(bounds.Height * PanelBottom));
-        int availableWidth = Math.Max(1, bounds.Width - (int)Math.Ceiling(bounds.Width * (compact ? CompactRailStart : RailStart)) - margin);
-        int availableHeight = Math.Max(1, bottom - (int)(bounds.Height * (compact ? 0.11 : PanelTop)));
+        int availableWidth = Math.Max(1, bounds.Width - 2 * margin);
+        int availableHeight = Math.Max(1, bounds.Height - 2 * margin);
         var scale = Math.Min(dpi, Math.Min(availableWidth / canvas.Width, availableHeight / canvas.Height));
         int width = Math.Max(1, (int)Math.Floor(canvas.Width * scale));
         int height = Math.Max(1, (int)Math.Floor(canvas.Height * scale));
-        var position = new Int32Rect(bounds.X + bounds.Width - margin - width, bounds.Y + bottom - height, width, height);
+        var position = new Int32Rect(bounds.X + bounds.Width - margin - width, bounds.Y + bounds.Height - margin - height, width, height);
         if (IsVisible && Native.IsWindowVisible(handle) && position == placement)
             return;
         Width = width / dpi;
@@ -145,34 +140,25 @@ internal sealed class ArenaChampionOverlay : Window
         }
 
         AddLine(view.Rows.Length > 0 ? $"Arena · Top {view.Rows.Length} general" : "Arena · Ranking general",
-            18, Brushes.WhiteSmoke, true);
+            compact ? 19 : 21, Brushes.WhiteSmoke, true);
         if (view.Source.Data is not { } data)
         {
             AddLine(view.Source.Status, 13, SecondaryText);
             return;
         }
 
-        AddLine(SourceCaption(data), 12, data.IsPrevious ? TierColor("S") : SecondaryText);
+        AddLine(SourceCaption(data), compact ? 12 : 13, data.IsPrevious ? TierColor("S") : SecondaryText);
         if (view.Rows.Length > 0)
-        {
-            var ranking = TwoColumns(compact);
-            int split = ArenaChampionDisplay.RankingColumnCapacity;
-            ranking.Children.Add(RankingTable(view.Rows, 0, Math.Min(split, view.Rows.Length), compact));
-            if (view.Rows.Length > split)
-                AddRight(ranking, RankingTable(view.Rows, split, view.Rows.Length - split, compact));
-            else
-                Grid.SetColumnSpan(ranking.Children[0], 3);
-            rows.Children.Add(ranking);
-        }
+            rows.Children.Add(RankingTable(view.Rows, compact));
     }
 
-    private static Grid SelectionSummary(ArenaChampionRow selection, bool hasSource, ArenaCompositionGrade? grade, bool compact)
+    private static StackPanel SelectionSummary(ArenaChampionRow selection, bool hasSource, ArenaCompositionGrade? grade, bool compact)
     {
-        var summary = TwoColumns(compact);
+        var summary = new StackPanel();
         summary.Children.Add(SummaryBadge(selection.Champion, selection.Rating is { } rating ? $"{TopThree(rating)} top 3" :
             hasSource ? "Sin tier publicado" : "Tier pendiente", selection.Rating?.Tier, compact));
 
-        var composition = new StackPanel();
+        var composition = new StackPanel { Margin = new Thickness(0, compact ? 4 : 6, 0, 0) };
         var detail = grade switch
         {
             null => "Esperando un aliado",
@@ -184,11 +170,11 @@ internal sealed class ArenaChampionOverlay : Window
         composition.Children.Add(SummaryBadge(compact ? "Composición" : "Composición Arena", detail, grade?.Tier, compact));
         if (grade is not null)
         {
-            var reason = Label(grade.Reason, 12, SecondaryText);
+            var reason = Label(grade.Reason, compact ? 12 : 13, SecondaryText);
             reason.Margin = new Thickness(0, 3, 0, 0);
             composition.Children.Add(reason);
         }
-        AddRight(summary, composition);
+        summary.Children.Add(composition);
         return summary;
     }
 
@@ -210,8 +196,8 @@ internal sealed class ArenaChampionOverlay : Window
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Label(name, compact ? 13 : 16, Brushes.WhiteSmoke, bold: true));
-        text.Children.Add(Label(detail, compact ? 11 : 12, SecondaryText));
+        text.Children.Add(Label(name, compact ? 14 : 17, Brushes.WhiteSmoke, bold: true));
+        text.Children.Add(Label(detail, compact ? 12 : 13, SecondaryText));
         group.Children.Add(text);
         return group;
     }
@@ -235,48 +221,35 @@ internal sealed class ArenaChampionOverlay : Window
         return text;
     }
 
-    private static Grid TwoColumns(bool compact)
-    {
-        var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 10 : 14) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition());
-        return grid;
-    }
-
-    private static void AddRight(Grid grid, UIElement child)
-    {
-        Grid.SetColumn(child, 2);
-        grid.Children.Add(child);
-    }
-
-    private static Grid RankingTable(ArenaChampionRow[] rows, int start, int count, bool compact)
+    private static Grid RankingTable(ArenaChampionRow[] rows, bool compact)
     {
         var grid = new Grid { Margin = new Thickness(0, 5, 0, 0) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 17 : 25) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 18 : 24) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 20 : 29) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 38 : 51) });
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 18 : 23) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 21 : 26) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 44 : 50) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 19 : 24) });
 
-        AddCell(0, 1, "Campeón", 12, SecondaryText);
-        AddCell(0, 2, "Tier", 12, SecondaryText, TextAlignment.Center);
-        AddCell(0, 3, "Top 3", 12, SecondaryText, TextAlignment.Right);
+        int headerSize = compact ? 12 : 13;
+        AddCell(0, 1, "Campeón", headerSize, SecondaryText);
+        AddCell(0, 2, "Tier", headerSize, SecondaryText, TextAlignment.Center);
+        AddCell(0, 3, compact ? "Top 3 %" : "Top 3", headerSize, SecondaryText, TextAlignment.Right);
         var rule = new Border { Background = Divider, Height = 1, VerticalAlignment = VerticalAlignment.Bottom };
         Grid.SetColumnSpan(rule, 4);
         grid.Children.Add(rule);
 
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < rows.Length; i++)
         {
-            var row = rows[start + i];
+            var row = rows[i];
             int line = i + 1;
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 18 : 22) });
-            AddCell(line, 0, (start + line).ToString(Spanish), 12, SecondaryText);
-            AddCell(line, 1, row.Champion, compact ? 13 : 15, Brushes.WhiteSmoke, bold: true);
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 20 : 25) });
+            AddCell(line, 0, line.ToString(Spanish), compact ? 12 : 13, SecondaryText);
+            AddCell(line, 1, row.Champion, compact ? 15 : 17, Brushes.WhiteSmoke, bold: true);
             if (row.Rating is { } rating)
             {
-                AddCell(line, 2, rating.Tier, compact ? 12 : 14, TierColor(rating.Tier), TextAlignment.Center, bold: true);
-                AddCell(line, 3, TopThree(rating), compact ? 12 : 14, Brushes.WhiteSmoke, TextAlignment.Right);
+                int valueSize = compact ? 14 : 16;
+                AddCell(line, 2, rating.Tier, valueSize, TierColor(rating.Tier), TextAlignment.Center, bold: true);
+                AddCell(line, 3, TopThree(rating, withUnit: !compact), valueSize, Brushes.WhiteSmoke, TextAlignment.Right);
             }
         }
         return grid;
@@ -294,7 +267,8 @@ internal sealed class ArenaChampionOverlay : Window
         }
     }
 
-    private static string TopThree(ArenaChampionTier rating) => $"{rating.TopThreePercent.ToString("0.#", Spanish)} %";
+    private static string TopThree(ArenaChampionTier rating, bool withUnit = true) =>
+        rating.TopThreePercent.ToString("0.#", Spanish) + (withUnit ? " %" : "");
 
     private static string SourceCaption(ArenaChampionTierList data) =>
         $"{ArenaChampionTierSource.Attribution} · {(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";

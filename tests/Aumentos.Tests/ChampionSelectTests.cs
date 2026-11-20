@@ -114,7 +114,7 @@ internal static class ChampionSelectTests
             Check(panel.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(
                     ["Arena · Top 30 general", $"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}"]),
                 "el Top 30 muestra la fuente y el parche");
-            CheckRail(bounds, .74);
+            CheckColumn(bounds);
 
             var excludedChampion = otherChampions[0];
             ArenaCompositionPick[] composition = [new("Amumu", "A", "Aporta primera línea y control"),
@@ -124,7 +124,7 @@ internal static class ChampionSelectTests
             Check(selected.Rows.SequenceEqual(global.Rows) && selected.Selection?.Rating?.Tier == "B",
                 "el campeón preseleccionado conserva su tier aunque quede fuera del Top 30");
             overlay.Render(selected);
-            var summary = (Grid)panel.Children[0];
+            var summary = (StackPanel)panel.Children[0];
             var badge = (DockPanel)summary.Children[0];
             var team = (StackPanel)summary.Children[1];
             var teamBadge = (DockPanel)team.Children[0];
@@ -135,20 +135,23 @@ internal static class ChampionSelectTests
                     .SequenceEqual(["Composición Arena", "Tier local · 2/3 campeones"]) &&
                 ((TextBlock)team.Children[1]).Text == grade.Reason &&
                 panel.Children.OfType<TextBlock>().Any(text => text.Text == "Para tu equipo") &&
-                panel.Children.OfType<StackPanel>().Select(pick => ((TextBlock)pick.Children[1]).Text)
+                panel.Children.OfType<StackPanel>().Skip(1).Select(pick => ((TextBlock)pick.Children[1]).Text)
                     .SequenceEqual(composition.Select(pick => pick.Reason)),
                 "muestra el tier independiente y parcial de la composición junto a la preselección y las sugerencias");
             overlay.Render(selected with { Grade = grade with { Tier = "S", Members = 3 } });
-            var updated = (DockPanel)((StackPanel)((Grid)panel.Children[0]).Children[1]).Children[0];
+            var updated = (DockPanel)((StackPanel)((StackPanel)panel.Children[0]).Children[1]).Children[0];
             Check(((TextBlock)((Border)updated.Children[0]).Child).Text == "S",
                 "la valoración se actualiza al cambiar los aliados aunque el campeón propio siga igual");
 
+            var medium = new Int32Rect(bounds.X, bounds.Y, 1280, 720);
+            overlay.Render(selected with { Bounds = medium });
+            CheckColumn(medium);
             var narrow = new Int32Rect(bounds.X, bounds.Y, 800, 450);
             overlay.Render(selected with { Bounds = narrow });
-            CheckRail(narrow, .71);
+            CheckColumn(narrow);
             var unavailable = ArenaChampionDisplay.Create(bounds, 0, catalog, source, "Aurora");
             overlay.Render(unavailable);
-            Check(((DockPanel)((Grid)panel.Children[0]).Children[0]).Children.OfType<StackPanel>().Single()
+            Check(((DockPanel)((StackPanel)panel.Children[0]).Children[0]).Children.OfType<StackPanel>().Single()
                 .Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(["Aurora", "Sin tier publicado"]),
                 "muestra el campeón cuando la fuente carece de una valoración");
             overlay.Render(global);
@@ -158,18 +161,22 @@ internal static class ChampionSelectTests
             Check(!Native.IsWindowVisible(handle), "se oculta el panel de Arena al salir de selección");
             Console.WriteLine("Panel de campeones de Arena en WPF verificado.");
 
-            void CheckRail(Int32Rect client, double railStart)
+            void CheckColumn(Int32Rect client)
             {
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 var placement = Native.Bounds(handle);
-                var tables = panel.Children.OfType<Grid>().Last().Children.OfType<Grid>().ToArray();
-                Check(placement.X >= client.X + client.Width * railStart &&
+                var ranking = panel.Children.OfType<Grid>().Single();
+                var cells = ranking.Children.OfType<TextBlock>().ToArray();
+                var names = cells.Where(cell => Grid.GetColumn(cell) == 1 && Grid.GetRow(cell) > 0).ToArray();
+                Check(placement.X >= client.X + client.Width / 2 &&
                     placement.X + placement.Width <= client.X + client.Width &&
-                    placement.Y >= client.Y && placement.Y + placement.Height <= client.Y + client.Height * .90 &&
-                    tables.Length == 2 && tables.All(table => table.RowDefinitions.Count == 16) &&
-                    tables.SelectMany(table => table.Children.OfType<TextBlock>()).Where(cell => Grid.GetColumn(cell) == 0)
+                    placement.Y >= client.Y && placement.Y + placement.Height <= client.Y + client.Height &&
+                    ranking.RowDefinitions.Count == 31 &&
+                    names.Length == 30 && names.All(cell => cell.FontSize >= (client.Width >= 1600 ? 17 : 15)) &&
+                    names.Select(cell => Grid.GetRow(cell)).SequenceEqual(Enumerable.Range(1, 30)) &&
+                    cells.Where(cell => Grid.GetColumn(cell) == 0)
                         .Select(cell => int.Parse(cell.Text)).SequenceEqual(Enumerable.Range(1, 30)),
-                    "muestra las treinta posiciones en orden en dos columnas dentro del lateral");
+                    "muestra las treinta posiciones en una sola columna dentro de la ventana del cliente");
             }
         }
         finally { overlay.Close(); }

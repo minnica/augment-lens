@@ -8,7 +8,7 @@ using Aumentos;
 
 internal static class ArenaContextReadTests
 {
-    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks, string? eureka)
+    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks, string? eureka, string? kindred)
     {
         CheckInventory();
         CheckCatalog(ratings);
@@ -28,20 +28,45 @@ internal static class ArenaContextReadTests
             var image = Diagnostics.OpenBitmap(levels);
             var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena,
                 image.PixelWidth, image.PixelHeight);
-            Check(detector.HasArenaUpgradeHeading(image) && ArenaCardEdge.Read(image, layouts.Single()) is { } edge &&
+            Check(detector.HasArenaUpgradeHeading(image) && ArenaCardEdge.Read(image, layouts.Single(l => l.Titles.Length == 3)) is { } edge &&
                 Math.Abs(edge - image.PixelHeight * .1582) <= 3, "se reconoce el encabezado dedicado y el borde de sus cartas");
         }
         if (fireworks is not null)
             CheckOffer(detector, assets, fireworks, null, [null, 2, null]);
         if (eureka is not null)
             CheckOffer(detector, assets, eureka, [1332, 30, 88], [null, 3, null]);
+        Check(CardComparison.ForOffer(ratings, new(Mode.Arena, "Volibear"), [359, 358], [false, false], null)
+            .Select(badge => badge?.VisibleTierText).SequenceEqual(["A", "B"]),
+            "las recompensas de Kindred tienen tiers locales de acuerdo con sus efectos");
+        if (kindred is not null)
+            CheckKindredOffer(detector, assets, kindred);
         Console.WriteLine("Contexto de Arena verificado con inventario propio y niveles por posición.");
+    }
+
+    private static void CheckKindredOffer(Detection detector, string assets, string path)
+    {
+        var source = Diagnostics.OpenBitmap(path);
+        var store = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
+        foreach (double scale in new[] { 1, .75 })
+        {
+            var image = scale == 1 ? source : new TransformedBitmap(source, new ScaleTransform(scale, scale));
+            var bounds = new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight);
+            var layouts = store.Find(Mode.Arena, bounds.Width, bounds.Height);
+            detector.Clear();
+            var result = detector.ReadPanel(image, bounds, layouts, Mode.Arena, layouts.Single(l => l.Titles.Length == 3));
+            Check(result is { Layout.Titles.Length: 2 } && result.Value.Result.Cards.SequenceEqual([359, 358]) &&
+                result.Value.Result.CanShow(false), $"lee ambos premios de Kindred a {bounds.Width} × {bounds.Height}");
+            Check(detector.ReadPanel(image, bounds, layouts, Mode.Arena, result!.Value.Layout) is { Layout.Titles.Length: 2 },
+                "la segunda lectura conserva el panel de dos cartas");
+        }
+        Console.WriteLine("Oferta de Kindred reconocida en dos resoluciones de Arena.");
     }
 
     private static void CheckCenteredArenaTitle(Detection detector, string assets, Ratings ratings)
     {
         var bounds = new Int32Rect(0, 0, 2560, 1440);
-        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height)
+            .Single(l => l.Titles.Length == 3);
         var title = layout.Titles[0].Pixels(bounds.Width, bounds.Height);
         var font = new Typeface("Georgia");
         var visual = new DrawingVisual();
@@ -87,7 +112,8 @@ internal static class ArenaContextReadTests
             "distingue tres y cuatro yunques en Arena, reconoce el icono y respeta los conteos por nivel");
 
         var bounds = new Int32Rect(0, 0, 2560, 1440);
-        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height)
+            .Single(l => l.Titles.Length == 3);
         var first = detector.Scan(Offer(4), bounds, layout, Mode.Arena, panelConfirmed: true);
         Check(first.Cards.SequenceEqual([1333, 228, 68]),
             $"lee completo el nombre de dos líneas: {string.Join(" / ", first.Texts)}");

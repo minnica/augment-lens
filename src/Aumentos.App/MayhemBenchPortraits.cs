@@ -20,6 +20,9 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
 {
     private const int GridSize = 8;
     private const int SignatureSize = GridSize * GridSize * 3;
+    // Ignore the lower-right quadrant, where the client lock or our tier badge can cover the portrait.
+    private static readonly int[] PortraitChannels = Enumerable.Range(0, SignatureSize)
+        .Where(channel => channel / (GridSize * 3) < GridSize / 2 || channel / 3 % GridSize < GridSize / 2).ToArray();
     internal const int FirstPortrait = 550;
     internal const int PortraitSize = 76;
     internal static int PortraitLeft(int slot) => FirstPortrait + (int)Math.Round(slot * 91.7);
@@ -45,6 +48,7 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
         if (frame.PixelWidth < 800 || frame.PixelHeight < 450 ||
             Math.Abs((double)frame.PixelWidth / frame.PixelHeight - 16.0 / 9) > 0.08)
             return [];
+        var references = templates.Select(pair => (pair.Key, pair.Value, Brightness: Brightness(pair.Value))).ToArray();
         var choices = new List<MayhemBenchChoice>();
         for (int slot = 0; slot < 10; slot++)
         {
@@ -54,17 +58,16 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
             if (!IsAvailablePortrait(sample))
                 continue;
 
-            var brightness = sample.Average(value => (double)value);
+            var brightness = Brightness(sample);
             double best = double.PositiveInfinity, secondBest = double.PositiveInfinity;
             string? key = null;
-            foreach (var (candidate, template) in templates)
+            foreach (var (candidate, template, reference) in references)
             {
-                var reference = template.Average(value => (double)value);
                 var exposure = Math.Clamp(brightness / Math.Max(1, reference), 0.7, 1.3);
                 double difference = 0;
-                for (int i = 0; i < SignatureSize; i++)
+                foreach (int i in PortraitChannels)
                     difference += Math.Abs(sample[i] - template[i] * exposure);
-                var distance = difference / SignatureSize;
+                var distance = difference / PortraitChannels.Length;
                 if (distance < best)
                 {
                     secondBest = best;
@@ -74,26 +77,30 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
                 else
                     secondBest = Math.Min(secondBest, distance);
             }
-            if (key is not null && best <= 19 && secondBest - best >= 6)
+            var margin = secondBest - best;
+            if (key is not null && ((best <= 19 && margin >= 6) || (best <= 24 && margin >= 12)))
                 choices.Add(new(slot, champions[key]));
         }
         return choices.GroupBy(choice => choice.Champion.Key).Where(group => group.Count() == 1)
             .Select(group => group.Single()).ToArray();
     }
 
+    private static double Brightness(byte[] pixels) => PortraitChannels.Average(index => (double)pixels[index]);
+
     // An unavailable portrait is shown in grayscale. Empty slots have little luminance variation.
     private static bool IsAvailablePortrait(byte[] pixels)
     {
         int min = 765, max = 0, color = 0;
-        for (int i = 0; i < pixels.Length; i += 3)
+        for (int channel = 0; channel < PortraitChannels.Length; channel += 3)
         {
+            int i = PortraitChannels[channel];
             int luminance = pixels[i] + pixels[i + 1] + pixels[i + 2];
             min = Math.Min(min, luminance);
             max = Math.Max(max, luminance);
             color += Math.Max(pixels[i], Math.Max(pixels[i + 1], pixels[i + 2])) -
                 Math.Min(pixels[i], Math.Min(pixels[i + 1], pixels[i + 2]));
         }
-        return max - min >= 90 && color >= 3 * GridSize * GridSize;
+        return max - min >= 90 && color >= PortraitChannels.Length;
     }
 
     internal async Task<Dictionary<string, byte[]>?> Load(CancellationToken cancellation)

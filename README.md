@@ -11,7 +11,7 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 
 ## Iniciar en Windows
 
-1. Después de iniciar sesión en Windows, abre manualmente `dist/win-x64-wiki/Iniciar.cmd` para usar la versión con la Wiki de este equipo. Si vuelves a publicar con el destino predeterminado, abre `dist/win-x64/Iniciar.cmd`. Cada paquete incluye la app, el runtime y el modelo de español.
+1. Después de iniciar sesión en Windows, abre `dist/win-x64-auto/Iniciar.cmd` para usar la versión actualizada de este equipo. Si publicas con el destino predeterminado, el paquete queda en `dist/win-x64`. Cada paquete incluye la app, el runtime y el modelo de español.
 2. Usa League en **ventana sin bordes** y déjalo en primer plano cuando quieras ver los paneles. Desde el icono de **Aumentos LoL** en la bandeja puedes abrir **Diagnóstico y calibración**, **Pausar overlay** o salir.
 
 ### Calibrar la lectura de aumentos
@@ -62,7 +62,7 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 
 **AramHex** aporta una letra de respaldo para el campeón a partir de partidas de **China** con reglas normales, con al menos **300 partidas** para la combinación. Los detalles identifican el origen, el parche y la muestra. Cuando se usa el parche anterior, solo entran cartas con mecánicas verificadas entre ambos parches y la letra publicada de OP.GG o la estimación local conserva prioridad. La app guarda las letras y el tamaño de la muestra. [AramHex · CC BY-NC 4.0](https://github.com/czgreat/aramhex-data)
 
-Para auditar la cobertura desde PowerShell sin entrar a una partida, ejecuta `.\dist\win-x64-wiki\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
+Para auditar la cobertura desde PowerShell sin entrar a una partida, ejecuta `.\dist\win-x64-auto\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
 
 ## Builds de OP.GG en partida
 
@@ -86,11 +86,11 @@ Con la build visible, haz clic en **Tamaño…** encima del panel. También pued
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 
-Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada por OP.GG con `.\dist\win-x64-wiki\Iniciar.cmd --verificar-build Caos Kennen` o `.\dist\win-x64-wiki\Iniciar.cmd --verificar-build Arena Elise`.
+Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada por OP.GG con `.\dist\win-x64-auto\Iniciar.cmd --verificar-build Caos Kennen` o `.\dist\win-x64-auto\Iniciar.cmd --verificar-build Arena Elise`.
 
 ## Selección de campeón
 
-En **Arena**, el **Top 30 general** aparece en el lateral derecho durante la selección en el cliente de League. Muestra la posición, el campeón, el tier y su porcentaje de top 3 en dos columnas de 15 que se leen de arriba abajo. La lista ordena por tier de GGEZ.GG y, dentro de la misma letra, por frecuencia de terminar entre los primeros tres. Al preseleccionar o fijar un campeón, el panel muestra su tier si está disponible, aunque quede fuera de los primeros 30. El panel se retira al salir de selección.
+En **Arena**, el **Top 30 general** aparece en el lateral derecho durante la selección en el cliente de League. Muestra la posición, el campeón, el tier y su porcentaje de top 3 en una sola columna. La lista ordena por tier de GGEZ.GG y, dentro de la misma letra, por frecuencia de terminar entre los primeros tres. Al preseleccionar o fijar un campeón, el panel muestra su tier si está disponible, aunque quede fuera de los primeros 30. El panel se retira al salir de selección.
 
 **Composición Arena** muestra un tier de S a D desde que preseleccionas un campeón y el cliente informa al menos un aliado. La estimación local considera el control, el seguimiento de daño, la protección y el aguante en las rondas de Arena. En **3×6**, «2/3 campeones» indica que falta un integrante. Cuando GGEZ.GG publica al menos 20 partidas del trío exacto en el parche vigente, la letra usa su puesto medio ajustado hacia 3.5 para moderar muestras pequeñas. El panel muestra la fuente, el parche, las partidas y el puesto medio observado. La lista de tríos publicada tiene cobertura parcial y la letra local cubre las combinaciones sin muestra suficiente. [Tríos de Arena en GGEZ.GG](https://ggez.gg/tierlist/arena/teams) · [Riot Games sobre Arena 3×6](https://www.leagueoflegends.com/en-gb/news/dev/dev-leveling-up-arena/)
 
@@ -108,7 +108,7 @@ Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CS
 
 Cada fila guarda la carta ofrecida, su posición, el campeón, el modo, el parche y la fecha. La columna `tier` contiene la estimación local y `opgg` contiene la valoración o popularidad mostrada. Las columnas `arammayhem_popularidad_global_pct` y `arammayhem_parche` guardan el porcentaje de ARAMMayhem.com y el parche de sus datos. Las columnas `ggez_*` guardan el porcentaje de elección, cuántas veces se eligió el aumento, el tamaño de la muestra y el parche de GGEZ.GG. Las filas previas a cada integración llevan sus columnas nuevas vacías. Una carta nueva o una valoración que cambie en pantalla se registra en la misma selección. Las filas marcadas como **Captura** contienen los valores recalculados con los datos vigentes al importarla.
 
-Desde la raíz del proyecto, comprueba una imagen de Arena con `.\dist\win-x64-wiki\Iniciar.cmd --verificar Arena .\evidencias\image4.png Elise`. Para agregar sus cartas al historial, cierra primero el overlay desde **Salir** en la bandeja y ejecuta `.\dist\win-x64-wiki\Iniciar.cmd --registrar-capturas Arena Elise .\evidencias\image4.png`. Para otra captura, cambia el archivo, la clave del campeón y el modo (`Arena` o `Caos`).
+Desde la raíz del proyecto, comprueba una imagen de Arena con `.\dist\win-x64-auto\Iniciar.cmd --verificar Arena .\evidencias\image4.png Elise`. Para agregar sus cartas al historial, cierra primero el overlay desde **Salir** en la bandeja y ejecuta `.\dist\win-x64-auto\Iniciar.cmd --registrar-capturas Arena Elise .\evidencias\image4.png`. Para otra captura, cambia el archivo, la clave del campeón y el modo (`Arena` o `Caos`).
 
 En Arena, `arena_nivel_aumento` conserva el nivel leído, `arena_fuente_mecanica` identifica la Wiki cuando intervino y `arena_motivo` guarda la explicación mostrada. Al importar una captura se pueden recuperar el campeón indicado y los niveles visibles. La sinergia por objetos se calcula durante la partida con el inventario del cliente local.
 
@@ -120,7 +120,7 @@ La app precarga las estadísticas generales y las de hasta seis combinaciones re
 
 Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El script descarga el modelo español si falta y publica en `dist/win-x64`.
 
-Para preparar una versión mientras se usa la anterior, puedes publicar en otra carpeta con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-wiki`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
+Puedes elegir la carpeta del paquete con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-auto`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
 
 Para actualizar el catálogo incluido en una compilación, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar.
 

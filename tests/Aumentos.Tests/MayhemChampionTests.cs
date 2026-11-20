@@ -76,25 +76,30 @@ internal static class MayhemChampionTests
 
     internal static void ReadBench(Catalog catalog, string signatures, string camillePath, string gragasPath)
     {
+        ReadBench(catalog, signatures, camillePath, [(2, "Karma"), (3, "Gragas"), (4, "Pyke"), (5, "Katarina"), (6, "Belveth")]);
+        ReadBench(catalog, signatures, gragasPath, [(3, "Camille"), (4, "Pyke"), (5, "Katarina"), (6, "Belveth")]);
+    }
+
+    internal static void ReadVelkozBench(Catalog catalog, string signatures, string path) =>
+        ReadBench(catalog, signatures, path, [(0, "Teemo"), (1, "Leblanc"), (2, "Ashe"), (3, "Janna"), (5, "Illaoi")]);
+
+    internal static void ReadLeonaBench(Catalog catalog, string signatures, string path) =>
+        ReadBench(catalog, signatures, path, [(0, "Braum"), (1, "Zoe"), (2, "Lulu"), (3, "Smolder"), (5, "Zed")]);
+
+    private static void ReadBench(Catalog catalog, string signatures, string path, (int, string)[] expected)
+    {
         using var http = new HttpClient();
         var reader = new MayhemBenchPortraits(catalog, "", http);
         var templates = Ratings.Read<Dictionary<string, byte[]>>(signatures);
-        var camille = Diagnostics.OpenBitmap(camillePath);
-        var gragas = Diagnostics.OpenBitmap(gragasPath);
-        CheckBench(camille, [(2, "Karma"), (3, "Gragas"), (4, "Pyke"), (5, "Katarina"), (6, "Belveth")]);
-        CheckBench(gragas, [(3, "Camille"), (4, "Pyke"), (5, "Katarina"), (6, "Belveth")]);
-        Console.WriteLine("Retratos disponibles, bloqueados y huecos de ARAM Caos verificados al cambiar de campeón.");
-
-        void CheckBench(BitmapSource image, (int, string)[] expected)
+        var image = Diagnostics.OpenBitmap(path);
+        foreach (var scale in new[] { 1.0, 0.6, 0.4 })
         {
-            foreach (var scale in new[] { 1.0, 0.6, 0.4 })
-            {
-                var resized = scale == 1 ? image : new TransformedBitmap(image, new ScaleTransform(scale, scale));
-                var found = reader.Match(resized, templates).Select(choice => (choice.Slot, choice.Champion.Key)).ToArray();
-                Check(found.SequenceEqual(expected),
-                    $"banco a {resized.PixelWidth}px. Lectura: {string.Join(", ", found)}");
-            }
+            var resized = scale == 1 ? image : new TransformedBitmap(image, new ScaleTransform(scale, scale));
+            var found = reader.Match(resized, templates).Select(choice => (choice.Slot, choice.Champion.Key)).ToArray();
+            Check(found.SequenceEqual(expected),
+                $"banco a {resized.PixelWidth}px. Lectura: {string.Join(", ", found)}");
         }
+        Console.WriteLine($"Banca de ARAM Caos verificada en tres tamaños · {string.Join(", ", expected.Select(entry => entry.Item2))}.");
     }
 
     internal static void Smoke(Catalog catalog)

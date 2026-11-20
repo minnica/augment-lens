@@ -33,12 +33,16 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         (nint Handle, Int32Rect Bounds, Int32Rect Frame)? scanWindow = null;
         MayhemDraftChoice[]? choices = null;
         MayhemBenchChoice[] bench = [];
+        Task<MayhemDraftChoice[]?>? draftRead = null;
+        int captureGeneration = 0, draftGeneration = 0;
         SpellDisplay? previous = null;
         ArenaChampionDisplay? previousArena = null;
         MayhemChampionDisplay? previousMayhem = null;
         long checkPatchAt = 0;
         long scanAt = 0;
-        long lastChoice = 0;
+        long captureRetryAt = 0;
+        long draftFrameAt = 0;
+        long lastFrame = 0;
         bool patchMatches = false;
         try
         {
@@ -128,43 +132,60 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                 await Task.Delay(420, cancellation).ConfigureAwait(false);
             }
         }
-        finally { StopCapture(); }
+        finally
+        {
+            StopCapture();
+            if (draftRead is not null)
+                await draftRead.ConfigureAwait(false);
+        }
 
         void ScanMayhem((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
         {
             var now = Environment.TickCount64;
-            if (now - lastChoice > 1500)
+            if (now - lastFrame > 1500)
             {
                 choices = null;
                 bench = [];
             }
-            if (now < scanAt)
-                return;
-            scanAt = now + 600;
+            if (draftRead is { IsCompleted: true })
+            {
+                var read = draftRead.GetAwaiter().GetResult();
+                if (draftGeneration == captureGeneration && now - draftFrameAt <= 1500)
+                    choices = read;
+                draftRead = null;
+            }
             if (ReadFrame(window, now) is { } frame)
             {
-                choices = mayhemReader.Read(frame, draftOcr);
-                bench = choices is null ? mayhemBench.Read(frame) : [];
-                lastChoice = now;
+                // The portrait row can change as allies choose or swap. Title OCR runs independently.
+                bench = mayhemBench.Read(frame);
+                lastFrame = now;
+                if (draftRead is null && now >= scanAt)
+                {
+                    scanAt = now + 600;
+                    draftGeneration = captureGeneration;
+                    draftFrameAt = now;
+                    draftRead = Task.Run(() => mayhemReader.Read(frame, draftOcr));
+                }
             }
         }
 
         System.Windows.Media.Imaging.BitmapSource? ReadFrame((nint Handle, Int32Rect Bounds, Int32Rect Frame) window, long now)
         {
+            if (now < captureRetryAt)
+                return null;
             try
             {
                 capture ??= new WindowCapture(window.Handle);
                 var bounds = window.Bounds;
                 var frame = capture.Read(new Int32Rect(bounds.X - window.Frame.X, bounds.Y - window.Frame.Y,
                     bounds.Width, bounds.Height));
-                if (frame is null)
-                    scanAt = now;
                 return frame;
             }
             catch (Exception error) when (error is ExternalException or ArgumentException or InvalidOperationException or NotSupportedException)
             {
                 StopCapture();
-                scanAt = now + 3000;
+                scanWindow = window;
+                captureRetryAt = now + 3000;
                 return null;
             }
         }
@@ -175,8 +196,10 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
             capture = null;
             choices = null;
             bench = [];
+            captureGeneration++;
             scanAt = 0;
-            lastChoice = 0;
+            captureRetryAt = 0;
+            lastFrame = 0;
         }
     }
 

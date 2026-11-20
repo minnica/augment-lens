@@ -58,6 +58,22 @@ internal static class ArenaBuildTests
             pen.Steps[5] is { Item.Id: 223135, Detail: "Contra la resistencia mágica de Ornn y Swain" },
             "el mago encuentra heridas graves y penetración frente a inventarios que las justifican");
 
+        var milio = new GameContext(Mode.Arena, "Milio");
+        var support = new ArenaMatch([223107, 223158, 447113, 226617, 446656],
+            [new("Gangplank", [226693, 223036, 223031]), new("Poppy", [223047, 223078]),
+             new("Shaco", [226630, 223008, 223036, 226676])]);
+        Check(planner.Recommend(milio, support, null)?.Steps[5] is { Item.Id: 223190, Detail: "Contra el daño físico de Gangplank y Poppy" },
+            "Milio de soporte prioriza proteger al equipo contra el daño físico aunque un rival tenga curación");
+        var strongHealing = support with { Opponents = [new("Soraka", [226617]), new("Aatrox", [226630])] };
+        Check(planner.Recommend(milio, strongHealing, null)?.Steps[5] is { Item.Id: 223165, Detail: "Para reducir la curación de Soraka y Aatrox" } &&
+            planner.Recommend(milio, strongHealing with { Allies = [new("Zyra", [223165])] }, null)?.Steps[5].Item.Id == 223190,
+            "el soporte cubre curación importante si hace falta y evita duplicarla cuando un aliado ya lleva heridas graves");
+        var mixedSupport = source with { Champion = "Milio", Groups =
+            [new(OpGgBuildSection.Core, [[new(223089, "Sombrero Mortífero de Rabadon"), new(226617, "Renovador de Piedra Lunar")]])] };
+        Check(planner.Recommend(milio, support with { Items = [223107, 226617], Opponents = [] }, mixedSupport)?.Steps
+                .All(step => step.Item.Id != 223089) == true,
+            "una build de soporte mantiene la utilidad aunque la fuente publique una ruta con AP ofensivo");
+
         var fallback = planner.Recommend(cho, new ArenaMatch([], []), null);
         Check(fallback is { Steps.Length: 6 } &&
             fallback.Steps.All(step => step.Detail != "De la build de OP.GG" && step.Item.Id < 440000),

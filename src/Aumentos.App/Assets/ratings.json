@@ -52,6 +52,8 @@
     { "augment": "GoHBloodrazor", "tier": "B", "reason": "Al infligir daño, añades daño físico equivalente al 1.5 % de la vida máxima" },
     { "augment": "GoHDematerializer", "tier": "B", "reason": "Tu daño ejecuta a campeones por debajo del 10 % de vida" },
     { "augment": "GoHEnchantedFlask", "tier": "A", "reason": "Un escudo antihechizos cada 10 s protege tus entradas" },
+    { "augment": "GoHLamb", "tier": "A", "reason": "Una resurrección adicional y más rápida" },
+    { "augment": "GoHWolf", "tier": "B", "reason": "Vida y ejecución a cambio de la resurrección innata" },
     { "augment": "GoHRemnantOfTheWatchers", "tier": "B", "reason": "Reduce un 25 % la velocidad de ataque de los rivales cercanos" },
     { "augment": "ContractKiller", "tier": "B", "reason": "Más daño al marcado y oro si cae" },
     { "augment": "RestlessRestoration", "tier": "B", "reason": "Te curas mientras te reposicionas" },

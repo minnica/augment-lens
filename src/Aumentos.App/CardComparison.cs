@@ -34,6 +34,7 @@ internal sealed record CardComparison(string Local, OpGgCard? External = null, b
 {
     internal static readonly CardComparison Unread = new("?");
     internal const string Missing = "Sin dato";
+    internal bool IsArenaVariable => IsArenaAugment && Local == "Variable";
     internal string LocalText => ArenaChoice?.TierText ?? (Local == "S" && IsArenaAugment ? "S+" : Local);
     internal ArenaPlacementRating? DisplayedArenaPlacement => PreferLocalArenaTier ? null : ArenaPlacement;
     internal MayhemObservedTier? DisplayedMayhemObserved => External?.Tier is null &&

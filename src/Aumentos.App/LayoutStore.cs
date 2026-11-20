@@ -35,6 +35,13 @@ internal sealed class LayoutStore
                 .Select(group => group.MinBy(item => Math.Abs(item.Width - width) + Math.Abs(item.Height - height))!)
                 .Select(item => Resize(item, width, height))
                 .OrderByDescending(item => item.Titles.Length).ToArray();
+            if (mode == Mode.Arena && result.FirstOrDefault(item => item.Titles.Length == 3) is { } regular)
+            {
+                var center = regular.Titles[1];
+                // Kindred's rewards share the vertical layout with the standard offer, with two centered slots.
+                Region RewardTitle(Region outer) => outer with { X = center.X + (outer.X - center.X) * 2 / 3 };
+                result = [.. result, regular with { Titles = [RewardTitle(regular.Titles[0]), RewardTitle(regular.Titles[2])] }];
+            }
             fitted[key] = result;
             return result;
         }

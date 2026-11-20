@@ -32,7 +32,7 @@ internal static class Program
         ArenaWikiMechanicsTests.Run(ratings, assets);
         ArenaAugmentAffinityTests.Run(ratings);
         ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"),
-            Option("--arena-eureka-upgrade-shot"));
+            Option("--arena-eureka-upgrade-shot"), Option("--arena-kindred-shot"));
         ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
             Option("--arena-prismatic-rank-shot"), Option("--arena-prismatic-renata-shot"));
@@ -52,6 +52,10 @@ internal static class Program
         if (Option("--mayhem-bench-templates") is { } benchTemplates && Option("--mayhem-locked-shot") is { } benchFirst &&
             Option("--mayhem-bench-swap-shot") is { } benchSwap)
             MayhemChampionTests.ReadBench(ratings.Catalog, benchTemplates, benchFirst, benchSwap);
+        if (Option("--mayhem-bench-templates") is { } portraitTemplates && Option("--mayhem-velkoz-bench-shot") is { } velkozBench)
+            MayhemChampionTests.ReadVelkozBench(ratings.Catalog, portraitTemplates, velkozBench);
+        if (Option("--mayhem-bench-templates") is { } leonaTemplates && Option("--mayhem-leona-bench-shot") is { } leonaBench)
+            MayhemChampionTests.ReadLeonaBench(ratings.Catalog, leonaTemplates, leonaBench);
         ArenaChampionTierTests.Run(ratings, Option("--arena-champion-tier-html"));
         ArenaChampionSelectionTests.Run();
         ArenaCompositionTests.Run(ratings);
@@ -82,10 +86,10 @@ internal static class Program
             "la cantidad de yunques distingue las variantes y una lectura incierta sigue sin asignación");
         if (Option("--caos-anvil-shot") is { } anvilShot)
             CheckAnvilScreenshot(anvilShot, assets, ratings, defaultLayouts);
-        var fullScreen = defaultLayouts.Find(Mode.Arena, 2560, 1440).Single();
+        var fullScreen = defaultLayouts.Find(Mode.Arena, 2560, 1440).Single(l => l.Titles.Length == 3);
         Check(fullScreen.Titles.Length == 3 && fullScreen.Titles[1].Pixels(2560, 1440).Y is >= 530 and <= 570,
             "calibración adaptada a 2560 × 1440");
-        Check(ReferenceEquals(fullScreen, defaultLayouts.Find(Mode.Arena, 2560, 1440).Single()),
+        Check(ReferenceEquals(fullScreen, defaultLayouts.Find(Mode.Arena, 2560, 1440).Single(l => l.Titles.Length == 3)),
             "la calibración adaptada conserva el estado entre lecturas");
         Check(LiveGame.ParseMode("KIWI") == Mode.Caos && LiveGame.ParseMode("CHERRY") == Mode.Arena
             && LiveGame.ParseMode("ARAM") is null, "detección de modos");
@@ -244,7 +248,7 @@ internal static class Program
         if (Option("--arena-upgrade") is { } upgradePath)
         {
             var image = Diagnostics.OpenBitmap(upgradePath);
-            var layout = defaultLayouts.Find(Mode.Arena, image.PixelWidth, image.PixelHeight).Single();
+            var layout = defaultLayouts.Find(Mode.Arena, image.PixelWidth, image.PixelHeight).Single(l => l.Titles.Length == 3);
             using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
             var scan = layout.ScanArea();
             var result = detector.Scan(new CroppedBitmap(image, scan), scan, layout, Mode.Arena);
@@ -612,6 +616,11 @@ internal static class Program
                 "al terminar las compras iniciales desaparece solo esa sección y se mantiene la siguiente compra");
             overlay.Render(view with { EnemyDamage = new(60) });
             CheckDamageBar(rows, 60);
+            const string reason = "Por el AP comprado por Ezreal y Karma";
+            overlay.Render(view with { Plan = new MayhemBuildPlan([plan.Steps[0], plan.Steps[1] with { Detail = reason }, ..plan.Steps.Skip(2)]) });
+            Check(PurchaseText((DockPanel)rows.Children.OfType<Border>().Single().Child).Last().Text == reason &&
+                rows.Children.OfType<TextBlock>().Any(text => text.Text == "Según campeones y objetos rivales"),
+                "la compra reactiva explica el motivo y la barra identifica cómo estima el daño");
             overlay.Render(view with { EnemyDamage = new(0) });
             CheckDamageBar(rows, 0);
             overlay.Render(view with { EnemyDamage = new(100) });
@@ -651,7 +660,7 @@ internal static class Program
             overlay.Render(withAlternative with { Plan = new MayhemBuildPlan([..equipped.Take(5), plan.Steps[5]]) });
             Check(HasRouteLabel(), "la ruta alternativa vuelve a aparecer si se libera un espacio y falta algún objeto");
 
-            bool HasRouteLabel() => rows.Children.OfType<TextBlock>().Any(text => text.Text == "Ruta alternativa");
+            bool HasRouteLabel() => rows.Children.OfType<TextBlock>().Any(text => text.Text == "Ruta alternativa · OP.GG");
 
             var reference = data with { Groups = [new(OpGgBuildSection.Core, [core])] };
             overlay.Render(view with { Bounds = compactBounds, Shop = shop, Plan = null, Source = new(reference, "Prueba") });
@@ -1084,7 +1093,7 @@ internal static class Program
                 firstBadge.BorderThickness == new Thickness(1), "el dorado se retira al releer una carta");
             overlay.Render(new OverlayUpdate("Arena variable", bounds, layout,
                 [new("Variable", IsArenaAugment: true, LocalReason: "Copia un aumento rival cada ronda")]));
-            Check(VisibleLines(first).SequenceEqual(["Copia un aumento rival cada ronda", "Afinidad variable"]),
+            Check(VisibleLines(first).SequenceEqual(["Afinidad variable", "Copia un aumento rival cada ronda"]),
                 "una carta variable explica su condición aunque falten porcentajes");
 
             var shardBounds = new Int32Rect(10, 10, 1000, 560);
@@ -1179,7 +1188,7 @@ internal static class Program
             {
                 var store = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
                 var viewport = new Int32Rect(-30000, -30000, width, height);
-                var fit = store.Find(Mode.Arena, width, height).Single();
+                var fit = store.Find(Mode.Arena, width, height).Single(l => l.Titles.Length == 3);
                 var titlesInPixels = fit.Titles.Select(title => title.Pixels(width, height)).ToArray();
                 int regularTop = (int)Math.Round(height * .1674);
                 int upgradeTop = (int)Math.Round(height * .1582);
@@ -1198,6 +1207,19 @@ internal static class Program
                     overlay.ShowDetails = details;
                     var offer = new OverlayUpdate("Arena", viewport, fit, cards, Mode: Mode.Arena, ArenaCardTop: regularTop);
                     CheckCentered(offer, regularTop, .09, details);
+                    const string variableReason = "Depende del aumento que reemplaces";
+                    overlay.Render(offer with { Labels = [new("Variable", IsArenaAugment: true, LocalReason: variableReason), cards[1], cards[2]] });
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                    var variableBadge = overlay.Windows[0];
+                    var variableLines = BuildElements<TextBlock>(Frame(variableBadge)).ToArray();
+                    var variablePlacement = Native.Bounds(new WindowInteropHelper(variableBadge).Handle);
+                    var detail = variableLines.Single(line => line.Text == variableReason);
+                    var detailPixels = detail.TransformToAncestor(variableBadge).TransformBounds(new Rect(0, 0, 1, detail.FontSize)).Height *
+                        VisualTreeHelper.GetDpi(variableBadge).DpiScaleY;
+                    Check(variableLines.Select(line => line.Text).SequenceEqual(["Afinidad variable", variableReason]) && detailPixels >= 14 &&
+                        variablePlacement.Y + variablePlacement.Height <= viewport.Y + regularTop + height * (details ? .046 : .022) &&
+                        variablePlacement.Width <= titlesInPixels[0].Width,
+                        $"la condición de la carta variable conserva un tamaño legible a {width}×{height} ({detailPixels:F1} px)");
                     foreach (var jittered in new int?[] { regularTop - 11, null, regularTop + 8, regularTop })
                         CheckCentered(offer with { ArenaCardTop = jittered }, regularTop, .09, details);
                     var middleUpgrade = offer with { Labels = [cards[0], cards[1]! with { UpgradeLevel = 2 },

@@ -31,7 +31,7 @@ internal static class ArenaBuildOverlayTests
             "Arena distingue los rivales recientes de los que identifica en todo el lobby");
         var next = panel.Children.OfType<Border>().Single();
         Check(panel.Children[0] == next && next.BorderThickness.Left > 0 && next.Background is not null &&
-            ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk"]) &&
+            ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
             ReadText(panel.Children.OfType<DockPanel>().Single()).SequenceEqual(["2.", "Presagio de Randuin"]),
             "la siguiente compra se destaca y las filas conservan posición y objeto");
         var owned = panel.Children.OfType<UniformGrid>().Take(2).SelectMany(ReadText);

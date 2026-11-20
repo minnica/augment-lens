@@ -63,7 +63,8 @@ internal static class ArenaLegendaryTests
     private static void CheckSharedChemtechTitle(Ratings ratings, string assets)
     {
         var bounds = new Int32Rect(0, 0, 2560, 1440);
-        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height)
+            .Single(l => l.Titles.Length == 3);
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
         var item = Offer("Infligir daño aplica un 40% de Heridas Graves", "a campeones enemigos durante 3 seg.");
         var augment = Offer("Todo el daño que infliges aplica Heridas", "Graves.");

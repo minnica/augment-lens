@@ -14,6 +14,9 @@ internal sealed class ArenaBuilds(Ratings ratings)
     private static readonly HashSet<string> Shielders = new(["Ivern", "Janna", "Karma", "Lulu", "Lux", "Milio",
         "Orianna", "Seraphine", "Shen", "Sona"], StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<int> AntiHealing = [223033, 223075, 223165, 226609];
+    private static readonly HashSet<int> SupportItems = [222065, 223107, 223190, 223222, 223504, 226616, 226617, 226620, 226621];
+    private static readonly HashSet<string> TeamHealers = new(["Nami", "Sona", "Soraka", "Taric", "Yuumi"],
+        StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, Champion> champions = ratings.Catalog.Champions.ToDictionary(
         champion => champion.Key, StringComparer.OrdinalIgnoreCase);
@@ -87,6 +90,10 @@ internal sealed class ArenaBuilds(Ratings ratings)
         var baseIds = owned.Select(item => BaseId(item.Id)).ToHashSet();
         var core = paths.MaxBy(path => path.Count(item => baseIds.Contains(item.Id))) ?? [];
         var role = BuildRole(champion, owned, core);
+        if (role == "Support")
+            core = core.Where(FitsSupport).ToArray();
+        bool teamHasAntiHealing = role == "Support" && match.Allies?.Any(ally => EquippedItems(ally)
+            .Any(item => AntiHealing.Contains(item.Id))) == true;
 
         int[] defaults = role switch
         {
@@ -101,7 +108,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         if (steps.Count == Slots)
         {
             var equipped = steps.ToArray();
-            return new(equipped, match.InventoryKnown ? RecommendSwap(champion, equipped, core, defaults, role, match) : null);
+            return new(equipped, match.InventoryKnown ? RecommendSwap(champion, equipped, core, defaults, role, match, teamHasAntiHealing) : null);
         }
 
         var rivals = RecentOpponents(match).Select(opponent => ReadRival(opponent)).OfType<Rival>().ToArray();
@@ -123,7 +130,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
                 steps.Add(Step(item, core.Contains(item) ? PublishedPick : ChampionFit));
         }
 
-        foreach (var counter in Counters(role, rivals).OrderByDescending(counter => counter.Priority))
+        foreach (var counter in Counters(role, rivals, teamHasAntiHealing).OrderByDescending(counter => counter.Priority))
         {
             if (steps.Count == Slots)
                 break;
@@ -134,7 +141,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
                 steps.Add(Step(item, counter.Reason));
         }
 
-        var affinity = equipment.Values.Where(item => item.Buyable && !IsBoot(item))
+        var affinity = equipment.Values.Where(item => item.Buyable && !IsBoot(item) && (role != "Support" || FitsSupport(item)))
             .Select(item => (Item: item, Rating: ratings.Legendaries.Rate(champion.Key, item)))
             .Where(pick => pick.Rating is { Tier: Tier.S or Tier.A or Tier.B })
             .OrderBy(pick => pick.Rating!.Tier).ThenBy(pick => pick.Item.Id).Select(pick => pick.Item);
@@ -149,7 +156,8 @@ internal sealed class ArenaBuilds(Ratings ratings)
         return steps.Count == Slots ? new(steps.ToArray()) : null;
     }
 
-    private BuildSwap? RecommendSwap(Champion champion, BuildStep[] equipped, ArenaItem[] core, int[] defaults, string role, ArenaMatch match)
+    private BuildSwap? RecommendSwap(Champion champion, BuildStep[] equipped, ArenaItem[] core, int[] defaults, string role,
+        ArenaMatch match, bool teamHasAntiHealing)
     {
         var protectedIds = (core.Length == 0 ? defaults.Take(2) : core.Take(3).Select(item => item.Id)).ToHashSet();
         var replaceable = equipped.Where(step =>
@@ -159,7 +167,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         }).OrderByDescending(step => ratings.Legendaries.Rate(champion.Key, equipment[step.Item.Id])?.Tier ?? Tier.B)
             .ThenBy(step => step.Item.Id);
         var rivals = RecentOpponents(match).Select(opponent => ReadRival(opponent, purchasesOnly: true)).OfType<Rival>().ToArray();
-        var counters = Counters(role, rivals, purchasesOnly: true).OrderByDescending(counter => counter.Priority)
+        var counters = Counters(role, rivals, teamHasAntiHealing, purchasesOnly: true).OrderByDescending(counter => counter.Priority)
             .Select(counter => new SwapCounter(counter.Reason, counter.ItemIds.Where(shopLegendaries.Contains).ToArray(),
                 id => Covers(equipment[id], counter.Need)));
         return BuildSwap.Find(equipped, replaceable, counters, (id, kept) => CanAdd(equipment[id], kept),
@@ -194,8 +202,9 @@ internal sealed class ArenaBuilds(Ratings ratings)
     {
         var items = owned.Concat(core).DistinctBy(item => BaseId(item.Id)).ToArray();
         var initial = champion.Roles[0];
-        if (initial == "Support" && items.Any(item => item.Id is 222065 or 223107 or 223222 or 223504 or 226616 or 226617 or 226620 or 226621))
-            return initial;
+        if (owned.Count(item => SupportItems.Contains(item.Id)) >= 2 ||
+            (initial == "Support" && items.Any(item => SupportItems.Contains(item.Id))))
+            return "Support";
         if (items.Count(item => Has(item, "SpellDamage") && !Has(item, "Damage")) >= 2 &&
             items.Count(item => Has(item, "Armor") || Has(item, "SpellBlock")) < 2)
             return "Mage";
@@ -204,7 +213,11 @@ internal sealed class ArenaBuilds(Ratings ratings)
         return initial == "Assassin" && ratings.HasTrait(champion.Key, "ap") ? "Mage" : initial;
     }
 
-    private static IEnumerable<Counter> Counters(string role, Rival[] rivals, bool purchasesOnly = false)
+    private static bool FitsSupport(ArenaItem item) => SupportItems.Contains(item.Id) || item.Id == 223003 ||
+        Has(item, "Armor") || Has(item, "SpellBlock") || Has(item, "MagicResist") ||
+        !(Has(item, "SpellDamage") || Has(item, "Damage") || Has(item, "CriticalStrike") || Has(item, "AttackSpeed"));
+
+    private static IEnumerable<Counter> Counters(string role, Rival[] rivals, bool teamHasAntiHealing, bool purchasesOnly = false)
     {
         var magical = rivals.Where(rival => rival.MagicDamage).ToArray();
         var physical = rivals.Where(rival => rival.PhysicalDamage).ToArray();
@@ -214,13 +227,16 @@ internal sealed class ArenaBuilds(Ratings ratings)
         var shielded = rivals.Where(rival => rival.Shielded).ToArray();
         var critical = rivals.Where(rival => rival.Crit >= 2).ToArray();
         var tanks = rivals.Where(rival => rival.Health >= 2 || !purchasesOnly && rival.Champion.Roles[0] == "Tank").ToArray();
-        bool frontLine = role is "Tank" or "Support" or "Fighter";
+        bool frontLine = role is "Tank" or "Fighter";
 
-        if (healing.Length > 0)
-            yield return new(Need.Healing, 90 + healing.Length, Reason("Para reducir la curación de", healing), role switch
+        if (healing.Length > 0 && !teamHasAntiHealing)
+        {
+            bool minorForSupport = role == "Support" && healing.Length == 1 && !TeamHealers.Contains(healing[0].Champion.Key);
+            yield return new(Need.Healing, minorForSupport ? 65 : 90 + healing.Length, Reason("Para reducir la curación de", healing), role switch
             {
                 "Tank" => [223075], "Mage" or "Support" => [223165], "Marksman" => [223033], _ => [226609]
             });
+        }
         if (critical.Length > 0 && frontLine)
             yield return new(Need.Crit, 85, Reason("Contra los golpes críticos de", critical), [223143]);
         if (armored.Length >= 2 || armored.Any(rival => rival.Armor >= 2))
@@ -235,12 +251,14 @@ internal sealed class ArenaBuilds(Ratings ratings)
         if (magical.Length > physical.Length)
             yield return new(Need.MagicDamage, 70 + magical.Length, Reason("Contra el daño mágico de", magical), role switch
             {
-                "Tank" or "Support" => [222504, 224401, 223065], "Mage" => [223102], "Marksman" => [223091, 223156], _ => [223156]
+                "Support" => [223190, 222504, 223065], "Tank" => [222504, 224401, 223065],
+                "Mage" => [223102], "Marksman" => [223091, 223156], _ => [223156]
             });
         if (physical.Length > magical.Length)
             yield return new(Need.PhysicalDamage, 70 + physical.Length, Reason("Contra el daño físico de", physical), role switch
             {
-                "Tank" or "Support" => [223110, 223143, 223742], "Mage" => [223157], "Marksman" => [223026], _ => [226333, 223026]
+                "Support" => [223190, 223110, 223143], "Tank" => [223110, 223143, 223742],
+                "Mage" => [223157], "Marksman" => [223026], _ => [226333, 223026]
             });
         if (tanks.Length > 0 && role is "Mage" or "Fighter" or "Marksman")
             yield return new(Need.Health, 60 + tanks.Length, Reason("Contra rivales con mucha vida como", tanks),
@@ -261,7 +279,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         bool physical = purchasesOnly ? ad >= 2 && ad > ap : ad > ap || (ad == ap && naturalPhysical);
         return new(champion, magic, physical,
             (!purchasesOnly && Healers.Contains(champion.Key)) || items.Any(item => Has(item, "LifeSteal") || Has(item, "SpellVamp") ||
-                item.Id is 226617 or 226620 or 443062),
+                item.Id is 226617 or 226620 or 226630 or 443062),
             (!purchasesOnly && Shielders.Contains(champion.Key)) ||
                 items.Any(item => item.Id is 223053 or 223119 or 223190 or 226673 or 443193),
             items.Count(item => !IsBoot(item) && Has(item, "Armor")),

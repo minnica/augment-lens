@@ -28,6 +28,7 @@ internal static class ArenaLiveMatchTests
         var match = Parse(players, $"[{events}]");
         Check(match?.Game == new GameContext(Mode.Arena, "Chogath") && match.Mayhem is null &&
             match.Arena?.Items.SequenceEqual([223084, 443080]) == true &&
+            match.Arena.Allies is [{ Champion: "Brand" }] &&
             match.Arena.Opponents.Select(opponent => opponent.Champion).SequenceEqual(["Ornn", "Jinx", "Ashe"]) &&
             match.Arena.Opponents.SelectMany(opponent => opponent.Items).SequenceEqual([223065, 223036, 223031]),
             "Arena une aliados por asistencias y ordena solo los rivales confirmados por encuentro reciente");
