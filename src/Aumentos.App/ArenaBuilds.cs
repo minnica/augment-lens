@@ -52,8 +52,8 @@ internal sealed class ArenaBuilds(Ratings ratings)
     internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match) => match is null ? null :
         EstimateDamage(RecentOpponents(match));
 
-    internal EnemyDamageMix? EstimateLobbyDamage(ArenaMatch? match) => match?.Roster is { } roster
-        ? EstimateDamage(roster) : null;
+    internal EnemyDamageMix? EstimateLobbyDamage(ArenaMatch? match) => match?.LobbyOpponents is { } opponents
+        ? EstimateDamage(opponents) : null;
 
     private EnemyDamageMix? EstimateDamage(IEnumerable<ArenaParticipant> participants) =>
         EnemyDamageMix.Estimate(participants.Select(participant =>

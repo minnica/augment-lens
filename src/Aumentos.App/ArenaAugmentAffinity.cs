@@ -112,7 +112,8 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         var baseline = ratings.RateEditorial(Mode.Arena, profile.Champion.Key, id);
         var fit = level is 2 or 3
             ? Upgrade(profile, id, level.Value, baseline, wiki.Signals) ?? BaseOfUpgrade(profile, id, baseline, wiki.Signals)
-            : WithItems(profile, id, wiki.Signals) ?? (baseline is null ? Unlock(profile, id) : Describe(profile, id));
+            : WithItems(profile, id, wiki.Signals) ?? RenataSupportFit(profile, id, baseline) ??
+                (baseline is null ? Unlock(profile, id) : Describe(profile, id));
         if (fit is null)
             return null;
         return ratings.HasOverride(Mode.Arena, profile.Champion.Key, id)
@@ -164,6 +165,8 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
             "Velocidad de ataque de 80 % a 130 % y sin límite", p.OnHit >= 2 ? 5 : 2, p.OnHit >= 2),
         (22, 2 or 3) when p.AttackSpeed && signals.HasFlag(ArenaWikiSignal.GrantsAttackSpeed) =>
             new(baseline, "Velocidad de ataque adicional desde el inicio", level - 1),
+        (30, 2 or 3) when baseline is not null =>
+            new(baseline, "Conversión de PH en aceleración", level - 1),
         (44, 2) when p.FrequentSlow || p.Rylais => new(baseline ?? Tier.A, "Refuerza todavía más tus ralentizaciones"),
         (ArenaUpgradeRatings.LightEmUp, 2) when p.Attacks && signals.HasFlag(ArenaWikiSignal.AttacksForBonusMagicDamage) => new(baseline,
             "Fuegos artificiales de 4 a 5 · Daño de 90 % a 100 %", 2),
@@ -180,11 +183,22 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         _ => null
     };
 
+    private static ArenaAugmentFit? RenataSupportFit(Profile p, int id, Tier? baseline) =>
+        p.Champion.Key != "Renata" ? null : id switch
+        {
+            94 => new(baseline, "Gastas parte de tu vida para escudar a un aliado cuando cae por debajo del 30 %", Priority: 1),
+            198 => new(baseline, "Tus escudos queman a un enemigo cercano según su vida máxima", Priority: 2),
+            215 => new(baseline ?? Tier.A,
+                "Escudar aliados con tu E acumula aceleración permanente para volver a proteger antes", Priority: 3),
+            _ => null
+        };
+
     private static ArenaAugmentFit? Describe(Profile p, int id) => id switch
     {
         9 => new(null, "Da aceleración y hace que tus ataques quemen y ralenticen"),
         12 => new(null, "Intercambia posiciones, acelera y protege a tu aliado"),
         29 => new(null, "Tus habilidades aplican efectos al impacto"),
+        30 => new(null, "Convierte parte de tu poder de habilidad en aceleración"),
         44 => new(null, "Tus ralentizaciones reducen más la velocidad enemiga"),
         64 => new(null, "Regenera más vida cuando estás herido"),
         79 => new(null, "Cadencia Letal y Conquistador favorecen el combate sostenido"),
@@ -262,6 +276,10 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         330 => Fit(p.Mobility, "Desplazarte cerca del enemigo acumula velocidad de movimiento", Tier.C),
         343 => Fit(p.Ally || p.Sustain, "Curar y escudar aumenta tu daño de habilidad", Tier.C),
         357 => Fit(p.Attacks && (p.Hybrid || p.Casting), "Alternar ataques y habilidades aumenta su daño"),
+        1332 when p.Ap && p.Sustain => new(Tier.A, "Tu curación propia ayuda a pagar el costo de vida al lanzar"),
+        1332 when p.Sustain || (p.Attacks && p.Lifesteal > 0) =>
+            new(Tier.B, "La curación ayuda a compensar el costo de vida de cada habilidad"),
+        1332 => new(Tier.C, "Ganas PH al perder vida, pero cada habilidad te cuesta vida"),
         1405 => Fit(p.Casting, "Dañar a un campeón con habilidades da un impulso breve de velocidad"),
         _ => null
     };

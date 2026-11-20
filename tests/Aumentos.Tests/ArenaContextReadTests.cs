@@ -8,7 +8,7 @@ using Aumentos;
 
 internal static class ArenaContextReadTests
 {
-    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks)
+    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks, string? eureka)
     {
         CheckInventory();
         CheckCatalog(ratings);
@@ -33,6 +33,8 @@ internal static class ArenaContextReadTests
         }
         if (fireworks is not null)
             CheckOffer(detector, assets, fireworks, null, [null, 2, null]);
+        if (eureka is not null)
+            CheckOffer(detector, assets, eureka, [1332, 30, 88], [null, 3, null]);
         Console.WriteLine("Contexto de Arena verificado con inventario propio y niveles por posición.");
     }
 

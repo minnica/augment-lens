@@ -18,6 +18,35 @@ internal static class ArenaAugmentAffinityTests
         Check(affinity.Evaluate("Chogath", 35) is { Tier: Tier.A } && affinity.Evaluate("Chogath", 5) is { Tier: Tier.B },
             "los perfiles de primera línea aprovechan Siente el Ardor y reciben una valoración general para Estandarte");
 
+        var renata = Offer("Renata", [198, 215, 94]);
+        Check(renata[0] is { LocalText: "A", RecommendedAugment: false, UsesWiki: true } &&
+            renata[0]!.DetailText.Contains("enemigo cercano") &&
+            renata[1] is { LocalText: "A", RecommendedAugment: true, UsesWiki: true } &&
+            renata[1]!.DetailText.Contains("aceleración permanente") &&
+            renata[2] is { LocalText: "A", RecommendedAugment: false, UsesWiki: true } &&
+            renata[2]!.DetailText.Contains("Gastas parte de tu vida"),
+            "Renata recomienda Bendición Oscura con tres aumentos A por la aceleración que acumula con su E");
+        Check(Offer("Renata", [94, 198, 215])[2] is { RecommendedAugment: true } &&
+            Offer("Renata", [198, 215, null]).All(badge => badge?.RecommendedAugment != true) &&
+            Offer("Renata", [198, 215, 94], [2, null, null]).All(badge => badge?.RecommendedAugment != true),
+            "el desempate de Renata sigue la carta y requiere comparar la oferta completa sin mezclar mejoras");
+        var renataPrismatic = Offer("Renata", [123, 195, 30]);
+        Check(renataPrismatic is [
+                { LocalText: "Variable", LocalReason: "Cada uso cambia el hechizo al azar", RecommendedAugment: false },
+                { LocalText: "B", RecommendedAugment: false },
+                { LocalText: "A", LocalReason: "Convierte parte de tu poder de habilidad en aceleración", RecommendedAugment: false } ],
+            "Ruleta del Invocador explica el azar y la oferta conserva los tiers conocidos de Renata");
+        var renataUpgrade = Offer("Renata", [1332, 30, 88], [null, 3, null]);
+        Check(renataUpgrade is [
+                { LocalText: "C", LocalReason: "Ganas PH al perder vida, pero cada habilidad te cuesta vida", UsesWiki: true },
+                { LocalText: "A", UpgradeLevel: 3, RecommendedUpgrade: true,
+                    DetailText: "Conversión de PH en aceleración de 30 % a 45 %" },
+                { LocalText: "B", RecommendedUpgrade: false } ] &&
+            ratings.ArenaAugment(30)?.EffectAt(2) == "Conversión de PH en aceleración de 20 % a 30 %" &&
+            affinity.Evaluate("Swain", 1332) is { Tier: Tier.A } &&
+            affinity.Evaluate("Aatrox", 1332) is { Tier: Tier.B },
+            "Pacto Ominoso valora el costo de vida según el campeón y Eureka Nv. 3 gana la oferta de Renata");
+
         var rellSpeed = Offer("Rell", [85, 1405, 305]);
         Check(rellSpeed[0] is { LocalText: "A" } &&
             rellSpeed[1] is { LocalText: "B", UsesWiki: true, LocalReason: "Dañar a un campeón con habilidades da un impulso breve de velocidad" } &&

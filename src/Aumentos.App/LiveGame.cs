@@ -16,7 +16,7 @@ internal sealed record MayhemOpponent(string Champion, int[] Items);
 internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents);
 internal sealed record ArenaParticipant(string Champion, int[] Items);
 internal sealed record ArenaMatch(int[] Items, ArenaParticipant[] Opponents, bool InventoryKnown = true,
-    ArenaParticipant[]? Roster = null);
+    ArenaParticipant[]? LobbyOpponents = null);
 internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
     double? GameTime = null)
@@ -128,8 +128,7 @@ internal sealed class LiveGame : IDisposable
             if (!aliases.TryGetValue(active, out int current) || ChampionKey(roster[current]) is not { } champion)
                 return null;
             var items = ReadItems(roster[current]);
-            var participants = roster.Select(ReadArenaParticipant).OfType<ArenaParticipant>().ToArray();
-            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null, participants));
+            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null));
         }
 
         foreach (var player in roster)
@@ -173,7 +172,7 @@ internal sealed class LiveGame : IDisposable
         var participants = roster.Select(ReadArenaParticipant).ToArray();
         if (!snapshot.TryGetProperty("events", out var eventData) || eventData.ValueKind != JsonValueKind.Object ||
             !eventData.TryGetProperty("Events", out var events) || events.ValueKind != JsonValueKind.Array)
-            return CreateMatch([]);
+            return CreateMatch([], []);
 
         var kills = ReadArenaKills(events, aliases).ToArray();
         var teams = Enumerable.Range(0, roster.Length).ToArray();
@@ -186,7 +185,7 @@ internal sealed class LiveGame : IDisposable
             .Select(kill => TeamOf(kill.Killer)).ToHashSet();
         int ownTeam = TeamOf(current);
         if (conflicting.Contains(ownTeam))
-            return CreateMatch([]);
+            return CreateMatch([], []);
 
         var lastSeen = new Dictionary<int, double>();
         foreach (var kill in kills)
@@ -199,14 +198,23 @@ internal sealed class LiveGame : IDisposable
                 lastSeen[opponentTeam] = kill.Time;
         }
 
-        var opponents = participants.Select((player, index) => (Player: player, Team: TeamOf(index)))
+        var members = participants.Select((player, index) => (Player: player, Team: TeamOf(index))).ToArray();
+        var opponents = members
             .Where(player => lastSeen.ContainsKey(player.Team))
             .OrderByDescending(player => lastSeen[player.Team])
             .Select(player => player.Player).OfType<ArenaParticipant>().ToArray();
-        return CreateMatch(opponents);
+        // The live roster includes all slots. Use complete squads to identify enemies even outside our own rounds.
+        var counts = members.GroupBy(member => member.Team).ToDictionary(group => group.Key, group => group.Count());
+        int teamSize = roster.Length switch { 18 => 3, 8 or 16 => 2, _ => 0 };
+        bool knownFormat = teamSize > 0 && counts.Values.All(count => count <= teamSize);
+        bool ownTeamComplete = knownFormat && counts[ownTeam] == teamSize;
+        var lobbyOpponents = members.Where(member => member.Team != ownTeam && !conflicting.Contains(member.Team) &&
+            (ownTeamComplete || lastSeen.ContainsKey(member.Team) || (knownFormat && counts[member.Team] == teamSize)))
+            .Select(member => member.Player).OfType<ArenaParticipant>().ToArray();
+        return CreateMatch(opponents, lobbyOpponents);
 
-        LiveMatch CreateMatch(ArenaParticipant[] rivals) => new(context,
-            Arena: new(items ?? [], rivals, items is not null, participants.OfType<ArenaParticipant>().ToArray()),
+        LiveMatch CreateMatch(ArenaParticipant[] rivals, ArenaParticipant[] lobbyRivals) => new(context,
+            Arena: new(items ?? [], rivals, items is not null, lobbyRivals),
             GameTime: ReadGameTime(game));
 
         int TeamOf(int index)

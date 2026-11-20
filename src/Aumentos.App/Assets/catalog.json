@@ -1581,7 +1581,11 @@
                          "key":  "Eureka",
                          "name":  "Eureka",
                          "description":  "Obtienes \u003cscaleAbilityHaste\u003eaceleración de habilidad\u003c/scaleAbilityHaste\u003e equivalente a un \u003cscaleAP\u003e@APToHasteConversion*100@% de tu Poder de Habilidad\u003c/scaleAP\u003e.",
-                         "maxLevel":  3
+                         "maxLevel":  3,
+                         "upgradeEffects":  [
+                                                "Conversión de PH en aceleración de 20 % a 30 %",
+                                                "Conversión de PH en aceleración de 30 % a 45 %"
+                                            ]
                      },
                      {
                          "mode":  "Arena",

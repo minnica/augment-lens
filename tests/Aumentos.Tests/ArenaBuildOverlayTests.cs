@@ -25,10 +25,10 @@ internal static class ArenaBuildOverlayTests
         renderer.Render(view);
         var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
         Check(blocks.SequenceEqual(["Después", "Equipados · 4 de 6", "Objetos prismáticos",
-            "Daño rival estimado", "Según rivales de rondas jugadas", "Daño del lobby", "Incluye a tu equipo"]) &&
+            "Daño rival estimado", "Según rivales de rondas jugadas", "Daño del lobby", "Solo rivales identificados"]) &&
             ReadText(panel.Children[^4]).SequenceEqual(["67% físico", "33% mágico"]) &&
             ReadText(panel.Children[^1]).SequenceEqual(["45% físico", "55% mágico"]),
-            "Arena separa la estimación de los rivales de la de todo el lobby");
+            "Arena distingue los rivales recientes de los que identifica en todo el lobby");
         var next = panel.Children.OfType<Border>().Single();
         Check(panel.Children[0] == next && next.BorderThickness.Left > 0 && next.Background is not null &&
             ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk"]) &&
@@ -43,7 +43,7 @@ internal static class ArenaBuildOverlayTests
         renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null, LobbyDamage = null });
         var emptyLabels = ReadText(panel).ToArray();
         Check(emptyLabels.Contains("Esperando confirmar rivales.") &&
-            emptyLabels.Contains("Esperando datos de los equipos.") && !emptyLabels.Any(label => label.EndsWith("% físico")) &&
+            emptyLabels.Contains("Esperando identificar rivales.") && !emptyLabels.Any(label => label.EndsWith("% físico")) &&
             emptyLabels.Contains("Equipados · 0 de 6") &&
             emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<DockPanel>().Count() == 5 &&
             !panel.Children.OfType<UniformGrid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");

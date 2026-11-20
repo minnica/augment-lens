@@ -19,6 +19,9 @@ internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string
 
     internal ArenaItem?[]? Identify(DetectionResult offer) => titles.Identify(offer);
 
+    internal ArenaPrismaticTop? TopForChampion(string champion) =>
+        rankings.TryGetValue(champion, out var ranking) ? new(ranking.Top, 0) : null;
+
     internal ArenaPrismaticOffer? ForOffer(GameContext game, DetectionResult offer)
     {
         if (game.Mode != Mode.Arena || !rankings.TryGetValue(game.Champion, out var ranking) ||

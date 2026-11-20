@@ -178,8 +178,10 @@ public sealed class Ratings
     internal string? RecoverArenaItemTitle(string text)
     {
         var query = Normalize(text);
+        // Long titles can lose their first letter to the card frame or have one misread glyph.
         return arenaItems.Where(name => name.Length >= 16 && name.Contains(' ') &&
-            (query == name[1..] || query.EndsWith(" " + name[1..], StringComparison.Ordinal)))
+            (query == name[1..] || query.EndsWith(" " + name[1..], StringComparison.Ordinal) ||
+                query.Length == name.Length && Distance(query, name) == 1))
             .Take(2).ToArray() is [var unique] ? unique : null;
     }
 
@@ -226,6 +228,7 @@ public sealed class Ratings
         "SymbioticMutation" => "Copia un aumento aliado cada ronda",
         "AugmentedPower" => "Depende del daño de tus objetos y aumentos",
         "OmniSoul" => "Las Almas de Dragón que recibes son aleatorias",
+        "SummonersRoulette" => "Cada uso cambia el hechizo al azar",
         "PandorasBox" => "Cambia tus aumentos por prismáticos aleatorios",
         "PrismaticEgg" => "Eclosiona con 5 derribos, uno por rival y ronda",
         "GoHChemtechPutrifier" => "Aplica Heridas Graves, útiles contra la curación rival",

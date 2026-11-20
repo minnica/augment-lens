@@ -375,7 +375,8 @@ internal sealed class LiveOverlay
                         ? $"{label} · Panel de objetos"
                         : $"{label} · Panel abierto · {result.Cards.Count(id => id.HasValue)} aumentos reconocidos";
                 }
-                else if (current.Mode != Mode.Arena && previous is not null && Environment.TickCount64 - lastOffer < 300)
+                if (previous is not null && Environment.TickCount64 - lastOffer < 300 &&
+                    (current.Mode == Mode.Arena ? detector.PanelVisible(frame, scan, previous) : read is null))
                     return null;
                 previous = null;
                 arenaUpgradeHeading = null;

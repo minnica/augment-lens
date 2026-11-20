@@ -48,6 +48,26 @@ internal static class ArenaCompositionTests
             Team(["Jax", "Lux"], "Nunu", "Braum", "Rell"));
         Check(balanced.Length == 3 && balanced.All(pick => pick.Reason.Contains("más control")),
             "una composición equilibrada puede reforzar su control");
+
+        var waiting = new ArenaDraftTeam([], [], 3);
+        var protectedCarry = new ArenaDraftTeam(["Janna", "Chogath"], [], 3);
+        var exposedCarry = new ArenaDraftTeam(["Jinx", "Tristana"], [], 3);
+        var fullGrade = ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", protectedCarry);
+        Check(ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", waiting) is null &&
+            ArenaCompositionAdvice.Evaluate(ratings, null, protectedCarry) is null &&
+            ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", protectedCarry with { Teammates = ["KogMaw"] }) is null &&
+            fullGrade is { Tier: "S", Members: 3, TeamSize: 3, Reason: "Protege el daño sostenido" } &&
+            ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", exposedCarry) is { Tier: not "S" } &&
+            ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", protectedCarry with { Teammates = ["Janna"] })
+                is { Members: 2, TeamSize: 3 } &&
+            ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", protectedCarry with { Teammates = ["Janna"], Size = 2 })
+                is { Members: 2, TeamSize: 2 }, "la sinergia valora el equipo real y distingue un trío parcial de un dúo");
+
+        var engageGrade = ArenaCompositionAdvice.Evaluate(ratings, "Riven", new(["Kled", "Galio"], [], 3));
+        Check(engageGrade is { Tier: "A" or "S", Reason: "Encadena control y daño" } &&
+            ArenaCompositionAdvice.Evaluate(ratings, "Vayne", new(["Vayne", "Yuumi"], [], 2)) is { Members: 2 } &&
+            ArenaCompositionAdvice.Evaluate(ratings, "Sona", new(["Yuumi"], [], 2)) is { Tier: "D" },
+            "Arena premia el control encadenado con seguimiento y distingue un equipo sin presión ofensiva");
         Console.WriteLine("Recomendaciones de composición de Arena verificadas por perfiles, bloqueos y desempates.");
 
         ArenaDraftTeam Team(string[] teammates, params string[] candidates) => new(teammates,

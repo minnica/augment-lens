@@ -3,6 +3,8 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Interop;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -26,10 +28,11 @@ internal static class Program
         ComparisonTests.Run(ratings).GetAwaiter().GetResult();
         ArenaWikiMechanicsTests.Run(ratings, assets);
         ArenaAugmentAffinityTests.Run(ratings);
-        ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"));
+        ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"),
+            Option("--arena-eureka-upgrade-shot"));
         ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
-            Option("--arena-prismatic-rank-shot"));
+            Option("--arena-prismatic-rank-shot"), Option("--arena-prismatic-renata-shot"));
         StatShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
@@ -826,6 +829,24 @@ internal static class Program
     private static void PrismaticOverlaySmoke(Ratings ratings, string assets)
     {
         var overlay = new BuildOverlay { Left = -30000, Top = -30000, ShowInTaskbar = false };
+        var path = Path.Combine(Path.GetTempPath(), $"aumentos-prismatics-{Guid.NewGuid():N}.json");
+        var preference = new BuildSizePreference(path);
+        BuildSizeWindow? settings = null;
+        overlay.PrismaticSizeRequested += () =>
+        {
+            var preview = overlay.CreatePrismaticPreview("Renata Glasc", ratings.Prismatics.TopForChampion("Renata")!,
+                ratings.Catalog.Patch);
+            settings = new BuildSizeWindow(preference.Load(), preview, percent =>
+            {
+                overlay.SetPrismaticSize(percent);
+                return preference.Save(percent);
+            }, BuildOverlay.PrismaticSizeTitle)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -30000, Top = -30000, ShowActivated = false
+            };
+            settings.Show();
+        };
         try
         {
             var bounds = new Int32Rect(-30000, -30000, 1280, 720);
@@ -839,22 +860,58 @@ internal static class Program
             overlay.Render(view);
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
+            var sizeButton = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
+            var buttonPosition = Native.Bounds(new WindowInteropHelper(sizeButton).Handle);
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             var rows = panel.Children.OfType<DockPanel>().ToArray();
             Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X &&
                 placement.X + placement.Width < bounds.X + layout.Titles[0].Pixels(bounds.Width, bounds.Height).X &&
+                sizeButton.IsVisible && buttonPosition.X == placement.X && buttonPosition.Y + buttonPosition.Height < placement.Y &&
                 rows.Length == 5 && rows[0].Children.OfType<StackPanel>().Single().Children.OfType<TextBlock>()
                     .Select(text => text.Text).SequenceEqual(["Cuota del Segador · S+", "Velocidad de ataque y daño al impacto", "En oferta"]),
-                "panel prismático de cinco filas a un lado de las cartas, con tier y disponibilidad");
+                "panel prismático de cinco filas con su botón de tamaño encima, tier y disponibilidad");
+
+            var spacious = bounds with { Width = 2560, Height = 1440 };
+            overlay.Render(view with { Bounds = spacious });
+            var defaultSize = Native.Bounds(handle);
+            overlay.SetSize(BuildSizePreference.Maximum);
+            Check(Native.Bounds(handle) == defaultSize, "el tamaño de las builds no cambia el panel prismático");
+            var peer = new ButtonAutomationPeer((Button)sizeButton.Content);
+            ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Check(settings is { IsVisible: true } && settings.Title.StartsWith(BuildOverlay.PrismaticSizeTitle, StringComparison.Ordinal),
+                "el botón abre el ajuste del panel prismático");
+
+            var slider = (Slider)settings!.FindName("SizeSlider");
+            var preview = (BuildPanel)((ContentPresenter)settings.FindName("PreviewHost")).Content;
+            slider.Value = BuildSizePreference.Minimum;
+            var small = Native.Bounds(handle);
+            slider.Value = BuildSizePreference.Maximum;
+            var large = Native.Bounds(handle);
+            Check(small.Width < defaultSize.Width && small.Height < defaultSize.Height &&
+                large.Width > defaultSize.Width && large.Height > defaultSize.Height &&
+                large.X + large.Width < spacious.X + layout.Titles[0].Pixels(spacious.Width, spacious.Height).X &&
+                preference.Load() == BuildSizePreference.Maximum &&
+                preview.LayoutTransform is ScaleTransform { ScaleX: 1.5, ScaleY: 1.5 } &&
+                ((StackPanel)preview.Child).Children.OfType<TextBlock>().Any(line => line.Text == "Afinidad con Tristana"),
+                "el control guarda el porcentaje, escala la vista previa de la oferta y evita cubrir las cartas");
+            ((Button)settings.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(preference.Load() == BuildSizePreference.Default && Native.Bounds(handle) == defaultSize,
+                "el panel prismático vuelve a su tamaño original al restablecerlo");
 
             overlay.Render(view with { Prismatics = view.Prismatics! with { Top = top with { OfferedMask = 0 } } });
             Check(panel.Children.OfType<DockPanel>().First().Children.OfType<StackPanel>().Single().Children.Count == 2,
                 "la marca de oferta se actualiza al cambiar las cartas");
             overlay.Render(null);
-            Check(!Native.IsWindowVisible(handle), "el Top 5 se oculta al cerrar la selección");
+            Check(!Native.IsWindowVisible(handle) && !sizeButton.IsVisible, "el Top 5 y su botón se ocultan al cerrar la selección");
             Console.WriteLine("Panel lateral de prismáticos verificado en WPF.");
         }
-        finally { overlay.Close(); }
+        finally
+        {
+            settings?.Close();
+            overlay.Close();
+            File.Delete(path);
+        }
     }
 
     private sealed class TestIcons : System.Net.Http.HttpMessageHandler
@@ -1112,10 +1169,14 @@ internal static class Program
                     overlay.ShowDetails = details;
                     var offer = new OverlayUpdate("Arena", viewport, fit, cards, Mode: Mode.Arena, ArenaCardTop: regularTop);
                     CheckCentered(offer, regularTop, .09, details);
+                    foreach (var jittered in new int?[] { regularTop - 11, null, regularTop + 8, regularTop })
+                        CheckCentered(offer with { ArenaCardTop = jittered }, regularTop, .09, details);
                     var middleUpgrade = offer with { Labels = [cards[0], cards[1]! with { UpgradeLevel = 2 },
                         cards[2]! with { UpgradeLevel = null }] };
-                    CheckCentered(middleUpgrade, regularTop, .09, details);
+                    CheckCentered(middleUpgrade with { ArenaCardTop = regularTop - 7 }, regularTop, .09, details);
                     CheckCentered(middleUpgrade with { ArenaCardTop = upgradeTop, ArenaUpgradeHeading = true },
+                        upgradeTop, .146, details);
+                    CheckCentered(middleUpgrade with { ArenaCardTop = null, ArenaUpgradeHeading = true },
                         upgradeTop, .146, details);
                     CheckCentered(offer with { Labels = choices }, regularTop, .09, details);
                     Check(VisibleLines(overlay.Windows[2]).Contains(details ? "Top #5" : "Local · Top #5"),
@@ -1132,6 +1193,10 @@ internal static class Program
                         Check(pixelSize >= 36 && text.Length == 2 && grade.Text == "B" && metadata == "Local · Recomendado",
                             $"la letra grande y la recomendación siguen legibles a {width}×{height} ({pixelSize:F1} px)");
                     }
+                    overlay.Render(new OverlayUpdate("Panel cerrado"));
+                    Check(!overlay.IsVisible, "cerrar el panel libera la posición que se conservó durante la oferta");
+                    CheckCentered(offer with { ArenaCardTop = regularTop + 5 }, regularTop + 5, .09, details);
+                    overlay.Hide();
                 }
 
                 void CheckCentered(OverlayUpdate offer, int cardTop, double headerBottom, bool details)

@@ -76,11 +76,28 @@ internal static class ComparisonTests
         CheckIvernOffer(ratings);
         CheckRellPrismaticAugments(ratings, patch);
         CheckRellSilverAugments(ratings, patch);
+        CheckRenataMerchantOffer(ratings);
         CheckArenaControlTieBreak(ratings, patch);
         CheckChoGathSlowAugment(ratings);
         Console.WriteLine("Comparación OP.GG, rerolls, caché y aislamiento de parches verificados.");
         await CheckAramMayhem(ratings, lux, elise);
         await CheckGgezArena(ratings, lux, elise);
+    }
+
+    private static void CheckRenataMerchantOffer(Ratings ratings)
+    {
+        var renata = new GameContext(Mode.Arena, "Renata");
+        var ids = new[] { "Desmaterializador", "Restos de los Vigilantes", "Navaja de Sangre" }
+            .Select(name => ratings.Recognize(Mode.Arena, name)?.Id).ToArray();
+        var offer = CardComparison.ForOffer(ratings, renata, ids, new bool[3], null);
+        Check(ids.SequenceEqual([349, 354, 348]) && offer is
+            [
+                { LocalText: "B", UsesWiki: false, RecommendedAugment: false },
+                { LocalText: "B", LocalReason: "Reduce un 25 % la velocidad de ataque de los rivales cercanos",
+                    UsesWiki: false, RecommendedAugment: false },
+                { LocalText: "B", LocalReason: "Al infligir daño, añades daño físico equivalente al 1.5 % de la vida máxima",
+                    UsesWiki: false, RecommendedAugment: false }
+            ], "la oferta del Mercader de Renata tiene los tres tiers y sus efectos del parche");
     }
 
     private static void CheckTristanaFirstOffer(Ratings ratings, string patch)

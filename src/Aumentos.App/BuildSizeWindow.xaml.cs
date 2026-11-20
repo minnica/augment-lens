@@ -11,22 +11,22 @@ internal sealed partial class BuildSizeWindow : Window
     private readonly ScaleTransform previewScale = new();
 
     internal BuildSizeWindow(int percent, string patch, BuildItemIcons? icons, Func<int, bool> apply)
-        : this(percent, BuildPreview(patch, icons), apply, itemTiers: false)
+        : this(percent, BuildPreview(patch, icons), apply, "Tamaño de las builds")
     {
     }
 
     internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply)
-        : this(percent, preview, apply, itemTiers: true)
+        : this(percent, preview, apply, "Tamaño de los tiers de objetos", itemTiers: true)
     {
     }
 
-    private BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, bool itemTiers)
+    internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, string heading, bool itemTiers = false)
     {
         InitializeComponent();
+        Heading.Text = heading;
+        Title = $"{heading} · Aumentos LoL";
         if (itemTiers)
         {
-            Heading.Text = "Tamaño de los tiers de objetos";
-            Title = $"{Heading.Text} · Aumentos LoL";
             ScaleLabel.Text = "Escala del distintivo";
             AutomationProperties.SetName(SizeSlider, "Escala del distintivo en porcentaje");
             Width = 510;

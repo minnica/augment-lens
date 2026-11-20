@@ -151,6 +151,11 @@ internal static class Program
             buildOverlay.SetSize(buildSize);
             BuildSizeWindow? buildSizeWindow = null;
             buildOverlay.SizeRequested += OpenBuildSize;
+            var prismaticSizePreference = new BuildSizePreference(Path.Combine(settings, "prismatic-panel-size.json"));
+            int prismaticSize = prismaticSizePreference.Load();
+            buildOverlay.SetPrismaticSize(prismaticSize);
+            BuildSizeWindow? prismaticSizeWindow = null;
+            buildOverlay.PrismaticSizeRequested += OpenPrismaticSize;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
@@ -209,6 +214,7 @@ internal static class Program
             cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
             menu.Items.Add(cardDetails);
             menu.Items.Add("Tamaño de los tiers de objetos…", null, (_, _) => OpenItemTierSize());
+            menu.Items.Add($"{BuildOverlay.PrismaticSizeTitle}…", null, (_, _) => OpenPrismaticSize());
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
             var resizeBuild = new Forms.ToolStripMenuItem("Tamaño de las builds…", null, (_, _) => OpenBuildSize());
@@ -330,6 +336,30 @@ internal static class Program
                 });
                 itemTierSizeWindow = window;
                 window.Closed += (_, _) => itemTierSizeWindow = null;
+                window.Show();
+                window.Activate();
+            }
+
+            void OpenPrismaticSize()
+            {
+                if (prismaticSizeWindow is not null)
+                {
+                    if (prismaticSizeWindow.WindowState == WindowState.Minimized)
+                        prismaticSizeWindow.WindowState = WindowState.Normal;
+                    prismaticSizeWindow.Activate();
+                    return;
+                }
+
+                var top = ratings.Prismatics.TopForChampion("Renata") ?? new([], 0);
+                var preview = buildOverlay.CreatePrismaticPreview("Renata Glasc", top, ratings.Catalog.Patch);
+                var window = new BuildSizeWindow(prismaticSize, preview, percent =>
+                {
+                    prismaticSize = percent;
+                    buildOverlay.SetPrismaticSize(percent);
+                    return prismaticSizePreference.Save(percent);
+                }, BuildOverlay.PrismaticSizeTitle);
+                prismaticSizeWindow = window;
+                window.Closed += (_, _) => prismaticSizeWindow = null;
                 window.Show();
                 window.Activate();
             }

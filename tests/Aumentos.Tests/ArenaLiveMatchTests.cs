@@ -31,10 +31,10 @@ internal static class ArenaLiveMatchTests
             match.Arena.Opponents.Select(opponent => opponent.Champion).SequenceEqual(["Ornn", "Jinx", "Ashe"]) &&
             match.Arena.Opponents.SelectMany(opponent => opponent.Items).SequenceEqual([223065, 223036, 223031]),
             "Arena une aliados por asistencias y ordena solo los rivales confirmados por encuentro reciente");
-        Check(match?.Arena?.Roster is { Length: 8 } roster && roster.Select(player => player.Champion)
-                .SequenceEqual(["Chogath", "Brand", "Ashe", "Ornn", "Jinx", "Lux", "Lulu", "Zed"]) &&
-            roster[0].Items.SequenceEqual([223084, 443080]) && roster[2].Items.SequenceEqual([223031]),
-            "la lobby conserva al jugador activo, sus aliados y rivales que todavía no ha enfrentado");
+        Check(match?.Arena?.LobbyOpponents is { Length: 6 } roster && roster.Select(player => player.Champion)
+                .SequenceEqual(["Ashe", "Ornn", "Jinx", "Lux", "Lulu", "Zed"]) &&
+            roster[0].Items.SequenceEqual([223031]),
+            "un dúo confirmado excluye al jugador activo y su aliado, y conserva rivales de otras rondas");
 
         var latest = Parse(players, $$"""
             [{{events}}, {"EventName":"ChampionKill","EventTime":280,"KillerName":"Self","VictimName":"Unseen"}]
@@ -45,10 +45,38 @@ internal static class ArenaLiveMatchTests
         var beforeCombat = Parse(players, "[]");
         using var playerList = JsonDocument.Parse(players);
         var fallback = LiveGame.ParseMatch(Mode.Arena, playerList.RootElement, "Self#001");
-        Check(beforeCombat?.Arena is { Items.Length: 2, Opponents.Length: 0, Roster.Length: 8 } &&
-            fallback?.Arena is { Opponents.Length: 0, Roster.Length: 8 } &&
+        Check(beforeCombat?.Arena is { Items.Length: 2, Opponents.Length: 0, LobbyOpponents.Length: 0 } &&
+            fallback?.Arena is { Opponents.Length: 0, LobbyOpponents: null } &&
             Parse(players, "[]", mode: "KIWI") is null && Parse(players, "[]", active: "Shared") is null,
-            "la lobby llega antes de los combates y también por la API de respaldo");
+            "sin eventos de combate, todavía no hay rivales identificados en la API de Arena");
+
+        var trio = players.TrimEnd()[..^1] + """
+            ,{"riotId":"Third","rawChampionName":"game_character_displayname_Janna"},
+             {"riotId":"Rival1","rawChampionName":"game_character_displayname_Vayne"},
+             {"riotId":"Rival2","rawChampionName":"game_character_displayname_Tristana"},
+             {"riotId":"Rival3","rawChampionName":"game_character_displayname_Chogath"},
+             {"riotId":"Rival4","rawChampionName":"game_character_displayname_Aatrox"},
+             {"riotId":"Rival5","rawChampionName":"game_character_displayname_Xayah"},
+             {"riotId":"Rival6","rawChampionName":"game_character_displayname_Rakan"},
+             {"riotId":"Rival7","rawChampionName":"game_character_displayname_Kennen"},
+             {"riotId":"Rival8","rawChampionName":"game_character_displayname_Varus"},
+             {"riotId":"Rival9","rawChampionName":"game_character_displayname_Nautilus"}]
+            """;
+        const string otherRound = """
+            {"EventName":"ChampionKill","EventTime":230,"KillerName":"Rival1","VictimName":"Rival4","Assisters":["Rival2","Rival3"]}
+            """;
+        var partialTrio = Parse(trio, $"[{events}, {otherRound}]")?.Arena;
+        Check(partialTrio?.LobbyOpponents?.Select(player => player.Champion).SequenceEqual(
+                ["Ashe", "Ornn", "Jinx", "Vayne", "Tristana", "Chogath"]) == true,
+            "en 3×6, solo entran encuentros propios confirmados y escuadras ajenas completas mientras falta identificar un aliado");
+        var fullTrio = Parse(trio, $$"""
+            [{{events}}, {{otherRound}},
+             {"EventName":"ChampionKill","EventTime":280,"KillerName":"Self","VictimName":"Rival4","Assisters":["Third"]}]
+            """)?.Arena;
+        Check(fullTrio?.LobbyOpponents is { Length: 15 } remaining &&
+            remaining.Count(player => player.Champion == "Chogath") == 1 &&
+            remaining.All(player => player.Champion is not ("Janna" or "Brand")),
+            "al identificar los tres aliados, el lobby excluye sus celdas y conserva un rival con el mismo campeón");
         Console.WriteLine("Lectura de Arena verificada con inventario y rivales confirmados por eventos de combate.");
     }
 

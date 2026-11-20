@@ -111,6 +111,7 @@ function Get-SharedArenaValues($card) {
 # Only give numeric details for fields with confirmed units and meaning.
 $upgradeStats = @{
     Deft = [ordered]@{ AttackSpeed = 'Velocidad de ataque', 100, ' %' }
+    Eureka = [ordered]@{ APToHasteConversion = 'Conversión de PH en aceleración', 100, ' %' }
     LightemUp = [ordered]@{
         NumberOfFireworks = 'Fuegos artificiales', 1, ''
         FireworkDamageMod = 'Daño', 100, ' %'

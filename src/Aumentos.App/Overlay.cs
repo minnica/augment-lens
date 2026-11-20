@@ -26,6 +26,8 @@ internal sealed class Overlay
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     private BuildSizeButton? itemSizeButton;
     private OverlayUpdate? displayedItems;
+    private (nint Target, Calibration Layout, bool UpgradeHeading, bool ItemOffer)? arenaPlacement;
+    private int? arenaCardEdge;
     private int itemSizePercent = BuildSizePreference.Default;
 
     internal bool ShowDetails { private get; set; }
@@ -36,6 +38,8 @@ internal sealed class Overlay
     internal void Hide()
     {
         displayedItems = null;
+        arenaPlacement = null;
+        arenaCardEdge = null;
         itemSizeButton?.Hide();
         foreach (var badge in badges)
             badge.HideBadge();
@@ -102,8 +106,23 @@ internal sealed class Overlay
         int? cardEdge = titleToEdge > 0
             ? titles.Min(title => title.Y) - (int)Math.Round(bounds.Height * titleToEdge)
             : null;
-        if (arenaCards && update.ArenaCardTop is { } observedTop)
-            cardEdge = observedTop;
+        if (arenaCards)
+        {
+            var placement = (update.Target, layout, update.ArenaUpgradeHeading, arenaItems);
+            if (arenaPlacement != placement)
+            {
+                arenaPlacement = placement;
+                arenaCardEdge = null;
+            }
+            // The frame stays still while card glows and rerolls change the detected bright edge.
+            arenaCardEdge ??= update.ArenaCardTop;
+            cardEdge = arenaCardEdge ?? cardEdge;
+        }
+        else
+        {
+            arenaPlacement = null;
+            arenaCardEdge = null;
+        }
         int maxOverlap = (int)(bounds.Height * frameOverlap);
 
         for (int index = 0; index < badges.Length; index++)

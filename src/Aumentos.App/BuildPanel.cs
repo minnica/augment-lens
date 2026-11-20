@@ -73,7 +73,7 @@ internal sealed class BuildPanel : Border
         AutomationProperties.SetName(this, $"Recomendaciones de objetos para {view.Champion}");
         if (view.Prismatics is { } prismatics)
         {
-            RenderPrismatics(view.Champion, prismatics);
+            RenderPrismatics(view.Champion, prismatics.Top, prismatics.Patch);
             return;
         }
 
@@ -179,11 +179,11 @@ internal sealed class BuildPanel : Border
         AddLine("Daño del lobby", 14, Brushes.WhiteSmoke, bold: true, top: 10);
         if (mix is not { } damage)
         {
-            AddLine("Esperando datos de los equipos.", 12, Muted, top: 2);
+            AddLine("Esperando identificar rivales.", 12, Muted, top: 2);
             return;
         }
 
-        AddLine("Incluye a tu equipo", 12, Muted);
+        AddLine("Solo rivales identificados", 12, Muted);
         AddDamageDistribution(damage);
     }
 
@@ -300,13 +300,13 @@ internal sealed class BuildPanel : Border
         content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(Compact ? 7 : 9) });
 
-    private void RenderPrismatics(string champion, PrismaticDisplay view)
+    internal void RenderPrismatics(string champion, ArenaPrismaticTop top, string patch)
     {
         AddLine("Top 5 prismáticos", 17, Brushes.WhiteSmoke, bold: true);
         AddLine($"Afinidad con {champion}", 12, Muted);
-        foreach (var (entry, index) in view.Top.Entries.Select((entry, index) => (entry, index)))
+        foreach (var (entry, index) in top.Entries.Select((entry, index) => (entry, index)))
         {
-            bool offered = view.Top.IsOffered(index);
+            bool offered = top.IsOffered(index);
             var row = new DockPanel { Margin = new Thickness(0, 9, 0, 0) };
             row.Children.Add(new TextBlock
             {
@@ -318,7 +318,7 @@ internal sealed class BuildPanel : Border
             row.Children.Add(icon);
             DockPanel.SetDock(icon, Dock.Left);
             if (itemIcons is not null)
-                _ = SetIcon(icon, itemIcons, view.Patch, entry.Id);
+                _ = SetIcon(icon, itemIcons, patch, entry.Id);
             var text = new StackPanel();
             text.Children.Add(new TextBlock
             {

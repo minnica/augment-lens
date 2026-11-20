@@ -42,10 +42,26 @@ internal static class ArenaChampionSelectionTests
                {"actorCellId":8,"championId":19,"completed":false,"type":"pick"},
                {"actorCellId":10,"championId":20,"completed":false,"type":"ban"}]]}
             """);
-        var (self, allies, unavailable) = ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement);
+        var (self, allies, unavailable, teamSize) = ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement);
         if (self != 902 || !allies.SequenceEqual([86, 61]) || unavailable.Length != 6 ||
-            !unavailable.ToHashSet().SetEquals([1, 2, 11, 12, 99, 103]))
+            !unavailable.ToHashSet().SetEquals([1, 2, 11, 12, 99, 103]) || teamSize != 3)
             throw new InvalidOperationException("Falló el alcance de equipo o las exclusiones confirmadas en Arena.");
+
+        using var hovering = JsonDocument.Parse("""
+            {"localPlayerCellId":4,
+             "myTeam":[{"cellId":4,"championId":0,"championPickIntent":902},
+               {"cellId":5,"championId":0},{"cellId":6,"championId":0}],
+             "theirTeam":[{"cellId":8,"championId":0}],
+             "actions":[[{"actorCellId":4,"championId":96,"completed":false,"isInProgress":true,"type":"pick"},
+               {"actorCellId":5,"championId":40,"completed":false,"isInProgress":true,"type":"pick"},
+               {"actorCellId":6,"championId":31,"completed":false,"isInProgress":false,"type":"pick"},
+               {"actorCellId":6,"championId":32,"completed":false,"isInProgress":true,"type":"ban"},
+               {"actorCellId":8,"championId":24,"completed":false,"isInProgress":true,"type":"pick"}]]}
+            """);
+        var partial = ChampionSelectClient.ArenaDraftIds(hovering.RootElement);
+        if (partial.Champion != 96 || !partial.Teammates.SequenceEqual([40]) || partial.TeamSize != 3 ||
+            partial.Unavailable.Length != 0)
+            throw new InvalidOperationException("La preselección activa valora solo el equipo propio y conserva la plaza pendiente.");
 
         Console.WriteLine("Preselección, aliados y bloqueos de Arena verificados sin cambiar los hechizos de ARAM Caos.");
     }

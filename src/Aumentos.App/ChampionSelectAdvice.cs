@@ -98,7 +98,9 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                         {
                             var source = tiers.Current(cancellation);
                             var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam);
-                            arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source, session.ArenaChampion, composition);
+                            var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam);
+                            arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source,
+                                session.ArenaChampion, composition, grade);
                         }
                     }
                 }

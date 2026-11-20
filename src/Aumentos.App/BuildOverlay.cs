@@ -61,10 +61,11 @@ internal sealed class BuildOverlay : Window
     private const uint KeyB = 0x42;
     private const uint Digit9 = 0x39;
     internal const string SizeShortcutLabel = "Ctrl+Shift+9";
+    internal const string PrismaticSizeTitle = "Tamaño del panel de prismáticos";
     private const double MinimumShopSideWidth = 210;
 
+    private readonly BuildItemIcons? itemIcons;
     private readonly BuildPanel panel;
-    private readonly Viewbox frame;
     private BuildDisplay? displayed;
     private Int32Rect placement;
     private nint handle;
@@ -72,12 +73,16 @@ internal sealed class BuildOverlay : Window
     private Action? onToggle;
     private bool sizeShortcutRegistered;
     private BuildSizeButton? sizeButton;
+    private BuildSizeButton? prismaticSizeButton;
     private int sizePercent = BuildSizePreference.Default;
+    private int prismaticSizePercent = BuildSizePreference.Default;
 
     internal event Action? SizeRequested;
+    internal event Action? PrismaticSizeRequested;
 
     internal BuildOverlay(BuildItemIcons? itemIcons = null)
     {
+        this.itemIcons = itemIcons;
         Title = "Aumentos LoL · Recomendaciones de objetos";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -91,8 +96,7 @@ internal sealed class BuildOverlay : Window
         UseLayoutRounding = true;
 
         panel = new BuildPanel(itemIcons);
-        frame = new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
-        Content = frame;
+        Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform };
         SourceInitialized += (_, _) =>
         {
             handle = new WindowInteropHelper(this).Handle;
@@ -165,11 +169,33 @@ internal sealed class BuildOverlay : Window
             Render(view);
     }
 
+    internal void SetPrismaticSize(int percent)
+    {
+        int updated = Math.Clamp(percent, BuildSizePreference.Minimum, BuildSizePreference.Maximum);
+        if (prismaticSizePercent == updated)
+            return;
+        prismaticSizePercent = updated;
+        if (IsVisible && displayed is { Prismatics: not null } view &&
+            (view.Target == 0 || Native.GetForegroundWindow() == view.Target))
+            Render(view);
+    }
+
+    internal FrameworkElement CreatePrismaticPreview(string champion, ArenaPrismaticTop top, string patch)
+    {
+        var preview = new BuildPanel(itemIcons) { Width = BuildPanel.PrismaticWidth, IsHitTestVisible = false };
+        if (displayed is { Champion: { } activeChampion, Prismatics: { } active })
+            preview.RenderPrismatics(activeChampion, active.Top, active.Patch);
+        else
+            preview.RenderPrismatics(champion, top, patch);
+        return preview;
+    }
+
     internal void Render(BuildDisplay? view)
     {
         if (view is null || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
         {
             sizeButton?.Hide();
+            prismaticSizeButton?.Hide();
             if (IsVisible)
                 Hide();
             displayed = null;
@@ -179,7 +205,8 @@ internal sealed class BuildOverlay : Window
         var bounds = view.Bounds;
         var targetDpi = view.Target == 0 ? 0 : Native.GetDpiForWindow(view.Target);
         double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
-        double requestedScale = view.Prismatics is null ? dpi * sizePercent / 100.0 : dpi;
+        bool prismatics = view.Prismatics is not null;
+        double requestedScale = dpi * sizePercent / 100.0;
         int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         int maxWidth = bounds.Width - 2 * margin, maxHeight = bounds.Height - 2 * margin;
         bool placeLeft = false;
@@ -210,7 +237,7 @@ internal sealed class BuildOverlay : Window
                 maxWidth = Math.Min(maxWidth, (int)Math.Ceiling(BuildPanel.CompactWidth * dpi));
         }
 
-        if (view.Prismatics is null)
+        if (!prismatics)
             layoutWidth = Math.Clamp(Math.Floor(maxWidth / requestedScale), MinimumShopSideWidth, BuildPanel.ShopWidth);
         if (displayed is null || displayed.Champion != view.Champion || displayed.Mode != view.Mode ||
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
@@ -223,7 +250,6 @@ internal sealed class BuildOverlay : Window
             panel.InvalidateMeasure();
         }
         panel.Width = layoutWidth;
-        frame.StretchDirection = view.Prismatics is null ? StretchDirection.Both : StretchDirection.DownOnly;
         displayed = view;
 
         panel.Measure(new Size(panel.Width, double.PositiveInfinity));
@@ -231,11 +257,14 @@ internal sealed class BuildOverlay : Window
         int buttonWidth = (int)Math.Ceiling(BuildSizeButton.ButtonWidth * dpi);
         int buttonHeight = (int)Math.Ceiling(BuildSizeButton.ButtonHeight * dpi);
         int buttonGap = (int)Math.Ceiling(5 * dpi);
-        bool showSizeButton = view.Prismatics is null && SizeRequested is not null &&
+        bool showSizeButton = (prismatics ? PrismaticSizeRequested : SizeRequested) is not null &&
             maxWidth >= buttonWidth && maxHeight >= 2 * buttonHeight + buttonGap;
         int top = margin + (showSizeButton ? buttonHeight + buttonGap : 0);
         maxHeight -= top - margin;
-        double scale = Math.Min(requestedScale, Math.Min(maxWidth / desired.Width, maxHeight / desired.Height));
+        double fittingScale = Math.Min(maxWidth / desired.Width, maxHeight / desired.Height);
+        if (prismatics)
+            requestedScale = Math.Min(dpi, fittingScale) * prismaticSizePercent / 100.0;
+        double scale = Math.Min(requestedScale, fittingScale);
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
         int height = Math.Clamp((int)Math.Ceiling(desired.Height * scale), 1, maxHeight);
         var target = new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
@@ -252,14 +281,23 @@ internal sealed class BuildOverlay : Window
                 placement = target;
         }
 
+        if (prismatics)
+            sizeButton?.Hide();
+        else
+            prismaticSizeButton?.Hide();
         if (showSizeButton && Native.IsWindowVisible(handle))
         {
-            sizeButton ??= new BuildSizeButton(() => SizeRequested?.Invoke()) { Owner = this };
-            int x = Math.Max(target.X + target.Width - buttonWidth, bounds.X + margin);
-            sizeButton.Display(new Int32Rect(x, target.Y - buttonHeight - buttonGap, buttonWidth, buttonHeight), dpi);
+            var button = prismatics
+                ? prismaticSizeButton ??= new BuildSizeButton(() => PrismaticSizeRequested?.Invoke(), PrismaticSizeTitle) { Owner = this }
+                : sizeButton ??= new BuildSizeButton(() => SizeRequested?.Invoke()) { Owner = this };
+            int x = prismatics && placeLeft ? target.X : Math.Max(target.X + target.Width - buttonWidth, bounds.X + margin);
+            button.Display(new Int32Rect(x, target.Y - buttonHeight - buttonGap, buttonWidth, buttonHeight), dpi);
         }
         else
+        {
             sizeButton?.Hide();
+            prismaticSizeButton?.Hide();
+        }
     }
 
     [DllImport("user32.dll")]

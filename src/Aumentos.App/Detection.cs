@@ -268,8 +268,7 @@ internal sealed class Detection : IDisposable
                     Difference(previousLevel, levelSample, compensateLighting: true) >= 0.65)
                 {
                     state.LevelSamples[index] = levelSample;
-                    state.UpgradeLevels[index] = anvilLevel ?? ParseArenaUpgradeLevel(ReadTitle(image, levelArea,
-                        PageSegMode.SparseText, minimumScale: levelArea.Height < 50 ? 3 : 2, keepLines: true), augment.MaxLevel);
+                    state.UpgradeLevels[index] = anvilLevel ?? ReadArenaUpgradeLevel(image, levelArea, augment.MaxLevel);
                 }
                 upgrades[index] = state.UpgradeLevels[index];
             }
@@ -311,6 +310,21 @@ internal sealed class Detection : IDisposable
         int bottom = Math.Min(image.PixelHeight, title.Y + title.Height * 3);
         int inset = title.Width / 4;
         return top < bottom ? new Int32Rect(title.X + inset, top, title.Width - 2 * inset, bottom - top) : null;
+    }
+
+    private int? ReadArenaUpgradeLevel(BitmapSource image, Int32Rect area, int? maximum)
+    {
+        int scale = area.Height < 50 ? 3 : 2;
+        var text = ReadTitle(image, area, PageSegMode.SparseText, minimumScale: scale, keepLines: true);
+        var level = ParseArenaUpgradeLevel(text, maximum);
+        if (level is not null || !Regex.IsMatch(Ratings.Normalize(text), @"^[a-z]{1,5} ?[23]$", RegexOptions.CultureInvariant))
+            return level;
+
+        // Bright card texture in the upper part can distort the short prefix on an otherwise readable label.
+        int trim = area.Height / 5;
+        var lower = new Int32Rect(area.X, area.Y + trim, area.Width, area.Height - trim);
+        return ParseArenaUpgradeLevel(ReadTitle(image, lower, PageSegMode.SparseText,
+            minimumScale: scale, keepLines: true), maximum);
     }
 
     internal static int? ParseArenaUpgradeLevel(string text, int? maximum = null)

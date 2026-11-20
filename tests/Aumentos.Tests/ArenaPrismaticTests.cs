@@ -9,7 +9,7 @@ internal static class ArenaPrismaticTests
     private static readonly string[] ChoGathOffer = ["Fuerza de la Entropía", "Manto de la Noche Estrellada", "Armadura de Warmog"];
 
     internal static void Run(Ratings ratings, string assets, string? screenshot, string? tristanaScreenshot,
-        string? choGathScreenshot = null)
+        string? choGathScreenshot = null, string? renataScreenshot = null)
     {
         var rell = new GameContext(Mode.Arena, "Rell");
         var offer = new DetectionResult(true, new int?[3], RellOffer, [true, true, true]);
@@ -44,6 +44,16 @@ internal static class ArenaPrismaticTests
 
         var choGath = new GameContext(Mode.Arena, "Chogath");
         CheckChoGathOffer(ratings, choGath, offer with { Texts = ChoGathOffer });
+        var renata = new GameContext(Mode.Arena, "Renata");
+        var crown = ratings.RecoverArenaItemTitle("Corona de la Reina Fraomentada");
+        Check(crown == Ratings.Normalize("Corona de la Reina Fragmentada") &&
+            ratings.RecoverArenaItemTitle("Corona de la Reina Frxomentada") is null &&
+            ratings.RecoverArenaItemTitle("Corona de la Reina") is null,
+            "la Corona admite un glifo mal leído y sigue requiriendo un título largo y unívoco");
+        CheckRenataOffer(ratings, renata, offer with
+        {
+            Texts = ["Espada Encantada por la Luna", crown!, "Filo del Crepúsculo"]
+        });
         if (screenshot is not null)
         {
             CheckRellOffer(ratings, rell, ReadScreenshot(ratings, assets, screenshot));
@@ -58,6 +68,11 @@ internal static class ArenaPrismaticTests
         {
             CheckChoGathOffer(ratings, choGath, ReadScreenshot(ratings, assets, choGathScreenshot));
             Console.WriteLine("Captura de Cho'Gath: Manto de la Noche Estrellada muestra Top #5 sobre la carta.");
+        }
+        if (renataScreenshot is not null)
+        {
+            CheckRenataOffer(ratings, renata, ReadScreenshot(ratings, assets, renataScreenshot));
+            Console.WriteLine("Captura de Renata: Corona de la Reina Fragmentada B recomendada.");
         }
         Console.WriteLine("Tiers de objetos prismáticos verificados por campeón, con aislamiento de otros paneles.");
     }
@@ -110,6 +125,16 @@ internal static class ArenaPrismaticTests
                 { ArenaChoice: { Tier: Tier.C, Recommended: false } } ] &&
             badges.All(badge => badge!.External is null) && !offer.Cards.Any(id => id.HasValue),
             $"Armadura Pétrea supera a las dos opciones de ataque básico para Rell: {string.Join(" / ", offer.Texts)}");
+    }
+
+    private static void CheckRenataOffer(Ratings ratings, GameContext renata, DetectionResult offer)
+    {
+        var badges = ratings.Prismatics.ForOffer(renata, offer)?.Badges;
+        Check(offer.Items.All(item => item) && badges is [
+                { ArenaChoice: { Tier: Tier.C, Recommended: false } },
+                { ArenaChoice: { Name: "Corona de la Reina Fragmentada", Tier: Tier.B, Recommended: true } },
+                { ArenaChoice: { Tier: Tier.C, Recommended: false } } ],
+            $"la Corona supera las dos alternativas C para Renata: {string.Join(" / ", offer.Texts)}");
     }
 
     private static void Check(bool condition, string message)
