@@ -2577,7 +2577,9 @@
                          "key":  "Stats",
                          "name":  "¡Estadísticas!",
                          "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
-                         "maxLevel":  3
+                         "maxLevel":  3,
+                         "anvilCount":  2,
+                         "anvilUpgradeCounts":  [3, 4]
                      },
                      {
                          "mode":  "Arena",
@@ -2585,7 +2587,9 @@
                          "key":  "StatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
                          "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
-                         "maxLevel":  3
+                         "maxLevel":  3,
+                         "anvilCount":  3,
+                         "anvilUpgradeCounts":  [4, 5]
                      },
                      {
                          "mode":  "Arena",
@@ -2593,7 +2597,9 @@
                          "key":  "StatsOnStatsOnStats",
                          "name":  "¡Estadísticas sobre Estadísticas!",
                          "description":  "¡Obtienes @AmountOfStatAnvils@ %i:StatAnvil% Yunques de Estadísticas!",
-                         "maxLevel":  3
+                         "maxLevel":  3,
+                         "anvilCount":  4,
+                         "anvilUpgradeCounts":  [5, 6]
                      },
                      {
                          "mode":  "Arena",

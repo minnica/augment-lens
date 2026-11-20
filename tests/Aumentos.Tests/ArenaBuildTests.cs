@@ -80,7 +80,56 @@ internal static class ArenaBuildTests
             [new("Aatrox", [223074]), new("Ornn", [223110, 226665])]);
         Check(planner.Recommend(jinx, armorAndHealing, null) is { Swap.Outgoing.Id: 223036, Swap.Incoming.Id: 223033 },
             "un cambio de Último Suspiro añade heridas graves y conserva la penetración de armadura");
+        FollowSuggestedSwap(planner, brand, patch);
         Console.WriteLine("Ruta de Arena verificada con los cinco objetos de Cho'Gath, fuente anterior y counters por rival.");
+    }
+
+    private static void FollowSuggestedSwap(ArenaBuilds planner, GameContext brand, string patch)
+    {
+        const int morello = 223165, voidStaff = 223135;
+        int[] kept = [223020, 443083, 226655, 224645, 223089];
+        var source = new OpGgBuildSnapshot(Mode.Arena, brand.Champion, patch, patch, DateTimeOffset.UtcNow,
+            [new(OpGgBuildSection.Core, [[new(226655, "Tormento de Liandry"), new(224645, "Llamasombría"),
+                new(223089, "Sombrero Mortífero de Rabadon"), new(morello, "Morellonomicón")]])]);
+        var full = new ArenaMatch([..kept, morello], [new("Ornn", [222504, 226665]), new("Swain", [224401])]);
+        var afterSale = new ArenaMatch([..kept.Reverse()], []);
+        var suggested = planner.Recommend(brand, full, source);
+        Check(suggested?.Swap is { Outgoing.Id: morello, Incoming.Id: voidStaff } && Next() == morello,
+            "sin el cambio pendiente la ruta de OP.GG vuelve a recomendar el Morellonomicón vendido");
+
+        planner.RememberSuggestedSwap(brand, suggested);
+        planner.ObserveInventory(brand, full with { Opponents = [] });
+        planner.ObserveInventory(brand, afterSale);
+        var pending = planner.Recommend(brand, afterSale, source);
+        Check(pending is { Swap: null } && pending.Steps.Count(step => step.Owned) == 5 &&
+            pending.Steps[^1] is { Item.Id: voidStaff, Owned: false } next && next.Detail == suggested!.Swap!.Reason,
+            "tras vender el Morellonomicón, el Báculo del Vacío pasa a siguiente compra aunque falten datos de rivales");
+        var unknown = afterSale with { InventoryKnown = false, Items = [] };
+        planner.ObserveInventory(brand, unknown);
+        Check(planner.Recommend(brand, unknown, source)?.Steps[^1] is { Item.Id: voidStaff, Owned: false },
+            "una lectura incompleta del inventario mantiene el cambio pendiente");
+
+        var bought = afterSale with { Items = [..kept, voidStaff] };
+        planner.ObserveInventory(brand, bought);
+        Check(planner.Recommend(brand, bought, source) is { Swap: null } completed && completed.Steps.All(step => step.Owned) &&
+            Next() == morello, "comprar el reemplazo completa la ruta y deja de reservarlo");
+
+        planner.RememberSuggestedSwap(brand, suggested);
+        planner.ObserveInventory(brand, afterSale);
+        planner.ObserveInventory(brand, afterSale with { Items = [..kept, 223157] });
+        Check(Next() == morello, "llenar el hueco con otra compra cancela el cambio sugerido");
+
+        planner.RememberSuggestedSwap(brand, suggested);
+        planner.ObserveInventory(brand, full with { Items = [..kept.Skip(1), morello] });
+        planner.ObserveInventory(brand, afterSale);
+        Check(Next() == morello, "vender otro objeto primero invalida el cambio original");
+
+        planner.RememberSuggestedSwap(brand, suggested);
+        planner.ObserveInventory(brand, afterSale);
+        planner.ResetSwap();
+        Check(Next() == morello, "una partida nueva descarta el cambio pendiente");
+
+        int? Next() => planner.Recommend(brand, afterSale, source)?.Steps.FirstOrDefault(step => !step.Owned)?.Item.Id;
     }
 
     private static void Check(bool condition, string message)

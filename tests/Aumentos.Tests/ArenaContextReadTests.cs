@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
@@ -19,11 +20,76 @@ internal static class ArenaContextReadTests
             "el OCR exige una línea de nivel inequívoca y comprueba el máximo si se conoce");
 
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        CheckSharedAnvilTitle(detector, assets, ratings);
         if (levels is not null)
+        {
             CheckOffer(detector, assets, levels, [364, 1034, 180], [null, 2, 2]);
+            var image = Diagnostics.OpenBitmap(levels);
+            var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena,
+                image.PixelWidth, image.PixelHeight);
+            Check(detector.HasArenaUpgradeHeading(image) && ArenaCardEdge.Read(image, layouts.Single()) is { } edge &&
+                Math.Abs(edge - image.PixelHeight * .1582) <= 3, "se reconoce el encabezado dedicado y el borde de sus cartas");
+        }
         if (fireworks is not null)
             CheckOffer(detector, assets, fireworks, null, [null, 2, null]);
         Console.WriteLine("Contexto de Arena verificado con inventario propio y niveles por posición.");
+    }
+
+    private static void CheckSharedAnvilTitle(Detection detector, string assets, Ratings ratings)
+    {
+        var candidates = ratings.FindTitle(Mode.Arena, "¡Estadísticas sobre Estadísticas!");
+        Check(Detection.ChooseByAnvils(candidates, "¡Obtienes 3 Yunques de Estadísticas!")?.Id == 227 &&
+            Detection.ChooseByAnvils(candidates, "¡Obtienes 4 “Y Yunques de Estadísticas!")?.Id == 228 &&
+            Detection.ChooseByAnvils(candidates, "4 Yunques de Estadísticas", level: 2)?.Id == 227 &&
+            Detection.ChooseByAnvils(candidates, "6 Yunques de Estadísticas", level: 3)?.Id == 228 &&
+            Detection.ChooseByAnvils(candidates, "3 Yunques de Estadísticas y 4 Yunques de Estadísticas") is null &&
+            ratings.Rate(Mode.Arena, "Milio", 227) == Tier.A && ratings.Rate(Mode.Arena, "Milio", 228) == Tier.A,
+            "distingue tres y cuatro yunques en Arena, reconoce el icono y respeta los conteos por nivel");
+
+        var bounds = new Int32Rect(0, 0, 2560, 1440);
+        var layout = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, bounds.Width, bounds.Height).Single();
+        var first = detector.Scan(Offer(4), bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(first.Cards.SequenceEqual([1333, 228, 68]),
+            $"lee completo el nombre de dos líneas: {string.Join(" / ", first.Texts)}");
+        var rerolled = detector.Scan(Offer(3), bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(rerolled.Cards.SequenceEqual([1333, 227, 68]),
+            $"cambiar solo el dígito de la descripción relee solo su posición: {string.Join(" / ", rerolled.Cards)}");
+        var upgraded = detector.Scan(Offer(4, 2), bounds, layout, Mode.Arena, panelConfirmed: true);
+        Check(upgraded.Cards.SequenceEqual([1333, 227, 68]) && upgraded.UpgradeLevels?[1] == 2,
+            "el mismo conteo de cuatro yunques con nivel 2 identifica la variante que comienza con tres");
+        detector.Clear();
+
+        BitmapSource Offer(int anvils, int? level = null)
+        {
+            var visual = new DrawingVisual();
+            using (var draw = visual.RenderOpen())
+            {
+                draw.DrawRectangle(Brushes.Black, null, new Rect(0, 0, bounds.Width, bounds.Height));
+                var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
+                Write("Plan de Escape", titles[0], 9);
+                Write("¡Estadísticas sobre", titles[1], -17);
+                Write("Estadísticas!", titles[1], 17);
+                Write("Recursividad", titles[2], 9);
+                if (level.HasValue)
+                    Write($"Nv. {level.Value}", titles[1], 95, 17);
+                var body = new Point(titles[1].X + 30, titles[1].Y + 124);
+                draw.DrawText(Text("¡Obtienes", 18), body);
+                draw.DrawText(Text(anvils.ToString(CultureInfo.InvariantCulture), 18), body + new Vector(80, 0));
+                draw.DrawText(Text("Yunques de Estadísticas!", 18), body + new Vector(100, 0));
+
+                void Write(string text, Int32Rect title, int y, double size = 24)
+                {
+                    var formatted = Text(text, size);
+                    draw.DrawText(formatted, new Point(title.X + (title.Width - formatted.Width) / 2, title.Y + y));
+                }
+            }
+            var image = new RenderTargetBitmap(bounds.Width, bounds.Height, 96, 96, PixelFormats.Pbgra32);
+            image.Render(visual);
+            return image;
+        }
+
+        static FormattedText Text(string text, double size) => new(text, CultureInfo.GetCultureInfo("es-MX"),
+            FlowDirection.LeftToRight, new Typeface("Georgia"), size, Brushes.White, 1);
     }
 
     private static void CheckCatalog(Ratings ratings)

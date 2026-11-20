@@ -40,6 +40,7 @@ public sealed class OfferState
     private readonly int?[] ids = new int?[4];
     internal readonly byte[]?[] Samples = new byte[4][];
     internal readonly byte[]?[] Descriptions = new byte[4][];
+    internal readonly byte[]?[] LevelSamples = new byte[4][];
     internal readonly long[] RetryTitleAt = new long[4];
     internal readonly int?[] UpgradeLevels = new int?[4];
     internal readonly string[] Texts = new string[4];
@@ -56,6 +57,7 @@ public sealed class OfferState
         Texts[slot] = text;
         ItemSlots[slot] = item;
         ShardSlots[slot] = shard;
+        LevelSamples[slot] = null;
         UpgradeLevels[slot] = null;
     }
 
@@ -64,6 +66,7 @@ public sealed class OfferState
         Array.Clear(ids);
         Array.Clear(Samples);
         Array.Clear(Descriptions);
+        Array.Clear(LevelSamples);
         Array.Clear(RetryTitleAt);
         Array.Clear(UpgradeLevels);
         Array.Fill(Texts, "");
@@ -154,19 +157,22 @@ internal sealed class Detection : IDisposable
         {
             var rect = Relative(calibration.Titles[index], scan, calibration);
             var current = Signature(image, rect);
-            var descriptions = mode == Mode.Caos ? DescriptionArea(image, rect) : null;
+            var descriptions = DescriptionArea(image, rect);
             var previousDescription = state.Descriptions[index];
             var description = previousDescription is not null && descriptions is { } area ? Signature(image, area) : null;
+            int? anvilLevel = null;
             if (state.Samples[index] is not { } previous || Difference(previous, current, mode == Mode.Arena) >= 2.2 ||
                 (state.RetryTitleAt[index] != 0 && now >= state.RetryTitleAt[index]) ||
-                (description is not null && Difference(previousDescription!, description) >= 0.5))
+                (description is not null && DescriptionChanged(previousDescription!, description, mode)))
             {
                 state.Set(index, null, null);
                 var text = ReadTitle(image, rect, PageSegMode.SingleLine);
                 var item = mode == Mode.Arena && ratings.IsArenaItem(text);
                 var shard = item ? null : StatShardRatings.Recognize(text);
                 var candidates = item || shard.HasValue ? [] : ratings.FindTitle(mode, text);
-                if (!item && candidates.Length != 1 && (!shard.HasValue || mode == Mode.Caos))
+                // The calibrated single line can read the second line of the longer name as ¡Estadísticas!.
+                bool anvilTitleMayWrap = mode == Mode.Arena && candidates is [{ AnvilCount: not null }];
+                if (!item && (candidates.Length != 1 || anvilTitleMayWrap) && (!shard.HasValue || mode == Mode.Caos))
                 {
                     var extra = Math.Min(rect.Y, rect.Height * 3 / 4);
                     var trim = rect.Width / 24;
@@ -195,9 +201,9 @@ internal sealed class Detection : IDisposable
                         item = true;
                         text = alternative;
                     }
-                    else if (ratings.FindTitle(mode, alternative) is [var recovered])
+                    else if (ratings.FindTitle(mode, alternative) is { Length: > 0 } recovered)
                     {
-                        candidates = [recovered];
+                        candidates = recovered;
                         text = alternative;
                     }
                     else if ((RecoverArenaCraftingTitle(text) ?? RecoverArenaCraftingTitle(alternative)) is { } crafting &&
@@ -214,12 +220,15 @@ internal sealed class Detection : IDisposable
                 }
                 var card = candidates is [var unique] ? unique : null;
                 byte[]? detail = null;
-                if (mode == Mode.Caos && candidates.Length > 1 && descriptions is { } crop &&
+                if (candidates.Length > 1 && descriptions is { } crop &&
                     candidates.All(candidate => candidate.AnvilCount.HasValue) &&
                     candidates.Select(candidate => candidate.AnvilCount).Distinct().Count() == candidates.Length)
                 {
                     detail = description ?? Signature(image, crop);
-                    card = ChooseByAnvils(candidates, ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2));
+                    var detailText = ReadTitle(image, crop, PageSegMode.SingleBlock, minimumScale: 2, keepLines: mode == Mode.Arena);
+                    if (mode == Mode.Arena)
+                        anvilLevel = ParseArenaUpgradeLevel(detailText);
+                    card = ChooseByAnvils(candidates, detailText, anvilLevel);
                 }
                 state.RetryTitleAt[index] = card is null && !item && !shard.HasValue ? now + 350 : 0;
                 state.Set(index, card?.Id, current, text, item, detail, shard);
@@ -235,11 +244,11 @@ internal sealed class Detection : IDisposable
                 var glyphs = new Int32Rect(levelArea.X + levelArea.Width / 4, levelArea.Y + levelArea.Height / 5,
                     levelArea.Width / 2, levelArea.Height * 3 / 5);
                 var levelSample = Signature(image, glyphs);
-                if (state.Descriptions[index] is not { } previousLevel ||
+                if (state.LevelSamples[index] is not { } previousLevel ||
                     Difference(previousLevel, levelSample, compensateLighting: true) >= 0.65)
                 {
-                    state.Descriptions[index] = levelSample;
-                    state.UpgradeLevels[index] = ParseArenaUpgradeLevel(ReadTitle(image, levelArea,
+                    state.LevelSamples[index] = levelSample;
+                    state.UpgradeLevels[index] = anvilLevel ?? ParseArenaUpgradeLevel(ReadTitle(image, levelArea,
                         PageSegMode.SparseText, minimumScale: levelArea.Height < 50 ? 3 : 2, keepLines: true), augment.MaxLevel);
                 }
                 upgrades[index] = state.UpgradeLevels[index];
@@ -286,6 +295,13 @@ internal sealed class Detection : IDisposable
         return detected;
     }
 
+    internal bool HasArenaUpgradeHeading(BitmapSource image)
+    {
+        var secondLine = new Region(0.425, 0.113, 0.15, 0.035).Pixels(image.PixelWidth, image.PixelHeight);
+        return secondLine.Width > 0 && secondLine.Height > 0 &&
+            Ratings.Normalize(ReadTitle(image, secondLine, PageSegMode.SingleLine)) == "aumento";
+    }
+
     private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)
     {
         int top = title.Y + title.Height * 8 / 5;
@@ -293,12 +309,30 @@ internal sealed class Detection : IDisposable
         return top < bottom ? new Int32Rect(title.X, top, title.Width, bottom - top) : null;
     }
 
-    internal static Augment? ChooseByAnvils(Augment[] candidates, string description)
+    private static bool DescriptionChanged(byte[] previous, byte[] current, Mode mode)
     {
-        var count = Regex.Matches(Ratings.Normalize(description), @"\b(\d+) yunques de\b");
+        if (mode == Mode.Caos)
+            return Difference(previous, current) >= 0.5;
+
+        // A single changed digit is too small to detect with a mean over the entire description.
+        int lighting = 0;
+        for (int i = 0; i < current.Length; i++)
+            lighting += current[i] - previous[i];
+        lighting /= current.Length;
+        int changed = 0;
+        for (int i = 0; i < current.Length; i++)
+            if (Math.Abs(current[i] - previous[i] - lighting) >= 12 && ++changed == 2)
+                return true;
+        return false;
+    }
+
+    internal static Augment? ChooseByAnvils(Augment[] candidates, string description, int? level = null)
+    {
+        // The anvil icon between the number and the word can be read as a short token.
+        var count = Regex.Matches(Ratings.Normalize(description), @"\b(\d+)(?: [a-z]{1,2})? yunques de\b");
         if (count.Count != 1 || !int.TryParse(count[0].Groups[1].ValueSpan, NumberStyles.None, CultureInfo.InvariantCulture, out int value))
             return null;
-        return candidates.Where(candidate => candidate.AnvilCount == value).Take(2).ToArray() is [var match] ? match : null;
+        return candidates.Where(candidate => candidate.AnvilCountAt(level) == value).Take(2).ToArray() is [var match] ? match : null;
     }
 
     private static bool BlueButtonVisible(BitmapSource image, Int32Rect marker)

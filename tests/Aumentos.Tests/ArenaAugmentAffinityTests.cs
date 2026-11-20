@@ -10,6 +10,14 @@ internal static class ArenaAugmentAffinityTests
             affinity.Evaluate("Chogath", card.Id)?.Tier is not null);
         Check(covered >= 24, $"cobertura editorial nueva de la Wiki ({covered})");
 
+        var milio = Offer("Milio", [35, 5, 68]);
+        Check(milio[0] is { LocalText: "B", UsesWiki: true } && milio[0]!.LocalReason!.Contains("Ignición y Extenuación") &&
+            milio[1] is { LocalText: "A", UsesWiki: true } && milio[1]!.LocalReason!.Contains("tu aliado") &&
+            milio[2] is { LocalText: "A" } && milio.All(badge => badge?.RecommendedAugment == false),
+            "Milio recibe tier para Siente el Ardor y Estandarte de Mando y conserva el empate con Recursividad");
+        Check(affinity.Evaluate("Chogath", 35) is { Tier: Tier.A } && affinity.Evaluate("Chogath", 5) is { Tier: Tier.B },
+            "los perfiles de primera línea aprovechan Siente el Ardor y reciben una valoración general para Estandarte");
+
         int[] choBuild = [443083, 223111, 444644, 223084, 223068];
         var cho = Offer("Chogath", [181, 110, 44], equipped: choBuild);
         Check(cho[0] is { LocalText: "S+", UsesWiki: true, RecommendedAugment: true } &&

@@ -14,8 +14,11 @@ public enum Mode { Caos, Arena }
 public enum Tier { S, A, B, C }
 public record Champion(string Key, string Name, string[] Roles);
 public record Augment(string Mode, int Id, string Key, string Name, string? Description, string[]? Aliases,
-    int? AnvilCount = null, int? MaxLevel = null, string[]? UpgradeEffects = null)
+    int? AnvilCount = null, int? MaxLevel = null, string[]? UpgradeEffects = null, int[]? AnvilUpgradeCounts = null)
 {
+    internal int? AnvilCountAt(int? level) => level is null or 1 ? AnvilCount :
+        level >= 2 && AnvilUpgradeCounts is { } counts && level - 2 < counts.Length ? counts[level.Value - 2] : null;
+
     internal string? EffectAt(int? level) =>
         level is >= 2 && UpgradeEffects is not null && level - 2 < UpgradeEffects.Length
             ? UpgradeEffects[level.Value - 2] : null;

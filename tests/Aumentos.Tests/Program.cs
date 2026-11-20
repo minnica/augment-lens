@@ -134,13 +134,14 @@ internal static class Program
         if (args.Contains("--capture-smoke"))
         {
             CaptureSmoke();
-            OverlaySmoke(assets);
             BuildOverlaySmoke();
             BuildSizeControlSmoke(ratings.Catalog.Patch);
             BuildSizeButtonSmoke(ratings.Catalog.Patch);
             ChampionSelectTests.Smoke();
             MayhemChampionTests.Smoke(ratings.Catalog);
         }
+        if (args.Contains("--capture-smoke") || args.Contains("--card-overlay-smoke"))
+            OverlaySmoke(assets);
         if (args.Contains("--capture-smoke") || args.Contains("--arena-prismatic-top-smoke"))
             PrismaticOverlaySmoke(ratings, assets);
         if (args.Contains("--capture-smoke") || args.Contains("--arena-build-overlay-smoke"))
@@ -1042,6 +1043,8 @@ internal static class Program
 
             CheckMayhemCrown(2560, 1440);
             CheckMayhemCrown(1600, 900);
+            CheckArenaCardBadges(2560, 1440);
+            CheckArenaCardBadges(1600, 900);
             Console.WriteLine("Overlay de WPF verificado.");
 
             void CheckMayhemCrown(int width, int height)
@@ -1080,6 +1083,77 @@ internal static class Program
                         Check(overlap >= Math.Min(shortBadge.Height * .4, height * .03) && overlap <= shortBadge.Height * .55,
                             "el distintivo compacto cruza el borde aproximadamente por la mitad");
                     }
+                }
+            }
+
+            void CheckArenaCardBadges(int width, int height)
+            {
+                var store = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
+                var viewport = new Int32Rect(-30000, -30000, width, height);
+                var fit = store.Find(Mode.Arena, width, height).Single();
+                var titlesInPixels = fit.Titles.Select(title => title.Pixels(width, height)).ToArray();
+                int regularTop = (int)Math.Round(height * .1674);
+                int upgradeTop = (int)Math.Round(height * .1582);
+                CardComparison?[] cards = [
+                    CardComparison.Unread,
+                    new("S", IsArenaAugment: true, LocalReason: "Afín a las habilidades del campeón", RecommendedAugment: true),
+                    new("B", IsArenaAugment: true, UpgradeLevel: 2)
+                ];
+                CardComparison?[] choices = [
+                    new("B", ArenaChoice: new("Fragmento de tenacidad", Tier.B, "Reduce el control recibido", Recommended: true)),
+                    new("A", ArenaChoice: new("Objeto legendario", Tier.A, "Refuerza la supervivencia")),
+                    new("S", ArenaChoice: new("Objeto prismático", Tier.S, "Se adapta a tu campeón", TopPosition: 5))
+                ];
+                foreach (bool details in new[] { false, true })
+                {
+                    overlay.ShowDetails = details;
+                    var offer = new OverlayUpdate("Arena", viewport, fit, cards, Mode: Mode.Arena, ArenaCardTop: regularTop);
+                    CheckCentered(offer, regularTop, .09, details);
+                    var middleUpgrade = offer with { Labels = [cards[0], cards[1]! with { UpgradeLevel = 2 },
+                        cards[2]! with { UpgradeLevel = null }] };
+                    CheckCentered(middleUpgrade, regularTop, .09, details);
+                    CheckCentered(middleUpgrade with { ArenaCardTop = upgradeTop, ArenaUpgradeHeading = true },
+                        upgradeTop, .146, details);
+                    CheckCentered(offer with { Labels = choices }, regularTop, .09, details);
+                    Check(VisibleLines(overlay.Windows[2]).Contains(details ? "Top #5" : "Local · Top #5"),
+                        "el distintivo de objetos conserva la posición del ranking de Arena");
+                    if (!details)
+                    {
+                        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                        var shardBadge = overlay.Windows[0];
+                        var text = BuildElements<TextBlock>(Frame(shardBadge)).ToArray();
+                        var grade = text[0];
+                        var scaled = grade.TransformToAncestor(shardBadge).TransformBounds(new Rect(0, 0, 1, grade.FontSize));
+                        var pixelSize = scaled.Height * VisualTreeHelper.GetDpi(shardBadge).DpiScaleY;
+                        var metadata = string.Concat(text[1].Inlines.OfType<System.Windows.Documents.Run>().Select(run => run.Text));
+                        Check(pixelSize >= 36 && text.Length == 2 && grade.Text == "B" && metadata == "Local · Recomendado",
+                            $"la letra grande y la recomendación siguen legibles a {width}×{height} ({pixelSize:F1} px)");
+                    }
+                }
+
+                void CheckCentered(OverlayUpdate offer, int cardTop, double headerBottom, bool details)
+                {
+                    overlay.Render(offer);
+                    var placements = overlay.Windows.Take(3).Select(window =>
+                        Native.Bounds(new WindowInteropHelper(window).Handle)).ToArray();
+                    for (int i = 0; i < placements.Length; i++)
+                    {
+                        var position = placements[i];
+                        var title = titlesInPixels[i];
+                        Check(position.Height > 0 &&
+                            Math.Abs(position.Y + position.Height / 2.0 - (viewport.Y + cardTop)) <= 1 &&
+                            Math.Abs(position.X + position.Width / 2.0 - (viewport.X + title.X + title.Width / 2)) <= 1,
+                            "el borde de cada carta de Arena cruza el centro de su distintivo aunque cambie el nivel");
+                        if (!details)
+                        {
+                            bool augment = offer.Labels!.Any(label => label?.IsArenaAugment == true);
+                            double clearance = augment ? .022 : .036;
+                            Check(position.Y + position.Height <= viewport.Y + cardTop + height * clearance,
+                                "los distintivos compactos dejan visibles el icono y las estrellas cuando las hay");
+                        }
+                    }
+                    Check(placements[1].Y >= viewport.Y + height * headerBottom,
+                        "el distintivo central cabe debajo del reloj o del encabezado de mejora");
                 }
             }
         }

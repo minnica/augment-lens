@@ -13,7 +13,8 @@ using System.Windows.Threading;
 namespace Aumentos;
 
 internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
-    CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null, Mode? Mode = null);
+    CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null, Mode? Mode = null,
+    int? ArenaCardTop = null, bool ArenaUpgradeHeading = false);
 
 internal sealed class LiveOverlay
 {
@@ -78,6 +79,7 @@ internal sealed class LiveOverlay
         long nextCardScan = 0;
         string idle = "Esperando la partida…";
         Calibration? previous = null;
+        bool? arenaUpgradeHeading = null;
         GameWindow? lastWindow = null;
         BuildDisplay? lastBuild = null;
         bool cardsVisible = false;
@@ -97,6 +99,7 @@ internal sealed class LiveOverlay
                         knownShop = null;
                         buildVisibility.ObserveShop(open: false);
                         history.ResetMatch();
+                        arenaBuilds.ResetSwap();
                         activeMode = null;
                         game = null;
                         match = null;
@@ -136,9 +139,13 @@ internal sealed class LiveOverlay
                                 if (game != current?.Game || state?.Mode != activeMode || newMatch)
                                     StopCapture();
                                 if (newMatch)
+                                {
                                     history.ResetMatch();
+                                    arenaBuilds.ResetSwap();
+                                }
                                 if (current is not null)
                                 {
+                                    arenaBuilds.ObserveInventory(current.Game, current.Arena);
                                     confirmedMatch = current.GameTime.HasValue || newMatch
                                         ? current : current with { GameTime = confirmedMatch?.GameTime };
                                     lastMatchRead = Environment.TickCount64;
@@ -195,6 +202,8 @@ internal sealed class LiveOverlay
                                     var updated = currentGame.Mode == Mode.Arena
                                         ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
                                         : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
+                                    if (currentGame.Mode == Mode.Arena)
+                                        arenaBuilds.RememberSuggestedSwap(currentGame, updated);
                                     if (updated is null || plan is null || updated.Swap != plan.Swap ||
                                         !updated.Steps.SequenceEqual(plan.Steps))
                                         plan = updated;
@@ -243,6 +252,7 @@ internal sealed class LiveOverlay
             capture?.Dispose();
             capture = null;
             previous = null;
+            arenaUpgradeHeading = null;
             detector.Clear();
             lastFrame = 0;
             lastOffer = 0;
@@ -319,6 +329,7 @@ internal sealed class LiveOverlay
                 var read = detector.ReadPanel(frame, scan, candidates, current.Mode, previous);
                 if (read is { Layout: var candidate, Result: var result })
                 {
+                    int? arenaCardTop = current.Mode == Mode.Arena ? ArenaCardEdge.Read(frame, candidate) : null;
                     var shards = ratings.Shards.ForOffer(current, result);
                     var prismatics = shards is null ? ratings.Prismatics.ForOffer(current, result) : null;
                     if ((shards ?? prismatics?.Badges ?? ratings.Legendaries.ForOffer(current, result)) is { } choices)
@@ -326,20 +337,26 @@ internal sealed class LiveOverlay
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         previous = candidate;
+                        arenaUpgradeHeading = null;
                         lastOffer = Environment.TickCount64;
                         history.ObserveClosed(window.Handle, lastOffer);
                         var offers = shards is not null ? "Fragmentos" : prismatics is not null ? "Prismáticos" : "Legendarios";
                         var tiers = string.Join(" | ", choices.Select(badge => badge?.LocalText ?? "?"));
                         return new OverlayUpdate($"{label} · {name} · {offers} · Tier local · {tiers}",
                             window.Bounds, candidate, choices, window.Handle,
-                            prismatics is null ? null : new(prismatics.Top, candidate, ratings.Catalog.Patch), current.Mode);
+                            prismatics is null ? null : new(prismatics.Top, candidate, ratings.Catalog.Patch), current.Mode,
+                            ArenaCardTop: arenaCardTop);
                     }
                     if (result.CanShow(candidate == previous))
                     {
+                        if (candidate != previous)
+                            arenaUpgradeHeading = null;
                         previous = candidate;
                         var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
                             source.Data, source.Loading, mayhem?.Data, arena?.Data,
                             upgradeLevels: result.UpgradeLevels, arenaItems: arenaItems);
+                        if (arenaUpgradeHeading is null && result.UpgradeLevels?.Any(level => level.HasValue) == true)
+                            arenaUpgradeHeading = detector.HasArenaUpgradeHeading(frame);
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
@@ -349,7 +366,8 @@ internal sealed class LiveOverlay
                             (badge.RecommendedUpgrade ? " · Mejora recomendada" :
                                 badge.RecommendedAugment ? " · Recomendado" : "")));
                         return new OverlayUpdate($"{label} · {name} · {sources} · OP.GG / local · {displayed}",
-                            window.Bounds, candidate, badges, window.Handle, Mode: current.Mode);
+                            window.Bounds, candidate, badges, window.Handle, Mode: current.Mode,
+                            ArenaCardTop: arenaCardTop, ArenaUpgradeHeading: arenaUpgradeHeading == true);
                     }
                     status = result.Items.Any(item => item)
                         ? $"{label} · Panel de objetos"
@@ -358,6 +376,7 @@ internal sealed class LiveOverlay
                 else if (current.Mode != Mode.Arena && previous is not null && Environment.TickCount64 - lastOffer < 300)
                     return null;
                 previous = null;
+                arenaUpgradeHeading = null;
                 detector.Clear();
                 history.ObserveClosed(window.Handle, Environment.TickCount64);
                 return new OverlayUpdate(status);

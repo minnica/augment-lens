@@ -204,6 +204,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
     private static ArenaAugmentFit? Unlock(Profile p, int id) => id switch
     {
         1 => Fit(p.Casting, "Lanzar habilidades acumula aceleración durante el combate"),
+        5 => Fit(p.Ally, "Potencia temporalmente la vida, el DA, el PH y la velocidad de ataque de tu aliado"),
         7 => Fit(p.Attacks || p.Physical, "Aumenta el daño de ataque"),
         11 => new(Tier.B, "Lanzar tu definitiva te vuelve invulnerable brevemente"),
         13 => Fit(p.Frontline, "Más vida a cambio de infligir menos daño", Tier.C),
@@ -216,6 +217,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         28 => Fit(p.Attacks || p.Casting, "El daño repetido reduce ambas resistencias"),
         33 => new(Tier.B, "Lanza un gancho automático al enemigo cercano"),
         34 => new(Tier.B, "Comienzas la ronda con un Escudo Negro"),
+        35 => Fit(p.Frontline, "Aplica Ignición y Extenuación a los rivales cercanos"),
         36 => Fit(p.Attacks, "Los ataques aplican quemaduras según la vida máxima del objetivo", Tier.C),
         38 => Fit(p.Burst || p.Range, "Premia iniciar el combate y rematar rivales heridos"),
         42 => Fit(p.Control, "Inmovilizar o anclar rivales te cura", Tier.C),
@@ -246,6 +248,8 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         216 => Fit(p.Frontline, "Permanecer junto a rivales acumula vida máxima"),
         219 => Fit(p.Casting || p.Ap, "Dañar con habilidades acumula fuerza adaptable"),
         221 => Fit(p.Mobility, "Desplazarte aplica una quemadura acumulable", Tier.C),
+        227 => new(Tier.A, "Eliges mejoras en tres yunques de estadísticas"),
+        228 => new(Tier.A, "Eliges mejoras en cuatro yunques de estadísticas"),
         231 => new(Tier.B, "Una luz protectora escuda a los aliados que atraviesa"),
         232 => Fit(p.Frontline, "Daña a enemigos cercanos y deja curación al impactar"),
         301 => new(Tier.B, "La estrella concede invulnerabilidad breve cerca de ti"),

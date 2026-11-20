@@ -22,6 +22,32 @@ internal sealed class ArenaBuilds(Ratings ratings)
         .DistinctBy(item => item.Id).ToDictionary(item => item.Id);
     private readonly HashSet<int> shopLegendaries = (ratings.Catalog.ArenaLegendaries ?? [])
         .Where(item => item.Buyable).Select(item => item.Id).ToHashSet();
+    private SuggestedSwap? suggestedSwap;
+
+    internal void RememberSuggestedSwap(GameContext game, MayhemBuildPlan? plan)
+    {
+        if (plan?.Swap is { } swap)
+        {
+            var kept = plan.Steps.Where(step => step.Item.Id != swap.Outgoing.Id).ToArray();
+            suggestedSwap = new(game, swap, kept, Sold: false);
+        }
+    }
+
+    internal void ObserveInventory(GameContext game, ArenaMatch? match)
+    {
+        if (suggestedSwap is not { } suggestion || match is not { InventoryKnown: true })
+            return;
+
+        var owned = OwnedItems(match).Select(item => BaseId(item.Id)).ToHashSet();
+        if (game != suggestion.Game || !suggestion.Kept.All(step => owned.Contains(BaseId(step.Item.Id))))
+            ResetSwap();
+        else if (owned.Count == suggestion.Kept.Length)
+            suggestedSwap = suggestion with { Sold = true };
+        else if (suggestion.Sold || !owned.Contains(suggestion.Swap.Outgoing.Id))
+            ResetSwap();
+    }
+
+    internal void ResetSwap() => suggestedSwap = null;
 
     internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match) => match is null ? null :
         EnemyDamageMix.Estimate(RecentOpponents(match).Where(opponent => champions.ContainsKey(opponent.Champion)).Select(opponent =>
@@ -36,8 +62,13 @@ internal sealed class ArenaBuilds(Ratings ratings)
         if (game.Mode != Mode.Arena || match is null || !champions.TryGetValue(game.Champion, out var champion) || equipment.Count == 0)
             return null;
 
-        var owned = match.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => BaseId(item.Id)).Take(Slots).ToArray();
+        var owned = OwnedItems(match).ToArray();
         var steps = owned.Select(item => Step(item, "Comprado", owned: true)).ToList();
+        if (suggestedSwap is { Sold: true } pending && pending.Game == game)
+        {
+            IEnumerable<BuildStep> kept = match.InventoryKnown ? steps : pending.Kept;
+            return new([..kept, new(pending.Swap.Incoming, pending.Swap.Reason)]);
+        }
 
         var source = ValidSource(build, game) ? build : null;
         var paths = source?.Groups.Where(group => group.Section == OpGgBuildSection.Core).SelectMany(group => group.Choices)
@@ -233,6 +264,8 @@ internal sealed class ArenaBuilds(Ratings ratings)
     private static IEnumerable<ArenaOpponent> RecentOpponents(ArenaMatch match) => match.Opponents.Take(3);
     private IEnumerable<ArenaItem> EquippedItems(ArenaOpponent opponent) =>
         opponent.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => item.Id);
+    private IEnumerable<ArenaItem> OwnedItems(ArenaMatch match) =>
+        match.Items.Select(Resolve).OfType<ArenaItem>().DistinctBy(item => BaseId(item.Id)).Take(Slots);
 
     private ArenaItem? Resolve(int id) => equipment.GetValueOrDefault(id) ?? equipment.GetValueOrDefault(id is > 0 and < 10000 ? id + 220000 : id);
     private static bool Has(ArenaItem item, string category) => item.Categories?.Contains(category) == true;
@@ -264,6 +297,7 @@ internal sealed class ArenaBuilds(Ratings ratings)
         $"{label} {string.Join(" y ", rivals.Take(2).Select(rival => rival.Champion.Name))}";
     private static BuildStep Step(ArenaItem item, string detail, bool owned = false) => new(new(item.Id, item.Name), detail, owned);
     private enum Need { Healing, Crit, Armor, MagicResist, Shields, MagicDamage, PhysicalDamage, Health }
+    private sealed record SuggestedSwap(GameContext Game, BuildSwap Swap, BuildStep[] Kept, bool Sold);
     private sealed record Counter(Need Need, int Priority, string Reason, int[] ItemIds);
     private sealed record Rival(Champion Champion, bool MagicDamage, bool PhysicalDamage, bool Healing, bool Shielded,
         int Armor, int MagicResist, int Crit, int Health);

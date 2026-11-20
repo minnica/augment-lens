@@ -90,6 +90,13 @@ internal static class ChampionSelectTests
                 ["Jax"] = new("Jax", "A", 53, 100),
                 ["Rell"] = new("Rell", "S", 58, 100)
             });
+            var otherChampions = catalog.Champions.Where(champion => champion.Key is not ("Aurora" or "Lillia" or "Jax" or "Rell"))
+                .Take(13).ToArray();
+            for (int i = 0; i < otherChampions.Length; i++)
+            {
+                var key = otherChampions[i].Key;
+                data.Champions[key] = new(key, "B", 50 + i, 100);
+            }
             var source = new ArenaChampionTierView(data, "Prueba");
             var offers = catalog.Champions.Where(champion => champion.Key is "Jax" or "Rell" or "Aurora")
                 .Select(champion => new ArenaDraftOffer(champion, Int32Rect.Empty)).ToArray();
@@ -97,8 +104,10 @@ internal static class ChampionSelectTests
             Check(options.VisibleOptions && options.Rows.Select(row => row.Rating?.Champion).SequenceEqual(["Rell", "Jax", null]) &&
                 options.Rows[^1].Champion == "Aurora", "ordena las opciones visibles y conserva a quien carece de tier");
             var global = ArenaChampionDisplay.Create(bounds, 0, catalog, source, null);
-            Check(!global.VisibleOptions && global.Rows.Select(row => row.Rating?.Champion).SequenceEqual(["Lillia", "Rell", "Jax"]),
-                "ranking global por tier y resultados");
+            var ranked = new[] { "Lillia", "Rell", "Jax" }.Concat(otherChampions.Skip(1).Reverse().Select(champion => champion.Key));
+            Check(!global.VisibleOptions && global.Rows.Length == 15 &&
+                global.Rows.Select(row => row.Rating?.Champion).SequenceEqual(ranked),
+                "el ranking global toma hasta quince campeones por tier y resultados");
 
             overlay.Render(options);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
@@ -113,9 +122,36 @@ internal static class ChampionSelectTests
                     ["Arena · Opciones visibles", $"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}",
                      "1. Rell · S · 58 % top 3", "2. Jax · A · 53 % top 3", "Aurora · Sin tier"]),
                 "muestra las opciones de Arena dentro del cliente con fuente y parche");
+
+            overlay.Render(global);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            placement = Native.Bounds(handle);
+            var header = (DockPanel)panel.Children[0];
+            var table = (Grid)panel.Children[1];
+            var columns = table.Children.OfType<Grid>().ToArray();
+            Check(placement.X >= bounds.X + bounds.Width * 0.57 &&
+                placement.X + placement.Width <= bounds.X + bounds.Width &&
+                placement.Y + placement.Height <= bounds.Y + bounds.Height * 0.90 &&
+                header.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(
+                    [$"GGEZ.GG · Parche {LeaguePatch.Public(catalog.Patch)}", "Arena · Top 15 general"]) &&
+                columns.Length == 2 && Ranks(columns[0]).SequenceEqual(Enumerable.Range(1, 8)) &&
+                Ranks(columns[1]).SequenceEqual(Enumerable.Range(9, 7)),
+                "muestra las quince posiciones en dos columnas dentro de la zona lateral");
+
+            var narrow = new Int32Rect(bounds.X, bounds.Y, 600, 400);
+            overlay.Render(global with { Bounds = narrow });
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            placement = Native.Bounds(handle);
+            Check(placement.X >= narrow.X && placement.X + placement.Width <= narrow.X + narrow.Width &&
+                placement.Y >= narrow.Y && placement.Y + placement.Height <= narrow.Y + narrow.Height * 0.79,
+                "el ranking deja espacio para Fijar en clientes estrechos");
+
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "se oculta el panel de Arena al salir de selección");
             Console.WriteLine("Panel de campeones de Arena en WPF verificado.");
+
+            static IEnumerable<int> Ranks(Grid column) => column.Children.OfType<TextBlock>()
+                .Where(cell => Grid.GetColumn(cell) == 0).Select(cell => int.Parse(cell.Text));
         }
         finally { overlay.Close(); }
     }

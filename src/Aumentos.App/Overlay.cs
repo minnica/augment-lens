@@ -15,7 +15,12 @@ internal sealed class Overlay
     private const int DetailWidth = 260;
     private const double MayhemTitleToCardEdge = 0.213;
     // Limit the overlap to the upper frame, where there are no ability icons.
-    private const double MayhemFrameOverlap = 0.036;
+    private const double StandardFrameOverlap = 0.036;
+    private const double ArenaTitleToCardEdge = 0.207;
+    private const double ArenaStarClearance = 0.022;
+    private const double ArenaDetailOverlap = 0.046;
+    private const double ArenaRoundClockBottom = 0.09;
+    private const double ArenaUpgradeHeadingBottom = 0.146;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     internal bool ShowDetails { private get; set; }
     internal IReadOnlyList<Window> Windows => badges;
@@ -38,10 +43,21 @@ internal sealed class Overlay
         int maximumWidth = ShowDetails ? DetailWidth : SummaryWidth;
         int width = Math.Clamp(titles.Min(title => title.Width), 1, Math.Min((int)(maximumWidth * dpi), bounds.Width));
         int margin = (int)Math.Ceiling(6 * dpi);
-        int? mayhemEdge = update.Mode == Mode.Caos
-            ? titles.Min(title => title.Y) - (int)Math.Round(bounds.Height * MayhemTitleToCardEdge)
+        bool arenaCards = update.Mode == Mode.Arena;
+        var (titleToEdge, frameOverlap) = update.Mode switch
+        {
+            Mode.Caos => (MayhemTitleToCardEdge, StandardFrameOverlap),
+            Mode.Arena when ShowDetails => (ArenaTitleToCardEdge, ArenaDetailOverlap),
+            Mode.Arena when labels.Any(label => label?.IsArenaAugment == true) => (ArenaTitleToCardEdge, ArenaStarClearance),
+            Mode.Arena => (ArenaTitleToCardEdge, StandardFrameOverlap),
+            _ => (0.0, 0.0)
+        };
+        int? cardEdge = titleToEdge > 0
+            ? titles.Min(title => title.Y) - (int)Math.Round(bounds.Height * titleToEdge)
             : null;
-        int maxOverlap = mayhemEdge.HasValue ? (int)(bounds.Height * MayhemFrameOverlap) : 0;
+        if (arenaCards && update.ArenaCardTop is { } observedTop)
+            cardEdge = observedTop;
+        int maxOverlap = (int)(bounds.Height * frameOverlap);
 
         for (int index = 0; index < badges.Length; index++)
         {
@@ -54,20 +70,27 @@ internal sealed class Overlay
 
             var title = titles[index];
             int gap = label.ArenaChoice is null ? margin : Math.Max(2 * margin, title.Height / 3);
-            int anchor = mayhemEdge ?? (title.Y - gap);
-            int roomAbove = anchor - margin;
-            if (roomAbove <= 0)
+            int anchor = cardEdge ?? (title.Y - gap);
+            int center = title.X + title.Width / 2;
+            int minimumTop = margin;
+            if (arenaCards && title.X < bounds.Width / 2 && title.X + title.Width > bounds.Width / 2)
+            {
+                var headerBottom = update.ArenaUpgradeHeading ? ArenaUpgradeHeadingBottom : ArenaRoundClockBottom;
+                minimumTop = Math.Max(margin, (int)Math.Ceiling(bounds.Height * headerBottom));
+            }
+            int roomAbove = anchor - minimumTop;
+            int heightLimit = arenaCards ? 2 * Math.Min(roomAbove, maxOverlap) : roomAbove + Math.Min(roomAbove, maxOverlap);
+            if (heightLimit <= 0)
             {
                 badge.HideBadge();
                 continue;
             }
 
-            int desiredHeight = badge.Prepare(label, width, dpi, ShowDetails);
-            int height = Math.Min(desiredHeight, roomAbove + Math.Min(roomAbove, maxOverlap));
+            int desiredHeight = badge.Prepare(label, width, dpi, ShowDetails, arenaCards && !ShowDetails);
+            int height = Math.Min(desiredHeight, heightLimit);
             int bottom = anchor + Math.Min(height / 2, maxOverlap);
             int fittedWidth = Math.Max(1, width * height / desiredHeight);
-            int center = bounds.X + title.X + title.Width / 2;
-            int x = Math.Clamp(center - fittedWidth / 2, bounds.X, bounds.X + bounds.Width - fittedWidth);
+            int x = bounds.X + Math.Clamp(center - fittedWidth / 2, 0, bounds.Width - fittedWidth);
             badge.Display(new(x, bounds.Y + bottom - height, fittedWidth, height), dpi);
         }
     }
@@ -98,7 +121,7 @@ internal sealed class Overlay
         private readonly StackPanel content = new();
         private readonly Border badge;
         private CardComparison? displayed;
-        private (int Width, double Dpi, bool ShowDetails) measuredAt;
+        private (int Width, double Dpi, bool ShowDetails, bool CompactArena) measuredAt;
         private int measuredHeight;
         private nint handle;
         private Int32Rect placement;
@@ -135,19 +158,20 @@ internal sealed class Overlay
                 Hide();
         }
 
-        internal int Prepare(CardComparison value, int width, double dpi, bool showDetails)
+        internal int Prepare(CardComparison value, int width, double dpi, bool showDetails, bool compactArena)
         {
-            if (displayed == value && measuredAt == (width, dpi, showDetails))
+            if (displayed == value && measuredAt == (width, dpi, showDetails, compactArena))
                 return measuredHeight;
 
             badge.Width = width / dpi;
             bool narrow = badge.Width < 150;
-            badge.Padding = narrow ? new Thickness(6, 5, 6, 6) : new Thickness(10, 5, 10, 6);
-            RenderContent(value, showDetails, narrow);
+            badge.Padding = compactArena ? new Thickness(6, 2, 6, 3) :
+                narrow ? new Thickness(6, 5, 6, 6) : new Thickness(10, 5, 10, 6);
+            RenderContent(value, showDetails, narrow, compactArena);
             badge.InvalidateMeasure();
             badge.Measure(new Size(badge.Width, double.PositiveInfinity));
             displayed = value;
-            measuredAt = (width, dpi, showDetails);
+            measuredAt = (width, dpi, showDetails, compactArena);
             measuredHeight = (int)Math.Ceiling(badge.DesiredSize.Height * dpi) + 1;
             return measuredHeight;
         }
@@ -165,7 +189,7 @@ internal sealed class Overlay
                 placement = target;
         }
 
-        private void RenderContent(CardComparison value, bool showDetails, bool narrow)
+        private void RenderContent(CardComparison value, bool showDetails, bool narrow, bool compactArena)
         {
             content.Children.Clear();
             bool recommended = value.RecommendedUpgrade || value.RecommendedAugment || value.ArenaChoice?.Recommended == true;
@@ -189,7 +213,7 @@ internal sealed class Overlay
             if (published is { } tier)
                 AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
             else if (local is not null)
-                AddGrade(local, "Local", context, recommendation, narrow);
+                AddGrade(local, "Local", context, recommendation, narrow, compactArena: compactArena);
 
             int headerLength = content.Children.Count;
             if (showDetails || variable)
@@ -249,18 +273,38 @@ internal sealed class Overlay
             }
         }
 
-        private void AddGrade(string tier, string label, string? context, string? recommendation, bool narrow, string? localTier = null)
+        private void AddGrade(string tier, string label, string? context, string? recommendation, bool narrow,
+            string? localTier = null, bool compactArena = false)
         {
-            var grade = Line(tier, narrow ? 38 : 46, TierInk(tier), centered: true);
+            double size = narrow ? 38 : 46;
+            var grade = Line(tier, size, TierInk(tier), centered: true);
             grade.FontWeight = FontWeights.Bold;
             grade.TextWrapping = TextWrapping.NoWrap;
+            if (compactArena)
+            {
+                grade.LineHeight = size;
+                grade.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+            }
             if (tier == "S+")
             {
                 grade.Inlines.Clear();
                 grade.Inlines.Add(new Run("S"));
-                grade.Inlines.Add(new Run("+") { FontSize = narrow ? 19 : 23, BaselineAlignment = BaselineAlignment.Superscript });
+                grade.Inlines.Add(new Run("+") { FontSize = size / 2, BaselineAlignment = BaselineAlignment.Superscript });
             }
             content.Children.Add(grade);
+            if (compactArena)
+            {
+                var metadata = Line(context is null ? label : $"{label} · {context}",
+                    context is not null && recommendation is not null ? 11 : 12,
+                    Brushes.WhiteSmoke, bold: true, centered: true);
+                if (recommendation is not null)
+                {
+                    metadata.Inlines.Add(new Run(" · "));
+                    metadata.Inlines.Add(new Run(recommendation) { Foreground = Gold });
+                }
+                content.Children.Add(metadata);
+                return;
+            }
             content.Children.Add(Line(label, 13, Brushes.WhiteSmoke, bold: true, centered: true));
             if (localTier is not null)
             {

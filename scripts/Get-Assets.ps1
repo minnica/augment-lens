@@ -183,6 +183,16 @@ foreach ($card in $cards | Where-Object mode -eq 'Arena') {
     $card['maxLevel'] = [int]$levels[0]
     $effects = @(Get-ArenaUpgradeEffects $card $entry $values $card.maxLevel)
     if ($effects | Where-Object { $_ }) { $card['upgradeEffects'] = $effects }
+    $counts = $values.AmountOfStatAnvils
+    if ($counts.Count -gt $card.maxLevel) {
+        $byLevel = @($counts[1..$card.maxLevel])
+        if (!($byLevel | Where-Object { $_ -le 0 -or $_ -ne [Math]::Floor($_) })) {
+            $card['anvilCount'] = [int]$byLevel[0]
+            if ($byLevel.Count -gt 1) {
+                $card['anvilUpgradeCounts'] = @($byLevel | Select-Object -Skip 1 | ForEach-Object { [int]$_ })
+            }
+        }
+    }
 }
 
 $sharedTitles = @($cards | Where-Object mode -eq 'Caos' | Group-Object name | Where-Object Count -gt 1)
