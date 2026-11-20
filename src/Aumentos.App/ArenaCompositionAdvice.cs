@@ -5,7 +5,7 @@ using System.Linq;
 namespace Aumentos;
 
 internal sealed record ArenaCompositionPick(string Champion, string? Tier, string Reason);
-internal sealed record ArenaCompositionGrade(string Tier, string Reason, int Members, int TeamSize);
+internal sealed record ArenaCompositionGrade(string Tier, string Reason, int Members, int TeamSize, ArenaTeamResult? Observed = null);
 
 internal static class ArenaCompositionAdvice
 {
@@ -30,7 +30,7 @@ internal static class ArenaCompositionAdvice
 
     private sealed record Need(Coverage Coverage, int Weight, string Reason);
 
-    internal static ArenaCompositionGrade? Evaluate(Ratings ratings, string? selected, ArenaDraftTeam? team)
+    internal static ArenaCompositionGrade? Evaluate(Ratings ratings, string? selected, ArenaDraftTeam? team, ArenaTeamResult? observed = null)
     {
         if (selected is null || team is null)
             return null;
@@ -45,6 +45,10 @@ internal static class ArenaCompositionAdvice
             .Prepend(own).Select(champion => CombatProfile(ratings, champion)).ToArray();
         if (profiles.Length < 2)
             return null;
+
+        if (team.Size == 3 && profiles.Length == 3 && observed is { Games: >= ArenaTeamSource.MinimumGames } &&
+            observed.Patch == ratings.Catalog.Patch)
+            return new(observed.Tier, $"{observed.Games} partidas · Puesto medio {observed.AveragePlace:0.00}", 3, 3, observed);
 
         // Arena teams need a way to convert control into a takedown or keep their damage alive as the ring closes.
         bool protectedDamage = HasPair(Coverage.SustainedDamage, Coverage.HoldGround | Coverage.Protection);

@@ -232,9 +232,10 @@ internal sealed class AramHexRatings
         }
     }
 
-    private static Compatibility? ReadCompatibility()
+    internal static Compatibility? ReadCompatibility(string? assets = null)
     {
-        try { return Ratings.Read<Compatibility>(Path.Combine(AppContext.BaseDirectory, "Assets", "aramhex-compatibility.json")); }
+        try { return Ratings.Read<Compatibility>(Path.Combine(assets ?? Path.Combine(AppContext.BaseDirectory, "Assets"),
+            "aramhex-compatibility.json")); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
             return null;

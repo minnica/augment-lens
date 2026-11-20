@@ -89,7 +89,7 @@ internal sealed class GgezArenaRatings
         var path = Path.Combine(directory, $"{champion}.json");
         var data = entry.View.Data ?? ReadCache(path, champion);
         var interval = data?.IsPrevious == true ? RetryInterval : RefreshInterval;
-        if (data is { PlacementSchemaRead: true } && data.FetchedAt + interval > DateTimeOffset.UtcNow)
+        if (data is { PlacementSchemaRead: true, ItemSchemaRead: true } && data.FetchedAt + interval > DateTimeOffset.UtcNow)
         {
             SetView(entry, data, Describe(data), data.FetchedAt + interval);
             return;

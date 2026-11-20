@@ -19,7 +19,8 @@ internal sealed record GgezArenaPick(decimal Percent, int GamesPicked, decimal? 
 
 internal sealed record GgezArenaSnapshot(string Champion, string ClientPatch, string SourcePatch,
     DateTimeOffset FetchedAt, int SampleGames, Dictionary<int, GgezArenaPick> Picks,
-    int? PlacementCount = null, bool PlacementSchemaRead = false)
+    int? PlacementCount = null, bool PlacementSchemaRead = false, Dictionary<int, int>? ItemGames = null,
+    bool ItemSchemaRead = false)
 {
     internal bool IsPrevious => SourcePatch != ClientPatch;
 }
@@ -38,6 +39,9 @@ internal static class GgezArenaPage
         """);
     private static readonly Regex Placements = Pattern("""
         \brow:\{\s*id:\d+,\s*games:(\d+),[^{}]*?\bplaces:\[([\d,\s]+)\]
+        """);
+    private static readonly Regex ItemTable = Pattern("""
+        \bitems:\s*\[(.*?)\],\s*itemsOk:true,\s*itemTotal:(\d+)\b
         """);
     private static readonly Regex PickRow = Pattern("""
         \{\s*id:(\d+),\s*games:(\d+),((?:[^{}"]|"(?:[^"\\]|\\.)*")*)\}
@@ -78,7 +82,23 @@ internal static class GgezArenaPage
         var picks = ReadPicks(table.Groups[1].Value, sample, catalog, placementCount);
         if (picks.Count == 0)
             throw new InvalidDataException($"{Attribution} · Sin aumentos reconocibles.");
-        return new(champion, patch, sourcePatch, DateTimeOffset.UtcNow, sample, picks, placementCount, PlacementSchemaRead: true);
+        var itemTable = ItemTable.Match(html, start, end - start);
+        return new(champion, patch, sourcePatch, DateTimeOffset.UtcNow, sample, picks, placementCount,
+            PlacementSchemaRead: true, ItemGames: ReadItems(itemTable), ItemSchemaRead: true);
+    }
+
+    private static Dictionary<int, int>? ReadItems(Match table)
+    {
+        if (!table.Success || !Number(table.Groups[2], out int total) || total <= 0)
+            return null;
+        var items = new Dictionary<int, int>();
+        foreach (Match row in PickRow.Matches(table.Groups[1].Value))
+        {
+            if (Number(row.Groups[1], out int id) && id > 0 && Number(row.Groups[2], out int games) &&
+                games >= 30 && games <= total && games >= 0.08m * total)
+                items.TryAdd(id, games);
+        }
+        return items.Count == 0 ? null : items;
     }
 
     internal static bool IsCanonical(string html, Uri address) =>

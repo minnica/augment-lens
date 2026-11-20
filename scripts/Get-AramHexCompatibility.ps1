@@ -1,8 +1,7 @@
-param([string]$Patch)
+param([string]$Patch, [string]$Assets = (Join-Path $PSScriptRoot '../src/Aumentos.App/Assets'))
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$assets = Join-Path $PSScriptRoot '../src/Aumentos.App/Assets'
 $catalog = Get-Content -LiteralPath (Join-Path $assets 'catalog.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 if (!$Patch) { $Patch = $catalog.patch }
 if ($Patch -ne $catalog.patch -or $Patch -notmatch '^\d{1,3}\.\d{1,3}$') { throw 'Usa el parche actual del catálogo.' }

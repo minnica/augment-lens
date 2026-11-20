@@ -59,7 +59,9 @@ public sealed class Ratings
     internal ArenaAugmentAffinity AugmentAffinity { get; }
     private readonly Dictionary<int, Augment> arenaAugments;
 
-    public Ratings(string assetPath)
+    public Ratings(string assetPath) : this(assetPath, allowMissingRules: false) { }
+
+    internal Ratings(string assetPath, bool allowMissingRules)
     {
         Catalog = Read<Catalog>(Path.Combine(assetPath, "catalog.json"));
         var rules = Read<EditorialRules>(Path.Combine(assetPath, "ratings.json"));
@@ -118,11 +120,19 @@ public sealed class Ratings
         foreach (var rule in rules.Exceptions)
         {
             if (!profiles.ContainsKey(rule.Champion))
+            {
+                if (allowMissingRules)
+                    continue;
                 throw new InvalidDataException($"Campeón desconocido en reglas: {rule.Champion}.");
+            }
             var cards = Catalog.Augments.Where(card => MechanicKey(card.Key) == MechanicKey(rule.Augment)
                 && (rule.Mode == "*" || rule.Mode == card.Mode)).ToArray();
             if (cards.Length == 0)
+            {
+                if (allowMissingRules)
+                    continue;
                 throw new InvalidDataException($"Aumento desconocido en reglas: {rule.Augment}.");
+            }
             foreach (var card in cards)
                 overrides.Add((Enum.Parse<Mode>(card.Mode), rule.Champion.ToLowerInvariant(), card.Id), Enum.Parse<Tier>(rule.Tier));
         }

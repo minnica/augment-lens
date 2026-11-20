@@ -1,11 +1,12 @@
 ﻿param(
     [string]$Patch = '16.23',
     [string]$ChampionVersion = "$Patch.1",
+    [string]$Assets = (Join-Path $PSScriptRoot '../src/Aumentos.App/Assets'),
     [switch]$SkipCatalog,
     [switch]$OnlyMayhemItems
 )
 $ErrorActionPreference = 'Stop'
-$assets = Join-Path $PSScriptRoot '../src/Aumentos.App/Assets'
+$ProgressPreference = 'SilentlyContinue'
 $ocrPath = Join-Path $assets 'tessdata'
 New-Item -ItemType Directory -Force $ocrPath | Out-Null
 
@@ -13,7 +14,7 @@ $ocrSource = 'https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.
 foreach ($name in @('spa.traineddata', 'LICENSE')) {
     $destination = Join-Path $ocrPath $name
     if (!(Test-Path $destination)) {
-        Invoke-WebRequest "$ocrSource/$name" -UseBasicParsing -OutFile "$destination.tmp"
+        Invoke-WebRequest "$ocrSource/$name" -UseBasicParsing -TimeoutSec 45 -OutFile "$destination.tmp"
         Move-Item "$destination.tmp" $destination
     }
 }
@@ -23,7 +24,7 @@ if ($SkipCatalog) { return }
 $cdn = "https://raw.communitydragon.org/$Patch"
 $localized = "$cdn/plugins/rcp-be-lol-game-data/global/es_mx/v1"
 function Get-Json([string]$url) {
-    $response = Invoke-WebRequest $url -UseBasicParsing
+    $response = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 45
     $reader = New-Object System.IO.StreamReader($response.RawContentStream, [System.Text.Encoding]::UTF8)
     try { $reader.ReadToEnd() | ConvertFrom-Json }
     finally { $reader.Dispose() }

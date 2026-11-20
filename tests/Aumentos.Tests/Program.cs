@@ -55,6 +55,7 @@ internal static class Program
         ArenaChampionTierTests.Run(ratings, Option("--arena-champion-tier-html"));
         ArenaChampionSelectionTests.Run();
         ArenaCompositionTests.Run(ratings);
+        PatchUpdateTests.Run(ratings, assets, args.Contains("--patch-update-smoke")).GetAwaiter().GetResult();
         if (Option("--arena-jax-upgrade-shot") is { } fireworksShot)
         {
             var image = Diagnostics.OpenBitmap(fireworksShot);

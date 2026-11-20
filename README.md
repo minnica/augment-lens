@@ -92,7 +92,7 @@ Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada 
 
 En **Arena**, el **Top 30 general** aparece en el lateral derecho durante la selección en el cliente de League. Muestra la posición, el campeón, el tier y su porcentaje de top 3 en dos columnas de 15 que se leen de arriba abajo. La lista ordena por tier de GGEZ.GG y, dentro de la misma letra, por frecuencia de terminar entre los primeros tres. Al preseleccionar o fijar un campeón, el panel muestra su tier si está disponible, aunque quede fuera de los primeros 30. El panel se retira al salir de selección.
 
-**Composición Arena** muestra un tier local de S a D desde que preseleccionas un campeón y el cliente informa al menos un aliado. La letra se actualiza al cambiar cualquier elección del equipo. La estimación considera cómo se combinan el control, el seguimiento de daño, la protección y el aguante en las rondas de Arena. En **3×6**, «2/3 campeones» indica que falta un integrante en la evaluación. [Riot Games sobre Arena 3×6](https://www.leagueoflegends.com/en-gb/news/dev/dev-leveling-up-arena/)
+**Composición Arena** muestra un tier de S a D desde que preseleccionas un campeón y el cliente informa al menos un aliado. La estimación local considera el control, el seguimiento de daño, la protección y el aguante en las rondas de Arena. En **3×6**, «2/3 campeones» indica que falta un integrante. Cuando GGEZ.GG publica al menos 20 partidas del trío exacto en el parche vigente, la letra usa su puesto medio ajustado hacia 3.5 para moderar muestras pequeñas. El panel muestra la fuente, el parche, las partidas y el puesto medio observado. La lista de tríos publicada tiene cobertura parcial y la letra local cubre las combinaciones sin muestra suficiente. [Tríos de Arena en GGEZ.GG](https://ggez.gg/tierlist/arena/teams) · [Riot Games sobre Arena 3×6](https://www.leagueoflegends.com/en-gb/news/dev/dev-leveling-up-arena/)
 
 Cuando el cliente informa los campeones de tus compañeros, el panel sugiere opciones que complementan la composición. Las sugerencias usan los perfiles de campeón y el tier de Arena, y omiten los bloqueos y las elecciones rivales que el cliente confirma.
 
@@ -114,11 +114,15 @@ En Arena, `arena_nivel_aumento` conserva el nivel leído, `arena_fuente_mecanica
 
 ## Construir y actualizar
 
+Con la app abierta en la bandeja, el catálogo se actualiza al detectar un parche nuevo instalado. Fuera de partida, la app descarga y valida el catálogo en una carpeta temporal y guarda la versión válida en `%LOCALAPPDATA%\AumentosLoL\patch-catalogs`. Se reinicia automáticamente para cargarla. Si los datos esenciales aún no están disponibles, vuelve a intentar la descarga cada 30 minutos. El diagnóstico y `estado.log` muestran el avance. El overlay exige un catálogo que coincida con el parche del juego.
+
+La app precarga las estadísticas generales y las de hasta seis combinaciones recientes de modo y campeón a partir del día 2 desde que detecta el parche instalado. Si falta respaldo en alguna fuente, vuelve a revisar alrededor del día 7. Hace esas revisiones fuera de partida y reutiliza las copias por parche. La consulta en segundo plano por campeón sigue disponible cuando juegas uno nuevo. El diagnóstico guarda cuántas cartas de Caos tienen datos tanto en OP.GG como en AramHex y qué objetos de la build de Arena también son frecuentes en GGEZ.GG cuando el campeón y el parche coinciden. `--verificar-build Arena Elise` muestra ese cotejo si hay datos compatibles. **Consultar otras fuentes** en la bandeja abre U.GG, Mobalytics y Wasfun para revisión manual.
+
 Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El script descarga el modelo español si falta y publica en `dist/win-x64`.
 
 Para preparar una versión mientras se usa la anterior, puedes publicar en otra carpeta con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-wiki`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
 
-Para actualizar el catálogo, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar. El overlay se suspende si detecta que el parche del juego difiere del catálogo.
+Para actualizar el catálogo incluido en una compilación, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar.
 
 Después de actualizar el catálogo, ejecuta `powershell -File scripts/Get-AramHexCompatibility.ps1` para verificar las cartas de ARAM Caos cuyas mecánicas coinciden con el parche anterior de la misma temporada.
 
@@ -139,6 +143,7 @@ La suite verifica las fuentes, el historial, las builds, la selección de campe�
 - `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
 - `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
 - `--arena-champion-overlay-smoke` comprueba el Top 30 general, el tier de tu elección, el tier del equipo y las sugerencias de composición de Arena.
+- `--patch-update-smoke` verifica con datos públicos el catálogo que se descarga para el parche incluido y la lectura de tríos y objetos de GGEZ.GG. Genera las copias de prueba en una carpeta temporal.
 - `--mayhem-draft-shot "ruta\oferta.png" --mayhem-locked-shot "ruta\campeon-elegido.png"` comprueba la oferta de referencia de Kai'Sa, Jinx y Aurelion Sol y el cierre al elegir.
 - `--mayhem-pair-shot "ruta\oferta-doble.png"` comprueba la oferta de Camille y Bel'Veth con una carta ampliada.
 - `--arena-jax-upgrade-shot "ruta\fuegos.png"` comprueba el nivel 2 de **¡Enciéndelos!** en la carta central de la captura de referencia.

@@ -17,8 +17,10 @@ internal static class Program
     public static int Main(string[] args)
     {
         Native.SetProcessDpiAwarenessContext(-4);
-        var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
+        var bundled = Path.Combine(AppContext.BaseDirectory, "Assets");
         var settings = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AumentosLoL");
+        var patchCatalog = new PatchCatalog(bundled, settings, Path.Combine(AppContext.BaseDirectory, "PatchTools"));
+        var assets = patchCatalog.Select(LeaguePatch.Installed());
         using var http = OpGgRatings.CreateClient();
         if (args.FirstOrDefault() == "--verificar-build")
             return VerifyBuild(args, assets, settings, http);
@@ -28,7 +30,7 @@ internal static class Program
         {
             try
             {
-                var ratings = new Ratings(assets);
+                var ratings = LoadRatings(assets);
                 using var detection = new Detection(ratings, Path.Combine(assets, "tessdata"));
                 using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
                 if (args.Length is 3 or 4 && Enum.TryParse<Mode>(args[1], true, out var mode))
@@ -58,7 +60,8 @@ internal static class Program
                         {
                             var (source, mayhem, arena, global, hex) = CaptureSources(game, new OpGgRatings(ratings.Catalog, settings, http),
                                 new AramMayhemRatings(ratings.Catalog, settings, http), new GgezArenaRatings(ratings.Catalog, settings, http),
-                                new GgezArenaGlobalRatings(ratings.Catalog, settings, http), new AramHexRatings(ratings.Catalog, settings, http));
+                                new GgezArenaGlobalRatings(ratings.Catalog, settings, http),
+                                new AramHexRatings(ratings.Catalog, settings, http, AramHexRatings.ReadCompatibility(assets)));
                             comparisons = CardComparison.ForOffer(ratings, game, result.Cards, result.Items, source.Data,
                                 mayhem: mayhem?.Data, ggez: arena?.Data, upgradeLevels: result.UpgradeLevels,
                                 ggezGlobal: global?.Data, aramHex: hex?.Data);
@@ -128,17 +131,22 @@ internal static class Program
         }
         using var instance = new Mutex(true, @"Local\AumentosLoL", out var firstInstance);
         if (!firstInstance)
-            return 0;
+        {
+            if (!args.Contains("--reanudar-parche", StringComparer.Ordinal))
+                return 0;
+            try { if (!instance.WaitOne(TimeSpan.FromSeconds(15))) return 0; }
+            catch (AbandonedMutexException) { }
+        }
         try
         {
-            var ratings = new Ratings(assets);
+            var ratings = LoadRatings(assets);
             var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), Path.Combine(settings, "layouts.json"));
             var history = new CardHistory(settings, ratings);
             var opgg = new OpGgRatings(ratings.Catalog, settings, http);
             var aramMayhem = new AramMayhemRatings(ratings.Catalog, settings, http);
             var ggez = new GgezArenaRatings(ratings.Catalog, settings, http);
             var ggezGlobal = new GgezArenaGlobalRatings(ratings.Catalog, settings, http);
-            var aramHex = new AramHexRatings(ratings.Catalog, settings, http);
+            var aramHex = new AramHexRatings(ratings.Catalog, settings, http, AramHexRatings.ReadCompatibility(assets));
             var builds = new OpGgBuilds(ratings.Catalog, settings, http);
             if (args.FirstOrDefault() == "--registrar-capturas")
                 return ImportCaptures(args, assets, ratings, layouts, history, opgg, aramMayhem, ggez);
@@ -175,10 +183,13 @@ internal static class Program
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
+            var arenaTeams = new ArenaTeamSource(ratings.Catalog, settings, http);
             var mayhemChampionTiers = new MayhemChampionTiers(ratings.Catalog, settings, http);
+            var patchStatistics = new PatchStatistics(ratings.Catalog, settings, opgg, builds, ggez, ggezGlobal,
+                championTiers, arenaTeams, mayhemChampionTiers, aramMayhem, aramHex);
             var mayhemBench = new MayhemBenchPortraits(ratings.Catalog, settings, http);
             var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers, mayhemChampionTiers, mayhemBench,
-                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render);
+                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render, arenaTeams);
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, ggezGlobal, aramHex,
@@ -228,8 +239,18 @@ internal static class Program
                         ArenaWikiMechanics.Attribution));
             menu.Items.Add("Tier de campeones de Arena", null, (_, _) =>
                 OpenProviderPage(ArenaChampionTierSource.Address.AbsoluteUri, ArenaChampionTierSource.Attribution));
+            menu.Items.Add("Tríos de Arena en GGEZ.GG", null, (_, _) =>
+                OpenProviderPage(ArenaTeamSource.Address.AbsoluteUri, GgezArenaPage.Attribution));
             menu.Items.Add("Tier de campeones de ARAM Caos", null, (_, _) =>
                 OpenProviderPage(MayhemChampionTiers.Address.AbsoluteUri, "OP.GG"));
+            var references = new Forms.ToolStripMenuItem("Consultar otras fuentes");
+            references.DropDownItems.Add("U.GG · ARAM Caos", null, (_, _) =>
+                OpenProviderPage("https://u.gg/lol/aram-mayhem-tier-list", "U.GG"));
+            references.DropDownItems.Add("Mobalytics · Arena", null, (_, _) =>
+                OpenProviderPage("https://mobalytics.gg/lol/guides/arena-mode-guide", "Mobalytics"));
+            references.DropDownItems.Add("Wasfun · ARAM Caos", null, (_, _) =>
+                OpenProviderPage("https://wasfun.lol/es", "Wasfun"));
+            menu.Items.Add(references);
             var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
             cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
             menu.Items.Add(cardDetails);
@@ -255,13 +276,8 @@ internal static class Program
                 }
             };
             menu.Items.Add(pause);
-            menu.Items.Add("Salir", null, (_, _) =>
-            {
-                stop.Cancel();
-                closing = true;
-                tray.Visible = false;
-                app.Shutdown();
-            });
+            pause.Checked = args.Contains("--pausado", StringComparer.Ordinal);
+            menu.Items.Add("Salir", null, (_, _) => Close());
             tray.DoubleClick += (_, _) => OpenDiagnostics();
             app.Startup += (_, _) =>
             {
@@ -274,6 +290,15 @@ internal static class Program
                     OpenItemTierSize();
                 else if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
+                RunMaintenance(() => patchCatalog.Watch(ratings.Catalog.Patch, PostStatus, () =>
+                    app.Dispatcher.Invoke(() =>
+                    {
+                        if (stop.IsCancellationRequested)
+                            return;
+                        RestartForPatch(pause.Checked);
+                        Close();
+                    }), stop.Token));
+                RunMaintenance(() => patchStatistics.Watch(PostStatus, stop.Token));
                 _ = Task.Run(async () =>
                 {
                     try { await worker.Run(stop.Token).ConfigureAwait(false); }
@@ -309,6 +334,30 @@ internal static class Program
                 });
             };
             return app.Run();
+
+            void RunMaintenance(Func<Task> run)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try { await run().ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (stop.IsCancellationRequested || app.Dispatcher.HasShutdownStarted) { }
+                    catch (Exception error) { PostStatus($"Actualización pendiente · {error.Message}"); }
+                });
+            }
+
+            void PostStatus(string message)
+            {
+                if (!app.Dispatcher.HasShutdownStarted)
+                    _ = app.Dispatcher.InvokeAsync(() => { diagnostics.SetStatus(message); WriteStatus(message); });
+            }
+
+            void Close()
+            {
+                closing = true;
+                stop.Cancel();
+                tray.Visible = false;
+                app.Shutdown();
+            }
 
             void ToggleBuild()
             {
@@ -409,6 +458,23 @@ internal static class Program
             MessageBox.Show(error.Message, "Aumentos LoL", MessageBoxButton.OK, MessageBoxImage.Error);
             return 1;
         }
+        finally { instance.ReleaseMutex(); }
+    }
+
+    private static Ratings LoadRatings(string assets) => new(assets,
+        allowMissingRules: assets != Path.Combine(AppContext.BaseDirectory, "Assets"));
+
+    private static void RestartForPatch(bool paused)
+    {
+        var path = Environment.ProcessPath ?? throw new IOException("Falta la ruta de Aumentos LoL.");
+        var start = new ProcessStartInfo(path) { UseShellExecute = false, CreateNoWindow = true };
+        if (Path.GetFileName(path).Equals("dotnet.exe", StringComparison.OrdinalIgnoreCase))
+            start.ArgumentList.Add(typeof(Program).Assembly.Location);
+        start.ArgumentList.Add("--bandeja");
+        start.ArgumentList.Add("--reanudar-parche");
+        if (paused)
+            start.ArgumentList.Add("--pausado");
+        using var restarted = Process.Start(start) ?? throw new IOException("No se pudo activar el catálogo nuevo.");
     }
 
     private static int VerifyBuild(string[] args, string assets, string settings, System.Net.Http.HttpClient http)
@@ -417,7 +483,7 @@ internal static class Program
         {
             if (args.Length != 3 || !Enum.TryParse<Mode>(args[1], true, out var mode) || !Enum.IsDefined(mode))
                 throw new ArgumentException("Uso: --verificar-build Caos|Arena Campeón");
-            var ratings = new Ratings(assets);
+            var ratings = LoadRatings(assets);
             var champion = ratings.Catalog.Champions.FirstOrDefault(item =>
                 string.Equals(item.Key, args[2], StringComparison.OrdinalIgnoreCase)) ??
                 throw new ArgumentException($"Campeón desconocido: {args[2]}.");
@@ -432,6 +498,13 @@ internal static class Program
             foreach (var group in data.Groups)
                 Console.WriteLine($"{BuildPanel.SectionLabel(group.Section)} · " +
                     string.Join(" | ", group.Choices.Select(items => BuildPanel.ChoiceText(group.Section, items))));
+            if (mode == Mode.Arena)
+            {
+                var observed = new GgezArenaRatings(ratings.Catalog, settings, http)
+                    .ForCaptureAsync(new GameContext(mode, champion.Key), CancellationToken.None).GetAwaiter().GetResult();
+                Console.WriteLine(PatchStatistics.CompareBuild(data, observed?.Data) ??
+                    "Cotejo con GGEZ.GG pendiente de datos del mismo campeón y parche.");
+            }
             return 0;
         }
         catch (Exception error)
@@ -457,14 +530,15 @@ internal static class Program
             if (args.Length != 3 || !Enum.TryParse<Mode>(args[1], true, out var mode) || !Enum.IsDefined(mode))
                 throw new ArgumentException("Usa --verificar-tiers Arena|Caos ClaveDelCampeón.");
 
-            var ratings = new Ratings(assets);
+            var ratings = LoadRatings(assets);
             var catalog = ratings.Catalog;
             var champion = catalog.Champions.SingleOrDefault(item => item.Key.Equals(args[2], StringComparison.OrdinalIgnoreCase))
                 ?? throw new ArgumentException($"No se reconoce el campeón {args[2]}.");
             var game = new GameContext(mode, champion.Key);
             var (source, mayhem, arena, global, hex) = CaptureSources(game, new OpGgRatings(catalog, settings, http),
                 new AramMayhemRatings(catalog, settings, http), new GgezArenaRatings(catalog, settings, http),
-                new GgezArenaGlobalRatings(catalog, settings, http), new AramHexRatings(catalog, settings, http));
+                new GgezArenaGlobalRatings(catalog, settings, http),
+                new AramHexRatings(catalog, settings, http, AramHexRatings.ReadCompatibility(assets)));
             var cards = catalog.Augments.Where(card => card.Mode == mode.ToString()).Select(card =>
             {
                 var comparison = CardComparison.ForOffer(ratings, game, [card.Id], [false], source.Data,

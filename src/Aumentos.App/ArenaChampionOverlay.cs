@@ -173,8 +173,13 @@ internal sealed class ArenaChampionOverlay : Window
             hasSource ? "Sin tier publicado" : "Tier pendiente", selection.Rating?.Tier, compact));
 
         var composition = new StackPanel();
-        var detail = grade is null ? "Esperando un aliado" : $"Tier local · {grade.Members}/{grade.TeamSize}";
-        if (!compact && grade is not null)
+        var detail = grade switch
+        {
+            null => "Esperando un aliado",
+            { Observed: { } observed } => $"GGEZ.GG · {LeaguePatch.Public(observed.Patch)}",
+            _ => $"Tier local · {grade.Members}/{grade.TeamSize}"
+        };
+        if (!compact && grade is { Observed: null })
             detail += " campeones";
         composition.Children.Add(SummaryBadge(compact ? "Composición" : "Composición Arena", detail, grade?.Tier, compact));
         if (grade is not null)

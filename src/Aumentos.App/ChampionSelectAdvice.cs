@@ -18,7 +18,7 @@ internal sealed record SpellDisplay(Int32Rect Bounds, nint Target, string Champi
 internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgBuilds builds,
     ArenaChampionTierSource tiers, MayhemChampionTiers mayhemTiers, MayhemBenchPortraits mayhemBench,
     Dispatcher dispatcher, Action<SpellDisplay?> update,
-    Action<ArenaChampionDisplay?> updateArena, Action<MayhemChampionDisplay?> updateMayhem)
+    Action<ArenaChampionDisplay?> updateArena, Action<MayhemChampionDisplay?> updateMayhem, ArenaTeamSource? teams = null)
 {
     private int paused;
     internal bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
@@ -98,7 +98,8 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                         {
                             var source = tiers.Current(cancellation);
                             var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam);
-                            var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam);
+                            var observed = teams?.Find(session.ArenaChampion, session.ArenaTeam, cancellation);
+                            var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam, observed);
                             arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source,
                                 session.ArenaChampion, composition, grade);
                         }
