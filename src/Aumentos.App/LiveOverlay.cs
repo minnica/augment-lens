@@ -14,7 +14,8 @@ namespace Aumentos;
 
 internal record OverlayUpdate(string Status, Int32Rect? Bounds = null, Calibration? Layout = null,
     CardComparison?[]? Labels = null, nint Target = 0, PrismaticDisplay? Prismatics = null, Mode? Mode = null,
-    int? ArenaCardTop = null, bool ArenaUpgradeHeading = false, bool ArenaItemOffer = false);
+    int? ArenaCardTop = null, bool ArenaUpgradeHeading = false, bool ArenaItemOffer = false,
+    ArenaVoteDisplay? ArenaVote = null);
 
 internal sealed class LiveOverlay
 {
@@ -33,13 +34,14 @@ internal sealed class LiveOverlay
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
     private readonly Action<BuildDisplay?> updateBuild;
+    private readonly Func<ArenaVoteDraft?> voteDraft;
     private readonly BuildVisibility buildVisibility = new();
     private int paused;
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
         AramMayhemRatings aramMayhem, GgezArenaRatings ggez, GgezArenaGlobalRatings ggezGlobal, AramHexRatings aramHex,
         OpGgBuilds builds, string assets,
-        Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild)
+        Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild, Func<ArenaVoteDraft?> voteDraft)
     {
         this.ratings = ratings;
         this.layouts = layouts;
@@ -54,6 +56,7 @@ internal sealed class LiveOverlay
         this.dispatcher = dispatcher;
         this.update = update;
         this.updateBuild = updateBuild;
+        this.voteDraft = voteDraft;
     }
 
     public bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
@@ -63,6 +66,7 @@ internal sealed class LiveOverlay
     {
         using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+        var voteReader = new ArenaVoteReader(detector);
         var shopDetector = new ShopDetection();
         var mayhemItems = MayhemItemCatalog.Load(ratings.Catalog.Patch, assets);
         var mayhemBuilds = new MayhemBuilds(ratings, mayhemItems);
@@ -90,7 +94,7 @@ internal sealed class LiveOverlay
         bool? arenaUpgradeHeading = null;
         GameWindow? lastWindow = null;
         BuildDisplay? lastBuild = null;
-        bool cardsVisible = false;
+        bool offerVisible = false;
         PrismaticDisplay? prismaticDisplay = null;
         Int32Rect? shop = null;
         Int32Rect? knownShop = null;
@@ -186,13 +190,13 @@ internal sealed class LiveOverlay
                         : new OverlayUpdate("Esperando ARAM Caos o Arena…");
                     if (result is not null)
                     {
-                        cardsVisible = result.Labels is not null;
+                        offerVisible = result.Labels is not null || result.ArenaVote is not null;
                         prismaticDisplay = result.Prismatics;
                     }
                     if (activeMode is { } buildMode && window.Patch == ratings.Catalog.Patch &&
                         !Paused && Native.GetForegroundWindow() == window.Handle)
                     {
-                        bool showShopBuild = !cardsVisible && buildVisibility.ShouldShow(shop.HasValue);
+                        bool showShopBuild = !offerVisible && buildVisibility.ShouldShow(shop.HasValue);
                         if (game is { } currentGame && champion is not null)
                         {
                             var suggestion = builds.Current(currentGame, cancellation);
@@ -236,7 +240,9 @@ internal sealed class LiveOverlay
                     await dispatcher.InvokeAsync(() =>
                     {
                         if (result is not null)
-                            update(result);
+                            update(result.ArenaVote is { } vote && (Paused || Native.GetForegroundWindow() != vote.Target)
+                                ? result with { ArenaVote = null }
+                                : result);
                         if (lastBuild != build)
                             updateBuild(build);
                     }, DispatcherPriority.Normal, cancellation);
@@ -262,10 +268,11 @@ internal sealed class LiveOverlay
             previous = null;
             arenaUpgradeHeading = null;
             detector.Clear();
+            voteReader.Clear();
             lastFrame = 0;
             lastOffer = 0;
             nextCardScan = 0;
-            cardsVisible = false;
+            offerVisible = false;
             prismaticDisplay = null;
             shop = null;
         }
@@ -321,7 +328,17 @@ internal sealed class LiveOverlay
                 nextCardScan = lastFrame + CardScanInterval;
                 if (current is null || name is null)
                     return new OverlayUpdate($"{label} · No se reconoció tu campeón.");
-                if (!cardsVisible && wasOpen != shop.HasValue)
+
+                if (mode == Mode.Arena && !shop.HasValue && currentMatch is not null && voteReader.Read(frame) is { } offer)
+                {
+                    previous = null;
+                    arenaUpgradeHeading = null;
+                    history.ObserveClosed(window.Handle, lastFrame);
+                    var context = voteDraft()?.Apply(currentMatch, lastFrame) ?? currentMatch;
+                    var vote = ArenaVoteAdvice.Create(window.Bounds, window.Handle, offer, ratings, context);
+                    return new OverlayUpdate($"{label} · {name} · Votación de Invitados de Honor · Tier local", ArenaVote: vote);
+                }
+                if (!offerVisible && wasOpen != shop.HasValue)
                     return null;
 
                 var source = opgg.Current(current, cancellation);

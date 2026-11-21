@@ -152,7 +152,8 @@ internal static class ChampionSelectTests
             overlay.Render(global);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
-            var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            var frame = (Border)((Viewbox)overlay.Content).Child;
+            var panel = (StackPanel)frame.Child;
             Check(Native.IsWindowVisible(handle) &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
                 "el ranking lateral se muestra sin interceptar los clics");
@@ -216,7 +217,9 @@ internal static class ChampionSelectTests
                 Check(placement.X >= client.X + client.Width / 2 &&
                     placement.X + placement.Width <= client.X + client.Width &&
                     placement.Y >= client.Y && placement.Y + placement.Height <= client.Y + client.Height &&
+                    Math.Abs(placement.Width - placement.Height * frame.ActualWidth / frame.ActualHeight) < 2 &&
                     ranking.RowDefinitions.Count == 31 &&
+                    Math.Abs(ranking.ActualHeight - ranking.RowDefinitions.Sum(row => row.Height.Value)) < 1 &&
                     names.Length == 30 && names.All(cell => cell.FontSize >= (client.Width >= 1600 ? 17 : 15)) &&
                     names.Select(cell => Grid.GetRow(cell)).SequenceEqual(Enumerable.Range(1, 30)) &&
                     cells.Where(cell => Grid.GetColumn(cell) == 0)

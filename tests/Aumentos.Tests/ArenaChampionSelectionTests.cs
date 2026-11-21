@@ -46,6 +46,9 @@ internal static class ArenaChampionSelectionTests
         if (self != 902 || !allies.SequenceEqual([86, 61]) || unavailable.Length != 6 ||
             !unavailable.ToHashSet().SetEquals([1, 2, 11, 12, 99, 103]) || teamSize != 3)
             throw new InvalidOperationException("Falló el alcance de equipo o las exclusiones confirmadas en Arena.");
+        var final = ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement, confirmedOnly: true);
+        if (final.Champion != 902 || final.TeamSize != 3 || !final.Teammates.SequenceEqual([86]))
+            throw new InvalidOperationException("La composición fijada para la votación omite las intenciones de campeón.");
 
         using var hovering = JsonDocument.Parse("""
             {"localPlayerCellId":4,

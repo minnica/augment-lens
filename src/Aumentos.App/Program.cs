@@ -162,11 +162,11 @@ internal static class Program
                 }
             };
             var overlay = new Overlay();
-            var itemTierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"));
-            int itemTierSize = itemTierSizePreference.Load();
-            overlay.SetItemTierSize(itemTierSize);
-            BuildSizeWindow? itemTierSizeWindow = null;
-            overlay.ItemSizeRequested += OpenItemTierSize;
+            var tierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"));
+            int tierSize = tierSizePreference.Load();
+            overlay.SetTierSize(tierSize);
+            BuildSizeWindow? tierSizeWindow = null;
+            overlay.ItemSizeRequested += () => OpenTierSize(previewArenaItems: true);
             var itemIcons = new BuildItemIcons(http);
             var buildOverlay = new BuildOverlay(itemIcons);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
@@ -181,6 +181,7 @@ internal static class Program
             buildOverlay.PrismaticSizeRequested += OpenPrismaticSize;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
+            var arenaVoteOverlay = new ArenaVoteOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
             var mayhemTeamOverlay = new MayhemTeamOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
@@ -198,14 +199,15 @@ internal static class Program
                 builds, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
-                var info = $"{state.Status} · {(overlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
+                arenaVoteOverlay.Render(state.ArenaVote);
+                var info = $"{state.Status} · {(overlay.IsVisible || arenaVoteOverlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
                 if (info != previous)
                 {
                     diagnostics.SetStatus(state.Status);
                     previous = info;
                     WriteStatus(info);
                 }
-            }, buildOverlay.Render);
+            }, buildOverlay.Render, () => championSelect.VoteDraft);
             using var menu = new Forms.ContextMenuStrip();
             using var appIcon = Icon.ExtractAssociatedIcon(Path.Combine(AppContext.BaseDirectory, "AumentosLoL.exe"))
                 ?? (Icon)SystemIcons.Application.Clone();
@@ -256,7 +258,7 @@ internal static class Program
             var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
             cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
             menu.Items.Add(cardDetails);
-            menu.Items.Add("Tamaño de los tiers de objetos…", null, (_, _) => OpenItemTierSize());
+            menu.Items.Add($"{Overlay.TierSizeTitle}…", null, (_, _) => OpenTierSize());
             menu.Items.Add($"{BuildOverlay.PrismaticSizeTitle}…", null, (_, _) => OpenPrismaticSize());
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
@@ -272,6 +274,7 @@ internal static class Program
                 {
                     overlay.Hide();
                     buildOverlay.Render(null);
+                    arenaVoteOverlay.Render(null);
                     spellOverlay.Render(null);
                     arenaChampionOverlay.Render(null);
                     mayhemChampionOverlay.Render(null);
@@ -290,7 +293,7 @@ internal static class Program
                 if (shortcuts.Size)
                     resizeBuild.ShortcutKeyDisplayString = BuildOverlay.SizeShortcutLabel;
                 if (Array.IndexOf(args, "--ajustar-tiers-objetos") >= 0)
-                    OpenItemTierSize();
+                    OpenTierSize();
                 else if (Array.IndexOf(args, "--bandeja") < 0)
                     OpenDiagnostics();
                 RunMaintenance(() => patchCatalog.Watch(ratings.Catalog.Patch, PostStatus, () =>
@@ -313,6 +316,7 @@ internal static class Program
                             {
                                 overlay.Hide();
                                 buildOverlay.Render(null);
+                                arenaVoteOverlay.Render(null);
                                 var message = $"No se pudo iniciar el overlay · {error.Message}";
                                 diagnostics.SetStatus(message);
                                 WriteStatus(message);
@@ -391,24 +395,24 @@ internal static class Program
                 window.Activate();
             }
 
-            void OpenItemTierSize()
+            void OpenTierSize(bool previewArenaItems = false)
             {
-                if (itemTierSizeWindow is not null)
+                if (tierSizeWindow is not null)
                 {
-                    if (itemTierSizeWindow.WindowState == WindowState.Minimized)
-                        itemTierSizeWindow.WindowState = WindowState.Normal;
-                    itemTierSizeWindow.Activate();
+                    if (tierSizeWindow.WindowState == WindowState.Minimized)
+                        tierSizeWindow.WindowState = WindowState.Normal;
+                    tierSizeWindow.Activate();
                     return;
                 }
 
-                var window = new BuildSizeWindow(itemTierSize, overlay.CreateItemTierPreview(), percent =>
+                var window = new BuildSizeWindow(tierSize, overlay.CreateTierPreview(previewArenaItems), percent =>
                 {
-                    itemTierSize = percent;
-                    overlay.SetItemTierSize(percent);
-                    return itemTierSizePreference.Save(percent);
+                    tierSize = percent;
+                    overlay.SetTierSize(percent);
+                    return tierSizePreference.Save(percent);
                 });
-                itemTierSizeWindow = window;
-                window.Closed += (_, _) => itemTierSizeWindow = null;
+                tierSizeWindow = window;
+                window.Closed += (_, _) => tierSizeWindow = null;
                 window.Show();
                 window.Activate();
             }

@@ -16,16 +16,16 @@ internal sealed partial class BuildSizeWindow : Window
     }
 
     internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply)
-        : this(percent, preview, apply, "Tamaño de los tiers de objetos", itemTiers: true)
+        : this(percent, preview, apply, Overlay.TierSizeTitle, tierBadges: true)
     {
     }
 
-    internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, string heading, bool itemTiers = false)
+    internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, string heading, bool tierBadges = false)
     {
         InitializeComponent();
         Heading.Text = heading;
         Title = $"{heading} · Aumentos LoL";
-        if (itemTiers)
+        if (tierBadges)
         {
             ScaleLabel.Text = "Escala del distintivo";
             AutomationProperties.SetName(SizeSlider, "Escala del distintivo en porcentaje");

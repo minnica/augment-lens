@@ -44,6 +44,8 @@ internal static class Program
         MayhemAugmentAdviceTests.Run(ratings, assets, Option("--mayhem-tie-shot"));
         MayhemCompositionTests.Run(ratings);
         ArenaLiveMatchTests.Run();
+        ArenaVoteDraftTests.Run();
+        ArenaGuestAdviceTests.Run(ratings);
         ArenaBuildTests.Run(ratings);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
         ChampionSelectTests.Run();
@@ -175,6 +177,26 @@ internal static class Program
         }
         if (args.Contains("--capture-smoke") || args.Contains("--arena-champion-overlay-smoke"))
             ChampionSelectTests.ArenaSmoke(ratings.Catalog);
+        if (args.Contains("--capture-smoke") || args.Contains("--arena-vote-overlay-smoke"))
+            ArenaVoteOverlayTests.Run();
+        if (Option("--arena-vote-round-eight-shot") is { } roundEightShot)
+            ArenaVoteReaderTests.Verify(ratings, assets, roundEightShot, expectedRound: 8);
+        if (Option("--arena-vote-shot") is { } voteShot)
+        {
+            var voteOffer = ArenaVoteReaderTests.Verify(ratings, assets, voteShot);
+            var match = new LiveMatch(new(Mode.Arena, "Ahri"), Arena: new([], [],
+                Allies: [new("Jax", []), new("Ornn", [])]), GameTime: 147);
+            var image = Diagnostics.OpenBitmap(voteShot);
+            var view = ArenaVoteAdvice.Create(new(0, 0, image.PixelWidth, image.PixelHeight), 0, voteOffer, ratings, match);
+            Check(view.Labels.Length == 3 && view.Labels.Select(label => label.Row)
+                .SequenceEqual(voteOffer.Options.Select(option => option.Bounds)) &&
+                view.Labels.All(label => label.Tier is not null && label.Reason.Length > 0) &&
+                view.Labels.Count(label => label.Recommended) <= 1,
+                "las opciones leídas en la captura reciben su valoración de equipo en la fila correspondiente");
+            var lowHealth = ArenaVoteAdvice.Create(view.Bounds, 0, voteOffer with { TeamHealth = 36 }, ratings, match);
+            Check(view.Labels[1].Tier != "S" && lowHealth.Labels[1].Tier == "S",
+                "la vida del equipo que entrega el lector se usa en la valoración de Evelynn");
+        }
         if (Option("--arena-build-snapshot") is { } arenaSnapshot)
         {
             using var data = JsonDocument.Parse(File.ReadAllText(arenaSnapshot));
@@ -1108,7 +1130,7 @@ internal static class Program
                 overlay.ShowDetails = details;
                 overlay.Render(prismatics);
                 Check(firstBadge.Background == goldSurface && firstBadge.BorderBrush == goldOutline &&
-                    firstBadge.BorderThickness == new Thickness(2) && VisibleLines(first).Contains("S+") &&
+                    firstBadge.BorderThickness == new Thickness(2, 3, 2, 2) && VisibleLines(first).Contains("S+") &&
                     !VisibleLines(first).Contains("Recomendado") &&
                     overlay.Windows.Skip(1).All(window => Frame(window).Background == regularSurface &&
                         Frame(window).BorderBrush != goldOutline),
@@ -1116,8 +1138,8 @@ internal static class Program
             }
             overlay.ShowDetails = false;
             overlay.Render(prismatics with { Labels = [CardComparison.Unread] });
-            Check(firstBadge.Background == regularSurface && firstBadge.BorderBrush != goldOutline &&
-                firstBadge.BorderThickness == new Thickness(1), "el dorado se retira al releer una carta");
+            Check(firstBadge.Background == regularSurface && firstBadge.BorderBrush == OverlayPanelStyle.Frame,
+                "el marco habitual se restaura al releer una carta");
             overlay.Render(new OverlayUpdate("Arena variable", bounds, layout,
                 [new("Variable", IsArenaAugment: true, LocalReason: "Copia un aumento rival cada ronda")]));
             Check(VisibleLines(first).SequenceEqual(["Afinidad variable", "Copia un aumento rival cada ronda"]),
@@ -1191,8 +1213,16 @@ internal static class Program
                 {
                     overlay.ShowDetails = details;
                     overlay.Render(new OverlayUpdate("ARAM Caos", viewport, fit, cards, Mode: Mode.Caos));
+                    Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                     var placements = overlay.Windows.Take(fit.Titles.Length).Select(window =>
                         (Window: window, Bounds: Native.Bounds(new WindowInteropHelper(window).Handle))).ToArray();
+                    var firstFrame = placements[0].Bounds;
+                    Check(placements.All(placement => placement.Bounds.Y == firstFrame.Y &&
+                        placement.Bounds.Width == firstFrame.Width && placement.Bounds.Height == firstFrame.Height),
+                        "los tiers de una oferta de ARAM Caos tienen el mismo tamaño y altura con o sin líneas adicionales");
+                    var visibleFrames = placements.Select(placement => Frame(placement.Window).RenderSize).ToArray();
+                    Check(visibleFrames.All(frame => frame == visibleFrames[0]),
+                        "los marcos visibles llenan el mismo espacio, además de compartir las dimensiones de ventana");
                     Check(placements.Select((placement, index) =>
                         {
                             var title = fit.Titles[index].Pixels(width, height);

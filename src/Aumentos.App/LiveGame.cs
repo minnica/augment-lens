@@ -24,7 +24,7 @@ internal sealed record MayhemMatch(int[] Items, MayhemOpponent[] Opponents, Mayh
     MayhemCombatStats? CombatStats = null, MayhemScore? Score = null, MayhemAlly[]? Allies = null);
 internal sealed record ArenaParticipant(string Champion, int[] Items);
 internal sealed record ArenaMatch(int[] Items, ArenaParticipant[] Opponents, bool InventoryKnown = true,
-    ArenaParticipant[]? LobbyOpponents = null, ArenaParticipant[]? Allies = null);
+    ArenaParticipant[]? LobbyOpponents = null, ArenaParticipant[]? Allies = null, ArenaParticipant[]? Participants = null);
 internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
     double? GameTime = null)
@@ -254,7 +254,7 @@ internal sealed class LiveGame : IDisposable
         return CreateMatch(opponents, lobbyOpponents, allies);
 
         LiveMatch CreateMatch(ArenaParticipant[] rivals, ArenaParticipant[] lobbyRivals, ArenaParticipant[]? allies = null) => new(context,
-            Arena: new(items ?? [], rivals, items is not null, lobbyRivals, allies),
+            Arena: new(items ?? [], rivals, items is not null, lobbyRivals, allies, participants.OfType<ArenaParticipant>().ToArray()),
             GameTime: ReadGameTime(game));
 
         int TeamOf(int index)

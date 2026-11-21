@@ -16,15 +16,13 @@ internal sealed class BuildPanel : Border
     internal const double CompactWidth = 282;
     internal const double PrismaticWidth = 320;
 
-    internal static Brush WindowSurface { get; } = VerticalGradient("#FC102A35", "#FC081923");
-    internal static Brush WindowFrame { get; } = VerticalGradient("#BDA477", "#8A6A43");
-    private static readonly Brush Muted = Overlay.Paint("#B1C1D8");
+    private static readonly Brush Muted = OverlayPanelStyle.Muted;
     private static readonly Brush Accent = Overlay.Paint("#AAD1FF");
     private static readonly Brush PreviousPatch = Overlay.Paint("#FFD76D");
-    private static readonly Brush PurchaseAccent = Overlay.Paint("#F6D28C");
+    private static readonly Brush PurchaseAccent = OverlayPanelStyle.Gold;
     private static readonly Brush PurchaseSurface = Overlay.Paint("#192E30");
     private static readonly Brush PurchaseBorder = Overlay.Paint("#927951");
-    private static readonly Brush Divider = Overlay.Paint("#3C514D");
+    private static readonly Brush Divider = OverlayPanelStyle.Divider;
     private static readonly Brush ItemSurface = Overlay.Paint("#172E39");
     private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
     private static readonly Brush MagicDamage = Overlay.Paint("#B9A7FA");
@@ -39,18 +37,10 @@ internal sealed class BuildPanel : Border
         Width = ShopWidth;
         Padding = new Thickness(16, 12, 16, 14);
         CornerRadius = new CornerRadius(5);
-        BorderBrush = WindowFrame;
+        BorderBrush = OverlayPanelStyle.Frame;
         BorderThickness = new Thickness(3, 4, 3, 3);
-        Background = WindowSurface;
+        Background = OverlayPanelStyle.Surface;
         Child = content;
-    }
-
-    private static Brush VerticalGradient(string top, string bottom)
-    {
-        var brush = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(top),
-            (Color)ColorConverter.ConvertFromString(bottom), 90);
-        brush.Freeze();
-        return brush;
     }
 
     internal void RenderPreview(string patch)

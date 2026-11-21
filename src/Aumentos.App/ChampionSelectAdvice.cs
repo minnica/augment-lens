@@ -23,7 +23,9 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
     Action<MayhemTeamDisplay?> updateMayhemTeam, ArenaTeamSource? teams = null)
 {
     private int paused;
+    private ArenaVoteDraft? voteDraft;
     internal bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
+    internal ArenaVoteDraft? VoteDraft => Volatile.Read(ref voteDraft);
 
     internal async Task Run(CancellationToken cancellation)
     {
@@ -75,6 +77,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                     {
                         if (session.Mode == Mode.Caos)
                         {
+                            Volatile.Write(ref voteDraft, null);
                             scanning = true;
                             if (scanWindow != window)
                             {
@@ -113,6 +116,10 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                         }
                         else if (session.Mode == Mode.Arena)
                         {
+                            if (session.ArenaTeam is { } team)
+                                Volatile.Write(ref voteDraft, session.ArenaPicksClosed && session.ArenaChampion is { } key &&
+                                    team.Size is 2 or 3 && team.Teammates.Length == team.Size - 1
+                                    ? new ArenaVoteDraft(key, team, Environment.TickCount64) : null);
                             var source = tiers.Current(cancellation);
                             var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam);
                             var observed = teams?.Find(session.ArenaChampion, session.ArenaTeam, cancellation);

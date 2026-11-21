@@ -28,10 +28,11 @@ internal sealed class SpellOverlay : Window
         IsHitTestVisible = false;
         panel = new Border
         {
-            Width = 290, Padding = new Thickness(13, 9, 13, 10), CornerRadius = new CornerRadius(7),
-            Background = Overlay.Paint("#F2172436"), BorderBrush = Overlay.Paint("#667C9F"), BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 8, 10, 9), CornerRadius = new CornerRadius(3),
+            Background = OverlayPanelStyle.Surface, BorderBrush = OverlayPanelStyle.Frame, BorderThickness = new Thickness(2, 3, 2, 2),
             Child = rows
         };
+        TextOptions.SetTextFormattingMode(panel, TextFormattingMode.Display);
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
         SourceInitialized += (_, _) =>
         {
@@ -57,10 +58,12 @@ internal sealed class SpellOverlay : Window
         var bounds = view.Bounds;
         var dpi = Math.Max(96u, Native.GetDpiForWindow(view.Target)) / 96.0;
         var margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
+        int availableWidth = MayhemSidePanel.AvailableWidth(bounds.Width, margin);
+        panel.Width = MayhemSidePanel.PreferredWidth(availableWidth / dpi);
         panel.Measure(new Size(panel.Width, double.PositiveInfinity));
         var canvas = panel.DesiredSize;
-        var scale = Math.Min(dpi, Math.Min((bounds.Width - 2 * margin) / canvas.Width, (bounds.Height - 2 * margin) / canvas.Height));
-        int width = Math.Clamp((int)Math.Ceiling(canvas.Width * scale), 1, bounds.Width - 2 * margin);
+        var scale = Math.Min(dpi, Math.Min(availableWidth / canvas.Width, (bounds.Height - 2 * margin) / canvas.Height));
+        int width = Math.Clamp((int)Math.Floor(canvas.Width * scale), 1, availableWidth);
         int height = Math.Clamp((int)Math.Ceiling(canvas.Height * scale), 1, bounds.Height - 2 * margin);
         int top = Math.Clamp((int)(bounds.Height * 0.75), margin, bounds.Height - margin - height);
         var position = new Int32Rect(bounds.X + bounds.Width - margin - width, bounds.Y + top, width, height);
@@ -79,41 +82,42 @@ internal sealed class SpellOverlay : Window
         if (view.Tier is { } tier && view.TierCaption is { } caption)
         {
             var header = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var badge = MayhemTierBadge.Create(tier, view.Champion, 36, 34, 22);
+            var badge = MayhemTierBadge.Create(tier, view.Champion, 32, 32, 22);
             badge.Margin = new Thickness(0, 0, 9, 0);
             DockPanel.SetDock(badge, Dock.Left);
             header.Children.Add(badge);
             var champion = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            champion.Children.Add(Line(view.Champion, 15, Brushes.WhiteSmoke, bold: true));
-            champion.Children.Add(Line(caption, 10.5, Overlay.Paint("#B8CAE2")));
+            champion.Children.Add(Line(view.Champion, 15, OverlayPanelStyle.Ink, bold: true));
+            champion.Children.Add(Line(caption, 11, OverlayPanelStyle.Muted));
             header.Children.Add(champion);
             rows.Children.Add(header);
-            AddLine("Hechizos", 11, Overlay.Paint("#B8CAE2"), bold: true);
+            rows.Children.Add(new Border { Height = 1, Background = OverlayPanelStyle.Divider });
+            AddHeading("Hechizos");
         }
         else
-            AddLine($"{view.Champion} · Hechizos de OP.GG", 15, Brushes.WhiteSmoke, bold: true);
+            AddHeading($"{view.Champion} · Hechizos de OP.GG");
         if (view.Source.Data is not { } data)
         {
-            AddLine(view.Source.Status, 12, Brushes.WhiteSmoke);
+            AddLine(view.Source.Status, 12, OverlayPanelStyle.Ink);
             return;
         }
         if (data.Spells is null)
-            AddLine("Hechizos sin datos guardados", 12, Brushes.WhiteSmoke);
+            AddLine("Hechizos sin datos guardados", 12, OverlayPanelStyle.Ink);
         else if (data.Spells is not { Length: > 0 } pairs)
-            AddLine("Sin combinación publicada", 12, Brushes.WhiteSmoke);
+            AddLine("Sin combinación publicada", 12, OverlayPanelStyle.Ink);
         else
         {
             var main = pairs[0];
-            AddLine($"{main.First} + {main.Second}", 16, Overlay.Paint("#AAD1FF"), bold: true);
+            AddLine($"{main.First} + {main.Second}", 16, OverlayPanelStyle.Ink, bold: true);
             if (Matches(main, view.Selection))
-                AddLine("Ya tienes estos hechizos", 11, Overlay.Paint("#86EAC5"));
+                AddLine("Ya tienes estos hechizos", 11, OverlayPanelStyle.Tier("A"));
             if (pairs.Length > 1)
-                AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, Brushes.WhiteSmoke);
+                AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, OverlayPanelStyle.Muted);
         }
         var patch = $"{(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";
         if (view.TierCaption != $"OP.GG · {patch}")
             AddLine(view.Tier is null ? patch : $"Hechizos · {patch}", 11,
-                data.IsPrevious ? Overlay.Paint("#FFD76D") : Overlay.Paint("#B8CAE2"));
+                data.IsPrevious ? OverlayPanelStyle.Gold : OverlayPanelStyle.Muted);
     }
 
     internal static bool Matches(OpGgSpellPair pair, ChampionSelection selection)
@@ -128,6 +132,14 @@ internal sealed class SpellOverlay : Window
 
     private void AddLine(string text, double fontSize, Brush color, bool bold = false) =>
         rows.Children.Add(Line(text, fontSize, color, bold));
+
+    private void AddHeading(string text)
+    {
+        var heading = Line(text, 15, OverlayPanelStyle.Gold, bold: true);
+        heading.FontFamily = OverlayPanelStyle.Heading;
+        heading.Margin = new Thickness(0, 4, 0, 0);
+        rows.Children.Add(heading);
+    }
 
     private static TextBlock Line(string text, double fontSize, Brush color, bool bold = false) => new()
     {

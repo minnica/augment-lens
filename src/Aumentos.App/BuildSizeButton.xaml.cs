@@ -20,8 +20,8 @@ internal sealed partial class BuildSizeButton : Window
             Title = title;
             AutomationProperties.SetName(OpenButton, title);
         }
-        OpenButton.Background = BuildPanel.WindowSurface;
-        OpenButton.BorderBrush = BuildPanel.WindowFrame;
+        OpenButton.Background = OverlayPanelStyle.Surface;
+        OpenButton.BorderBrush = OverlayPanelStyle.Frame;
         OpenButton.Click += (_, _) => open();
         SourceInitialized += (_, _) =>
         {

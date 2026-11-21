@@ -19,7 +19,8 @@ internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, 
 internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown,
     bool PicksOpen = true);
 internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
-    string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null);
+    string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null,
+    bool ArenaPicksClosed = false);
 
 internal sealed class ChampionSelectClient : IDisposable
 {
@@ -45,28 +46,30 @@ internal sealed class ChampionSelectClient : IDisposable
             return null;
         if (mode == Mode.Arena)
         {
-            var (champion, team) = await ReadArenaDraft(connection, cancellation).ConfigureAwait(false);
-            return new ChampionSelectSession(mode, ArenaChampion: champion, ArenaTeam: team);
+            var (champion, team, picksClosed) = await ReadArenaDraft(connection, cancellation).ConfigureAwait(false);
+            return new ChampionSelectSession(mode, ArenaChampion: champion, ArenaTeam: team, ArenaPicksClosed: picksClosed);
         }
 
         return await ReadMayhemDraft(connection, cancellation).ConfigureAwait(false);
     }
 
-    private async Task<(string? Champion, ArenaDraftTeam? Team)> ReadArenaDraft(HttpClient connection, CancellationToken cancellation)
+    private async Task<(string? Champion, ArenaDraftTeam? Team, bool PicksClosed)> ReadArenaDraft(HttpClient connection,
+        CancellationToken cancellation)
     {
         try
         {
             using var selection = await Get(connection, SelectionEndpoint, cancellation).ConfigureAwait(false);
             if (selection is null)
                 return default;
-            var (champion, teammates, unavailable, teamSize) = ArenaDraftIds(selection.RootElement);
+            bool picksClosed = ArenaPicksClosed(selection.RootElement);
+            var (champion, teammates, unavailable, teamSize) = ArenaDraftIds(selection.RootElement, confirmedOnly: picksClosed);
             if (champion is null && teammates.Length == 0 && unavailable.Length == 0)
                 return default;
             if (await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
                 return default;
 
             return (champion is { } id ? names.GetValueOrDefault(id) : null,
-                new ArenaDraftTeam(Keys(teammates), Keys(unavailable), teamSize));
+                new ArenaDraftTeam(Keys(teammates), Keys(unavailable), teamSize), picksClosed);
 
             string[] Keys(int[] ids) => ids.Select(id => names.GetValueOrDefault(id)).OfType<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -168,7 +171,13 @@ internal sealed class ChampionSelectClient : IDisposable
         return (teammates, candidates, unavailable, benchKnown, picksOpen);
     }
 
-    internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize) ArenaDraftIds(JsonElement root)
+    private static bool ArenaPicksClosed(JsonElement root) =>
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty("timer", out var timer) &&
+        timer.ValueKind == JsonValueKind.Object &&
+        (TextIs(timer, "phase", "FINALIZATION") || TextIs(timer, "phase", "GAME_STARTING"));
+
+    internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize) ArenaDraftIds(JsonElement root,
+        bool confirmedOnly = false)
     {
         if (root.ValueKind != JsonValueKind.Object)
             return (null, [], [], 0);
@@ -181,7 +190,7 @@ internal sealed class ChampionSelectClient : IDisposable
         var inProgressPicks = new Dictionary<int, int>();
         foreach (var action in actions)
         {
-            if (TextIs(action, "type", "pick") && FlagIs(action, "isInProgress", JsonValueKind.True) &&
+            if (!confirmedOnly && TextIs(action, "type", "pick") && FlagIs(action, "isInProgress", JsonValueKind.True) &&
                 FlagIs(action, "completed", JsonValueKind.False) && Number(action, "actorCellId") is >= 0 and var cell)
                 inProgressPicks[cell] = Number(action, "championId");
         }
@@ -198,7 +207,7 @@ internal sealed class ChampionSelectClient : IDisposable
             else if (own is not null)
             {
                 teamSize++;
-                if (ArenaPick(ally, inProgressPicks) is { } teammate)
+                if (Pick(ally) is { } teammate)
                     teammates.Add(teammate);
             }
         }
@@ -213,7 +222,11 @@ internal sealed class ChampionSelectClient : IDisposable
                 (TextIs(action, "type", "pick") && enemyCells.Contains(Number(action, "actorCellId")))))
                 unavailable.Add(Number(action, "championId"));
         }
-        return (own is { } local ? ArenaPick(local, inProgressPicks) : null, [.. teammates], [.. unavailable], teamSize);
+        return (own is { } local ? Pick(local) : null, [.. teammates], [.. unavailable], teamSize);
+
+        int? Pick(JsonElement member) => confirmedOnly
+            ? Number(member, "championId") is > 0 and var id ? id : null
+            : ArenaPick(member, inProgressPicks);
 
         void AddEnemy(JsonElement enemy)
         {

@@ -8,6 +8,7 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
 | Hechizos de OP.GG | En la selección de campeón | — |
 | Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
+| Invitados de Honor | — | Tier local junto a las opciones de votación |
 
 ## Iniciar en Windows
 
@@ -56,7 +57,7 @@ Las ofertas de dos cartas de **Sube de nivel un aumento** también muestran su v
 
 Al elegir un **fragmento del Yunque de estadísticas** en **ARAM Caos o Arena**, el overlay muestra el tier local. El motivo según tu campeón está en **Detalles de las cartas**. En **Arena**, también valora los objetos legendarios y prismáticos. Durante una oferta prismática, un panel lateral muestra los **cinco objetos prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
 
-Para ajustar el tamaño de los tiers de objetos legendarios y prismáticos, pulsa **Tamaño…** junto a las cartas o elige **Tamaño de los tiers de objetos…** en la bandeja. El control va de **75 % a 150 %**. La ventana muestra una vista previa y guarda el ajuste automáticamente.
+Para ajustar el tamaño de las insignias de **ARAM Caos** y **Arena**, elige **Tamaño de los tiers de cartas…** en la bandeja. En las ofertas de objetos legendarios y prismáticos también puedes abrirlo con **Tamaño…** junto a las cartas. El control va de **75 % a 150 %**, muestra una vista previa y guarda el ajuste automáticamente. Al volver a League, las insignias se ajustan al espacio disponible.
 
 Para ajustar el panel **Top 5 prismáticos**, pulsa **Tamaño…** encima del panel o elige **Tamaño del panel de prismáticos…** en la bandeja. El panel guarda su propia escala y se ajusta al espacio disponible junto a las cartas.
 
@@ -67,6 +68,12 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 **AramHex** aporta una letra de respaldo para el campeón a partir de partidas de **China** con reglas normales, con al menos **300 partidas** para la combinación. Los detalles identifican el origen, el parche y la muestra. Cuando se usa el parche anterior, solo entran cartas con mecánicas verificadas entre ambos parches y la letra publicada de OP.GG o la estimación local conserva prioridad. La app guarda las letras y el tamaño de la muestra. [AramHex · CC BY-NC 4.0](https://github.com/czgreat/aramhex-data)
 
 Para auditar la cobertura desde PowerShell sin entrar a una partida, ejecuta `.\dist\win-x64-auto\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
+
+## Votar por Invitados de Honor en Arena
+
+Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Al lado de cada opción muestra un tier local de **S a C** y el motivo principal. Si una opción tiene una ventaja clara sobre las otras dos, lleva la marca **Recomendado**. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
+
+Cada invitado cambia las reglas de todo el lobby. La letra estima cuánto favorece al equipo según tu campeón, los aliados confirmados, las compras y los rivales detectados. También considera la ronda y la vida del equipo cuando puede leerlas en el marcador. Antes de que la partida confirme a los aliados por sus combates, la app puede usar la composición fijada en la selección si la reconoce en la lista de jugadores. Por ejemplo, **Negociación Oscura** de Tahm Kench puede perder valor en composiciones que dependen de la vida máxima. Las reglas se contrastaron con los datos del cliente de **26.23**. [Textos del cliente 16.23](https://raw.communitydragon.org/16.23/game/es_mx/data/menu/en_us/lol.stringtable.json)
 
 ## Builds de OP.GG en partida
 
@@ -153,6 +160,8 @@ La suite verifica las fuentes, el historial, las builds, la selección de campe�
 - `--shop-shot "ruta\tienda.png" --shop-closed-shot "ruta\partida.png"` comprueba la detección con la tienda abierta y cerrada.
 - `--capture-smoke` verifica la captura de Windows y los paneles de aumentos, builds con iconos y hechizos.
 - `--arena-champion-overlay-smoke` comprueba el Top 30 general, el tier de tu elección, el tier del equipo y las sugerencias de composición de Arena.
+- `--arena-vote-overlay-smoke --arena-vote-shot "ruta\votacion.png"` comprueba la posición de las insignias y reproduce la votación de referencia de Yone, Evelynn y Tahm Kench.
+- `--arena-vote-round-eight-shot "ruta\votacion-ronda-8.png"` reproduce la votación de Garen, Jarvan IV y Annie y verifica la lectura de la ronda y la vida del equipo.
 - `--patch-update-smoke` verifica con datos públicos el catálogo que se descarga para el parche incluido y la lectura de tríos y objetos de GGEZ.GG. Genera las copias de prueba en una carpeta temporal.
 - `--mayhem-draft-shot "ruta\oferta.png" --mayhem-locked-shot "ruta\campeon-elegido.png"` comprueba la oferta de referencia de Kai'Sa, Jinx y Aurelion Sol y el cierre al elegir.
 - `--mayhem-pair-shot "ruta\oferta-doble.png"` comprueba la oferta de Camille y Bel'Veth con una carta ampliada.

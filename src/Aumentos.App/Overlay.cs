@@ -11,7 +11,9 @@ namespace Aumentos;
 
 internal sealed class Overlay
 {
+    internal const string TierSizeTitle = "Tamaño de los tiers de cartas";
     private const int SummaryWidth = 160;
+    private const int MayhemSummaryWidth = 132;
     private const int ArenaEvidenceWidth = 200;
     private const int DetailWidth = 260;
     private const double MayhemTitleToCardEdge = 0.213;
@@ -26,10 +28,10 @@ internal sealed class Overlay
     private const double ArenaUpgradeHeadingBottom = 0.146;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     private BuildSizeButton? itemSizeButton;
-    private OverlayUpdate? displayedItems;
+    private OverlayUpdate? displayedCards;
     private (nint Target, Calibration Layout, bool UpgradeHeading, bool ItemOffer)? arenaPlacement;
     private int? arenaCardEdge;
-    private int itemSizePercent = BuildSizePreference.Default;
+    private int tierSizePercent = BuildSizePreference.Default;
 
     internal bool ShowDetails { private get; set; }
     internal event Action? ItemSizeRequested;
@@ -38,7 +40,7 @@ internal sealed class Overlay
 
     internal void Hide()
     {
-        displayedItems = null;
+        displayedCards = null;
         arenaPlacement = null;
         arenaCardEdge = null;
         itemSizeButton?.Hide();
@@ -53,25 +55,31 @@ internal sealed class Overlay
             badge.Close();
     }
 
-    internal void SetItemTierSize(int percent)
+    internal void SetTierSize(int percent)
     {
         int updated = Math.Clamp(percent, BuildSizePreference.Minimum, BuildSizePreference.Maximum);
-        if (updated == itemSizePercent)
+        if (updated == tierSizePercent)
             return;
-        itemSizePercent = updated;
-        if (displayedItems is { } view && IsVisible &&
+        tierSizePercent = updated;
+        if (displayedCards is { } view && IsVisible &&
             (view.Target == 0 || Native.GetForegroundWindow() == view.Target))
             Render(view);
     }
 
-    internal FrameworkElement CreateItemTierPreview()
+    internal FrameworkElement CreateTierPreview(bool arenaItems = false)
     {
         var badge = new BadgePanel();
-        var example = new CardComparison("A", ArenaChoice: new("Reverberación", Tier.A,
-            "Inmovilizar activa impactos", Recommended: true, TopPosition: 4));
-        badge.Render(example, ShowDetails ? DetailWidth : SummaryWidth, ShowDetails, !ShowDetails);
-        // Keep the baseline transform separate from the slider's layout transform.
-        badge.LayoutTransform = new ScaleTransform(ArenaItemDefaultScale, ArenaItemDefaultScale);
+        var example = arenaItems
+            ? new CardComparison("A", ArenaChoice: new("Reverberación", Tier.A,
+                "Inmovilizar activa impactos", Recommended: true, TopPosition: 4))
+            : new CardComparison("A", new OpGgCard("A"));
+        int width = ShowDetails ? DetailWidth : arenaItems ? SummaryWidth : MayhemSummaryWidth;
+        badge.Render(example, width, ShowDetails, arenaItems && !ShowDetails);
+        if (arenaItems)
+        {
+            // Keep the item baseline separate from the slider's layout transform.
+            badge.LayoutTransform = new ScaleTransform(ArenaItemDefaultScale, ArenaItemDefaultScale);
+        }
         return new Border { Child = badge, IsHitTestVisible = false, Focusable = false };
     }
 
@@ -87,14 +95,15 @@ internal sealed class Overlay
         uint targetDpi = update.Target != 0 ? Native.GetDpiForWindow(update.Target) : 0;
         double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(badges[0]).DpiScaleX;
         var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
-        int maximumWidth = ShowDetails ? DetailWidth : SummaryWidth;
+        bool mayhem = update.Mode == Mode.Caos;
+        int maximumWidth = ShowDetails ? DetailWidth : mayhem ? MayhemSummaryWidth : SummaryWidth;
         int widthLimit = Math.Clamp(titles.Min(title => title.Width), 1, bounds.Width);
         int width = Math.Min(widthLimit, Math.Max(1, (int)(maximumWidth * dpi)));
         int margin = (int)Math.Ceiling(6 * dpi);
         bool arenaCards = update.Mode == Mode.Arena;
         bool arenaItems = arenaCards && update.ArenaItemOffer;
-        displayedItems = arenaItems ? update : null;
-        double itemScale = arenaItems ? Math.Min(ArenaItemDefaultScale * itemSizePercent / 100.0, (double)widthLimit / width) : 1;
+        displayedCards = update;
+        double requestedScale = (arenaItems ? ArenaItemDefaultScale : 1) * tierSizePercent / 100.0;
         var (titleToEdge, frameOverlap) = update.Mode switch
         {
             Mode.Caos => (MayhemTitleToCardEdge, StandardFrameOverlap),
@@ -126,6 +135,16 @@ internal sealed class Overlay
         }
         int maxOverlap = (int)(bounds.Height * frameOverlap);
 
+        int mayhemHeight = 0;
+        if (mayhem)
+        {
+            // Reserve the same space for every frame before placing the badges on the cards.
+            int visibleSlots = Math.Min(badges.Length, Math.Min(labels.Length, titles.Length));
+            for (int index = 0; index < visibleSlots; index++)
+                if (labels[index] is { } label)
+                    mayhemHeight = Math.Max(mayhemHeight, badges[index].Prepare(label, width, dpi, ShowDetails, compactArena: false));
+        }
+
         for (int index = 0; index < badges.Length; index++)
         {
             var badge = badges[index];
@@ -156,13 +175,15 @@ internal sealed class Overlay
 
             int preferredWidth = label.IsArenaVariable ? DetailWidth : label.DisplayedArenaPlacement is not null
                 ? ArenaEvidenceWidth : SummaryWidth;
-            int badgeWidth = ShowDetails ? width : Math.Min(widthLimit, Math.Max(1, (int)(preferredWidth * dpi)));
-            int desiredHeight = badge.Prepare(label, badgeWidth, dpi, ShowDetails, arenaCards && !ShowDetails);
-            int height = Math.Min((int)Math.Ceiling(desiredHeight * itemScale), heightLimit);
+            int badgeWidth = mayhem || ShowDetails ? width : Math.Min(widthLimit, Math.Max(1, (int)(preferredWidth * dpi)));
+            int desiredHeight = mayhem ? mayhemHeight : badge.Prepare(label, badgeWidth, dpi, ShowDetails, arenaCards && !ShowDetails);
+            double scale = Math.Min(requestedScale, (double)widthLimit / badgeWidth);
+            int height = Math.Min((int)Math.Ceiling(desiredHeight * scale), heightLimit);
             int bottom = anchor + Math.Min(height / 2, maxOverlap);
             int fittedWidth = Math.Clamp(badgeWidth * height / desiredHeight, 1, widthLimit);
             int x = bounds.X + Math.Clamp(center - fittedWidth / 2, 0, bounds.Width - fittedWidth);
-            badge.Display(new(x, bounds.Y + bottom - height, fittedWidth, height), dpi, allowUpscale: arenaItems);
+            badge.Display(new(x, bounds.Y + bottom - height, fittedWidth, height), dpi,
+                allowUpscale: scale > 1, contentHeight: mayhemHeight / dpi);
         }
 
         if (arenaItems && cardEdge is { } edge && ItemSizeRequested is not null && IsVisible)
@@ -183,7 +204,7 @@ internal sealed class Overlay
             return;
         }
 
-        itemSizeButton ??= new BuildSizeButton(() => ItemSizeRequested?.Invoke(), "Tamaño de los tiers de objetos");
+        itemSizeButton ??= new BuildSizeButton(() => ItemSizeRequested?.Invoke(), TierSizeTitle);
         var owner = badges.First(badge => badge.NativeVisible);
         if (itemSizeButton.Owner != owner)
             itemSizeButton.Owner = owner;
@@ -241,6 +262,7 @@ internal sealed class Overlay
             if (displayed == value && measuredAt == (width, dpi, showDetails, compactArena))
                 return measuredHeight;
 
+            badge.MinHeight = 0;
             badge.Render(value, width / dpi, showDetails, compactArena);
             badge.InvalidateMeasure();
             badge.Measure(new Size(badge.Width, double.PositiveInfinity));
@@ -250,8 +272,9 @@ internal sealed class Overlay
             return measuredHeight;
         }
 
-        internal void Display(Int32Rect target, double dpi, bool allowUpscale)
+        internal void Display(Int32Rect target, double dpi, bool allowUpscale, double contentHeight)
         {
+            badge.MinHeight = contentHeight;
             frame.StretchDirection = allowUpscale ? StretchDirection.Both : StretchDirection.DownOnly;
             if (IsVisible && NativeVisible && target == placement)
                 return;
@@ -267,27 +290,25 @@ internal sealed class Overlay
 
     private sealed class BadgePanel : Border
     {
-        private static readonly Brush Surface = Paint("#FA172436");
-        private static readonly Brush Outline = Paint("#586F8D");
-        private static readonly Brush Divider = Paint("#3D506C");
-        private static readonly Brush Muted = Paint("#B9C8DD");
-        private static readonly Brush Gold = Paint("#FFD888");
+        private static readonly Brush Divider = OverlayPanelStyle.Divider;
+        private static readonly Brush Muted = OverlayPanelStyle.Muted;
+        private static readonly Brush Gold = OverlayPanelStyle.Gold;
+        private static readonly Brush Ink = OverlayPanelStyle.Ink;
         private static readonly Brush SPlusSurface = Paint("#FC493117");
         private static readonly Brush SPlusOutline = Paint("#FFD162");
         private static readonly Brush SPlusInk = Paint("#FFE393");
         private static readonly Brush SPlusMuted = Paint("#F2D8AE");
         private static readonly Brush SPlusDivider = Paint("#826133");
-        private static readonly Brush Green = Paint("#A0EACD");
-        private static readonly Brush Blue = Paint("#BFD1FF");
-        private static readonly Brush NeutralGrade = Paint("#DCE4F2");
         private readonly StackPanel content = new();
 
         internal BadgePanel()
         {
-            CornerRadius = new CornerRadius(10);
-            Background = Surface;
-            BorderThickness = new Thickness(1);
+            CornerRadius = new CornerRadius(4);
+            Background = OverlayPanelStyle.Surface;
+            BorderBrush = OverlayPanelStyle.Frame;
+            BorderThickness = new Thickness(2, 3, 2, 2);
             Child = content;
+            TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         }
 
         internal void Render(CardComparison value, double width, bool showDetails, bool compactArena)
@@ -304,9 +325,8 @@ internal sealed class Overlay
             var observed = value.DisplayedArenaPlacement;
             string? published = arena ? null : value.External?.Tier;
             bool sPlus = value.VisibleTierText == "S+";
-            Background = sPlus ? SPlusSurface : Surface;
-            BorderBrush = sPlus ? SPlusOutline : recommended ? Gold : Outline;
-            BorderThickness = new Thickness(sPlus ? 2 : 1);
+            Background = sPlus ? SPlusSurface : OverlayPanelStyle.Surface;
+            BorderBrush = sPlus ? SPlusOutline : recommended ? Gold : OverlayPanelStyle.Frame;
             if (value == CardComparison.Unread)
             {
                 AddStatus("Leyendo carta…");
@@ -318,7 +338,7 @@ internal sealed class Overlay
             var recommendation = recommended ? (value.RecommendedUpgrade && showDetails ? "Mejora recomendada" : "Recomendado") : null;
             if (value.IsArenaVariable)
             {
-                content.Children.Add(Line("Afinidad variable", 20, Brushes.WhiteSmoke, bold: true, centered: true));
+                content.Children.Add(Line("Afinidad variable", 20, Ink, bold: true, centered: true));
                 if (value.DetailText is { Length: > 0 } reason)
                     content.Children.Add(Line(reason, 15, Muted, top: 2, centered: true));
             }
@@ -411,6 +431,7 @@ internal sealed class Overlay
         {
             double size = narrow ? 38 : 46;
             var grade = Line(tier, size, TierInk(tier), centered: true);
+            grade.FontFamily = OverlayPanelStyle.Heading;
             grade.FontWeight = FontWeights.Bold;
             grade.TextWrapping = TextWrapping.NoWrap;
             if (compactArena)
@@ -429,7 +450,7 @@ internal sealed class Overlay
             {
                 var metadata = Line(context is null ? label : $"{label} · {context}",
                     context is not null && recommendation is not null ? 11 : 12,
-                    Brushes.WhiteSmoke, bold: true, centered: true);
+                    Ink, bold: true, centered: true);
                 if (recommendation is not null)
                 {
                     metadata.Inlines.Add(new Run(" · "));
@@ -438,13 +459,13 @@ internal sealed class Overlay
                 content.Children.Add(metadata);
                 return;
             }
-            content.Children.Add(Line(label, 13, Brushes.WhiteSmoke, bold: true, centered: true));
+            content.Children.Add(Line(label, 13, Ink, bold: true, centered: true));
             if (localTier is not null)
             {
                 var local = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
                 var caption = Line("Local", 12, Muted);
                 caption.VerticalAlignment = VerticalAlignment.Center;
-                var letter = Line(localTier, 16, Brushes.WhiteSmoke, bold: true);
+                var letter = Line(localTier, 16, TierInk(localTier), bold: true);
                 letter.Margin = new Thickness(4, 0, 0, 0);
                 local.Children.Add(caption);
                 local.Children.Add(letter);
@@ -468,7 +489,7 @@ internal sealed class Overlay
         private void AddDetail(string text, bool compact)
         {
             if (!string.IsNullOrEmpty(text))
-                content.Children.Add(Line(text, compact ? 11 : 12, Brushes.WhiteSmoke, top: 4));
+                content.Children.Add(Line(text, compact ? 11 : 12, Ink, top: 4));
         }
 
         private void AddDivider(int index, Brush ink) =>
@@ -480,7 +501,7 @@ internal sealed class Overlay
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.Children.Add(Line(label, size, Muted));
-            var result = Line(value, size, ink ?? Brushes.WhiteSmoke, bold: true);
+            var result = Line(value, size, ink ?? Ink, bold: true);
             result.Margin = new Thickness(4, 0, 0, 0);
             result.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetColumn(result, 1);
@@ -498,9 +519,6 @@ internal sealed class Overlay
             TextAlignment = centered ? TextAlignment.Center : TextAlignment.Left
         };
 
-        private static Brush TierInk(string tier) => tier switch
-        {
-            "S+" => SPlusInk, "S" => Gold, "A" => Green, "B" => Blue, _ => NeutralGrade
-        };
+        private static Brush TierInk(string tier) => tier == "S+" ? SPlusInk : OverlayPanelStyle.Tier(tier);
     }
 }

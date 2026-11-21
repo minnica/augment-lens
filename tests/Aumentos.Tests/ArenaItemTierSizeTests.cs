@@ -25,9 +25,9 @@ internal static class ArenaItemTierSizeTests
         BuildSizeWindow? settings = null;
         overlay.ItemSizeRequested += () =>
         {
-            settings = new BuildSizeWindow(preference.Load(), overlay.CreateItemTierPreview(), percent =>
+            settings = new BuildSizeWindow(preference.Load(), overlay.CreateTierPreview(arenaItems: true), percent =>
             {
-                overlay.SetItemTierSize(percent);
+                overlay.SetTierSize(percent);
                 return preference.Save(percent);
             })
             {
@@ -65,8 +65,8 @@ internal static class ArenaItemTierSizeTests
             var peer = new ButtonAutomationPeer(button);
             ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(settings is { IsVisible: true } && settings.Title.Contains("tiers de objetos", StringComparison.Ordinal),
-                "el botón abre el ajuste de tiers de objetos");
+            Check(settings is { IsVisible: true } && settings.Title.Contains(Overlay.TierSizeTitle, StringComparison.Ordinal),
+                "el botón abre el ajuste de tiers de cartas");
 
             var slider = (Slider)settings!.FindName("SizeSlider");
             var preview = (FrameworkElement)((ContentPresenter)settings.FindName("PreviewHost")).Content;
@@ -82,13 +82,33 @@ internal static class ArenaItemTierSizeTests
             Check(preference.Load() == BuildSizePreference.Maximum &&
                 preview.LayoutTransform is ScaleTransform { ScaleX: 1.5, ScaleY: 1.5 },
                 "la vista previa y la preferencia reflejan el porcentaje");
-            ((Button)settings.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var reset = (Button)settings.FindName("ResetButton");
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Check(preference.Load() == BuildSizePreference.Default && Position(overlay.Windows[1]) == initial,
                 "restablecer recupera el tamaño inicial");
-            overlay.SetItemTierSize(BuildSizePreference.Maximum);
+            slider.Value = BuildSizePreference.Maximum;
             overlay.Render(offer);
-            Check(Position(overlay.Windows[1]) == unchanged && !sizeButton.IsVisible,
-                "la escala y el botón se aplican solo durante ofertas de objetos");
+            Check(Position(overlay.Windows[1]).Width > unchanged.Width && !sizeButton.IsVisible,
+                "el mismo ajuste escala las demás cartas de Arena y el botón queda reservado para los objetos");
+
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            overlay.Render(new("Aumentos de ARAM Caos", bounds, layout,
+                [new("A", new OpGgCard("A")), new(CardComparison.Missing, new OpGgCard("B")), new("A", new OpGgCard("S"))],
+                Mode: Mode.Caos));
+            var mayhemDefault = Position(overlay.Windows[1]);
+            slider.Value = BuildSizePreference.Minimum;
+            var mayhemSmallest = Position(overlay.Windows[1]);
+            slider.Value = BuildSizePreference.Maximum;
+            var mayhemLargest = Position(overlay.Windows[1]);
+            Check(mayhemSmallest.Width < mayhemDefault.Width && mayhemSmallest.Height < mayhemDefault.Height &&
+                mayhemLargest.Width > mayhemDefault.Width && mayhemLargest.Height > mayhemDefault.Height,
+                "el deslizador cambia el ancho y el alto de un tier de ARAM Caos ya visible");
+            Check(overlay.Windows.Where(window => window.IsVisible).Select(Position).All(position =>
+                position.Width == mayhemLargest.Width && position.Height == mayhemLargest.Height && position.Y == mayhemLargest.Y),
+                "la escala conserva el mismo tamaño y alineación para toda la oferta de ARAM Caos");
+            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(Position(overlay.Windows[1]) == mayhemDefault,
+                "restablecer recupera también el tamaño original en ARAM Caos");
         }
         finally
         {

@@ -4,6 +4,12 @@ using System.Windows;
 
 namespace Aumentos;
 
+internal static class MayhemSidePanel
+{
+    internal static int AvailableWidth(int viewportWidth, int margin) => Math.Max(1, (int)(viewportWidth * .23) - margin);
+    internal static double PreferredWidth(double availableWidth) => Math.Clamp(availableWidth, 155, 268);
+}
+
 internal sealed record MayhemTeamDisplay(Int32Rect Bounds, nint Target, string Caption, bool HasRatings, bool PreviousPatch,
     ChampionRankingRow[] Rows, ChampionRankingRow? Selection, MayhemCompositionPick[] Composition, MayhemCompositionGrade? Grade,
     string EmptyMessage)

@@ -108,9 +108,10 @@ internal sealed class MayhemChampionOverlay : Window
 
         var caption = new Border
         {
-            Background = Overlay.Paint("#F20D1725"), CornerRadius = new CornerRadius(5),
+            Background = OverlayPanelStyle.Surface, BorderBrush = OverlayPanelStyle.Frame, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
             Padding = new Thickness(12 * scale, 3 * scale, 12 * scale, 4 * scale),
-            Child = new TextBlock { Text = view.Source.Status, FontSize = 19 * scale, Foreground = Overlay.Paint("#CCD8EA") }
+            Child = new TextBlock { Text = view.Source.Status, FontSize = 19 * scale, Foreground = OverlayPanelStyle.Muted }
         };
         caption.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         Canvas.SetLeft(caption, (WidthInClient - caption.DesiredSize.Width) / 2);
@@ -123,17 +124,13 @@ internal static class MayhemTierBadge
 {
     internal static Border Create(string? tier, string champion, double width, double height, double size)
     {
-        var color = Overlay.Paint(tier switch
-        {
-            "S" => "#FFD76D", "A" => "#86EAC5", "B" => "#B6CAFF", "C" => "#CFD7E3", _ => "#B8C2D5"
-        });
         var badge = new Border
         {
             Width = width, Height = height, BorderThickness = new Thickness(1.5),
-            BorderBrush = color, CornerRadius = new CornerRadius(6), Background = Overlay.Paint("#F50D1725"),
+            BorderBrush = OverlayPanelStyle.Frame, CornerRadius = new CornerRadius(2), Background = OverlayPanelStyle.Surface,
             Child = new TextBlock
             {
-                Text = tier ?? "—", Foreground = color, FontSize = size, FontWeight = FontWeights.Bold,
+                Text = tier ?? "—", Foreground = OverlayPanelStyle.Tier(tier), FontSize = size, FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
             }
         };
