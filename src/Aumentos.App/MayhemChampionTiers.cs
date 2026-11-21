@@ -11,8 +11,11 @@ using System.Threading.Tasks;
 
 namespace Aumentos;
 
-internal sealed record MayhemChampionTierList(string SourcePatch, DateTimeOffset FetchedAt, Dictionary<string, int> Tiers)
+internal sealed record MayhemChampionTierList(string SourcePatch, DateTimeOffset FetchedAt, Dictionary<string, int> Tiers,
+    Dictionary<string, int>? Ranks = null)
 {
+    internal int? Rank(string champion) => Ranks?.TryGetValue(champion.ToLowerInvariant(), out var rank) == true ? rank : null;
+
     internal string? Letter(string champion) => Tiers.GetValueOrDefault(champion.ToLowerInvariant()) switch
     {
         1 => "S", 2 => "A", 3 => "B", 4 => "C", 5 => "D", _ => null
@@ -74,7 +77,7 @@ internal sealed class MayhemChampionTiers(Catalog catalog, string settings, Http
         {
             var next = data.FetchedAt + Interval(data, patch);
             Set(data, next);
-            if (next > DateTimeOffset.UtcNow)
+            if (data.Ranks is not null && next > DateTimeOffset.UtcNow)
                 return;
         }
 
@@ -123,6 +126,7 @@ internal sealed class MayhemChampionTiers(Catalog catalog, string settings, Http
             {
                 using var rows = JsonDocument.Parse(array.Groups[1].Value);
                 var tiers = new Dictionary<string, int>();
+                var ranks = new Dictionary<string, int>();
                 foreach (var row in rows.RootElement.EnumerateArray())
                 {
                     if (row.ValueKind != JsonValueKind.Object || !row.TryGetProperty("key", out var key) ||
@@ -132,9 +136,13 @@ internal sealed class MayhemChampionTiers(Catalog catalog, string settings, Http
                         continue;
                     if (!tiers.TryAdd(champion, tier))
                         throw new InvalidDataException("OP.GG devolvió un campeón repetido.");
+                    if (row.TryGetProperty("rank", out var position) && position.ValueKind == JsonValueKind.Number &&
+                        position.TryGetInt32(out int rank) && rank >= 1 && rank <= keys.Count)
+                        ranks.Add(champion, rank);
                 }
                 if (tiers.Count > 0)
-                    return new(sourcePatch, DateTimeOffset.UtcNow, tiers);
+                    return new(sourcePatch, DateTimeOffset.UtcNow, tiers,
+                        ranks.Values.Distinct().Count() == ranks.Count ? ranks : []);
             }
         }
         throw new InvalidDataException("OP.GG no publicó una lista de tiers reconocible.");
@@ -145,9 +153,13 @@ internal sealed class MayhemChampionTiers(Catalog catalog, string settings, Http
         try
         {
             var data = Ratings.Read<MayhemChampionTierList>(path);
-            return IsCompatible(data.SourcePatch, patch) && data.FetchedAt <= DateTimeOffset.UtcNow &&
-                data.Tiers is { Count: > 0 } && data.Tiers.All(entry => keys.Contains(entry.Key) && entry.Value is >= 1 and <= 5)
-                ? data : null;
+            if (!IsCompatible(data.SourcePatch, patch) || data.FetchedAt > DateTimeOffset.UtcNow ||
+                data.Tiers is not { Count: > 0 } || data.Tiers.Any(entry => !keys.Contains(entry.Key) || entry.Value is < 1 or > 5))
+                return null;
+            if (data.Ranks is { } ranks && (ranks.Any(entry => !data.Tiers.ContainsKey(entry.Key) || entry.Value < 1 ||
+                entry.Value > keys.Count) || ranks.Values.Distinct().Count() != ranks.Count))
+                return data with { Ranks = null };
+            return data;
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or JsonException) { return null; }
     }

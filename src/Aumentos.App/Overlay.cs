@@ -323,13 +323,13 @@ internal sealed class Overlay
                     content.Children.Add(Line(reason, 15, Muted, top: 2, centered: true));
             }
             else if (published is { } tier)
-                AddGrade(tier, "OP.GG", null, null, narrow, localTier: local);
+                AddGrade(tier, "OP.GG", null, recommendation, narrow, localTier: local);
             else if (observed is not null)
                 AddGrade(observed.Tier.ToString(), observed.Source, compactArena ? observed.ShortSample : observed.Sample,
                     compactArena && width < 170 && recommended ? "Mejor" : recommendation, narrow, compactArena: compactArena);
             else if (value.DisplayedMayhemObserved is { } mayhemObserved)
                 AddGrade(mayhemObserved.Tier.ToString(), "AramHex · China", mayhemObserved.IsPrevious ? mayhemObserved.PatchText : null,
-                    null, narrow, localTier: local);
+                    recommendation, narrow, localTier: local);
             else if (local is not null)
                 AddGrade(local, "Local", context, recommendation, narrow, compactArena: compactArena);
 

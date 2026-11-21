@@ -7,17 +7,23 @@ internal static class MayhemBuildTests
     {
         using var data = JsonDocument.Parse("""
             [
-              {"riotId":"self#000","rawChampionName":"game_character_displayname_Zilean","team":"ORDER","items":[{"itemID":1001},{"itemID":3802},{"itemID":2031}]},
-              {"riotId":"ally#000","rawChampionName":"game_character_displayname_Rell","team":"ORDER","items":[{"itemID":3075}]},
-              {"rawChampionName":"game_character_displayname_Ornn","team":"CHAOS","items":[{"itemID":2504}]},
-              {"rawChampionName":"game_character_displayname_Jinx","team":"CHAOS","items":[{"itemID":3111}]},
+              {"riotId":"self#000","rawChampionName":"game_character_displayname_Zilean","team":"ORDER","items":[{"itemID":1001},{"itemID":3802},{"itemID":2031}],
+                "scores":{"kills":5,"deaths":2,"assists":24}},
+              {"riotId":"ally#000","rawChampionName":"game_character_displayname_Rell","team":"ORDER","items":[{"itemID":3075}],
+                "scores":{"kills":1,"deaths":4,"assists":22}},
+              {"rawChampionName":"game_character_displayname_Ornn","team":"CHAOS","items":[{"itemID":2504}],
+                "scores":{"kills":9,"deaths":3,"assists":15}},
+              {"rawChampionName":"game_character_displayname_Jinx","team":"CHAOS","items":[{"itemID":3111}],
+                "scores":{"kills":4,"deaths":-1,"assists":8}},
               {"rawChampionName":"game_character_displayname_Soraka","team":"CHAOS","items":[]}
             ]
             """);
         var game = new GameContext(Mode.Caos, "Zilean");
         var match = LiveGame.ParseMatch(Mode.Caos, data.RootElement, "self#000");
-        Check(match?.Game == game && match.Mayhem is { Opponents.Length: 3, Items.Length: 3 },
-            "inventarios del jugador y del equipo rival separados de los aliados");
+        Check(match?.Game == game && match.Mayhem is { Items.Length: 3, Score: { Kills: 5, Deaths: 2, Assists: 24 },
+            Allies: [{ Items: [3075], Score.Assists: 22 }], Opponents:
+            [{ Score: { Kills: 9, Deaths: 3, Assists: 15 } }, { Score: null }, { Score: null }] },
+            "separación de inventarios y lectura del marcador rival con datos válidos o ausentes");
         var arena = LiveGame.ParseMatch(Mode.Arena, data.RootElement, "self#000");
         Check(arena?.Game == game with { Mode = Mode.Arena } && arena.Mayhem is null &&
             arena.Arena is { Items.Length: 3, Opponents.Length: 0 },
@@ -32,7 +38,7 @@ internal static class MayhemBuildTests
                 [[new(6655, "Eco de Luden"), new(4645, "Lumbría"), new(3089, "Sombrero Mortífero de Rabadon")],
                  [new(6655, "Eco de Luden"), new(4646, "Descarga Tormentosa"), new(4645, "Lumbría")]])
         ]);
-        var source = MayhemBuilds.Load(ratings, assets);
+        var source = new MayhemBuilds(ratings, MayhemItemCatalog.Load(ratings.Catalog.Patch, assets));
         Check(!source.HasStartingPurchase(null, build) && !source.HasStartingPurchase(new([2003], []), build) &&
             source.HasStartingPurchase(new([1056], []), build) && source.HasStartingPurchase(new([1038], []), build) &&
             source.HasStartingPurchase(new([6655], []), null),
@@ -170,7 +176,85 @@ internal static class MayhemBuildTests
             { Outgoing.Id: 4645, Incoming.Id: 3157, Reason: "Contra los golpes críticos de Rengar y Xayah" } &&
             source.Recommend(karthus, criticalMatch with { Items = [3118, 3089, 6653, 3157, 3135, 3165] }, karthusBuild) is { Swap: null },
             "una build completa de Karthus añade defensa contra críticos y conserva Rabadon, penetración y heridas graves");
-        Console.WriteLine("Build situacional de ARAM Caos verificada con inventario, composición y compras rivales.");
+        CheckLeadingRival(source, build);
+        CheckNautilusFullBuild(source, build);
+        Console.WriteLine("Build situacional de ARAM Caos verificada con inventario, compras y marcador rival.");
+    }
+
+    private static void CheckNautilusFullBuild(MayhemBuilds source, OpGgBuildSnapshot build)
+    {
+        var naut = new GameContext(Mode.Caos, "Nautilus");
+        var nautBuild = build with { Champion = naut.Champion, Groups = [new(OpGgBuildSection.Core,
+            [[new(3084, "Corazón de Acero"), new(3121, "Invierno Nórdico"), new(2502, "Desesperación Eterna")],
+             [new(3084, "Corazón de Acero"), new(2502, "Desesperación Eterna"), new(3075, "Cota de Espinas")]])] };
+        var match = new MayhemMatch([3084, 3121, 3111, 2504, 2502, 8020],
+            [new("Lissandra", [3118, 3157, 3020, 6653, 3137, 3089], 18, new(8, 18, 28)),
+             new("Ahri", [3009, 3153, 3087, 3033, 6695, 6696], 18, new(12, 13, 38)),
+             new("Kayn", [126697, 3042, 6699, 3158, 6676, 3036], 18, new(27, 19, 14)),
+             new("Aurora", [6655, 3020, 6653, 3089, 8010, 4645], 18, new(15, 12, 37)),
+             new("Swain", [4633, 3089, 3116, 3165, 6653, 3118], 18, new(16, 5, 45))],
+            Score: new(20, 12, 29), Allies: [new([], new(16, 19, 20)), new([3075], new(15, 11, 29)),
+                new([3916], new(8, 14, 19)), new([6609], new(8, 22, 17))]);
+        Check(source.Recommend(naut, match, nautBuild) is { Steps.Length: 6, Swap: null } &&
+            source.Recommend(naut, match with { Score = null }, nautBuild) is { Swap: null },
+            "Nautilus conserva su build cuando Zoe y Talon aportan Heridas Graves al hacer daño");
+
+        var onlyThorns = match with { Allies = match.Allies!.Select(ally => ally with
+            { Items = ally.Items.Where(id => id == 3075).ToArray() }).ToArray() };
+        Check(source.Recommend(naut, onlyThorns, nautBuild) is { Swap: null },
+            "Nautilus va por delante y conserva la vida y la resistencia que le dan sus objetos actuales");
+        Check(source.Recommend(naut, onlyThorns with { Score = null }, nautBuild)?.Swap is
+            { Outgoing.Id: 2502, Incoming.Id: 3075 },
+            "si falta anticuración al hacer daño, el cambio que quede conserva Rukerno y Máscara Abisal frente al AP");
+
+        var needsMagic = match with { Items = [3084, 3121, 3111, 2502, 3075, 3110],
+            Opponents = [..match.Opponents.Take(4).Select(rival => rival with { Score = new(2, 12, 6) }), match.Opponents[4]] };
+        Check(source.Recommend(naut, needsMagic, nautBuild)?.Swap is { Incoming.Id: 2504 },
+            "llevar ventaja propia permite recomendar una mejora clara de resistencia contra Swain");
+    }
+
+    private static void CheckLeadingRival(MayhemBuilds source, OpGgBuildSnapshot build)
+    {
+        var wukong = new GameContext(Mode.Caos, "MonkeyKing");
+        var wukongBuild = build with { Champion = wukong.Champion, Groups =
+            [new(OpGgBuildSection.Core, [[new(3078, "Fuerza de la Trinidad"), new(6610, "Cielo Desgarrado"),
+                new(3071, "Cuchilla Oscura")]])] };
+        MayhemOpponent[] opponents = [new("Pantheon", [3078, 6692], Score: new(1, 8, 4)),
+            new("Jinx", [3032, 3031], Score: new(2, 10, 4)), new("Riven", [6692, 6610], Score: new(1, 9, 6)),
+            new("Zed", [6696, 6699], Score: new(3, 12, 4)), new("Kennen", [3089, 4645, 6655], Score: new(16, 3, 10))];
+        var full = new MayhemMatch([3078, 3111, 6610, 3071, 3161, 6692], opponents);
+        var leading = source.Recommend(wukong, full, wukongBuild)?.Swap;
+        Check(leading is { Incoming.Id: 3156, Reason: "Por la ventaja de Kennen y su daño mágico" } &&
+            leading.Outgoing.Id is not (3078 or 6610 or 3111),
+            "la única amenaza AP puede pesar más que cuatro campeones de daño físico atrasados");
+
+        var missingScore = full with { Opponents = [opponents[0] with { Score = null }, ..opponents.Skip(1)] };
+        var tiedScore = full with { Opponents = [opponents[0] with { Score = opponents[4].Score }, ..opponents.Skip(1)] };
+        Check(source.Recommend(wukong, missingScore, wukongBuild)?.Swap is { Incoming.Id: 6333 } &&
+            source.Recommend(wukong, tiedScore, wukongBuild)?.Swap is { Incoming.Id: 6333 },
+            "si falta un marcador o no hay una ventaja clara, se usan las compras rivales");
+
+        var withArmor = full with { Items = [3078, 3111, 6610, 3071, 3161, 6333] };
+        var bothThreats = withArmor with { Opponents = [opponents[0] with { Score = new(12, 5, 10) }, ..opponents.Skip(1)] };
+        Check(source.Recommend(wukong, withArmor, wukongBuild)?.Swap is { Incoming.Id: 3156, Outgoing.Id: 6333 } &&
+            source.Recommend(wukong, bothThreats, wukongBuild)?.Swap is { Incoming.Id: 3156, Outgoing.Id: not 6333 },
+            "se puede sustituir armadura contra rivales atrasados y se protege cuando persiste la amenaza física");
+        var soldArmor = withArmor with { Items = withArmor.Items.Where(id => id != 6333).ToArray() };
+        Check(source.Recommend(wukong, soldArmor, wukongBuild)?.Steps[^1].Item.Id == 3156 &&
+            source.Recommend(wukong, soldArmor, null)?.Steps[^1].Item.Id == 3156,
+            "tras vender la armadura, Fauces sigue como siguiente compra con o sin OP.GG");
+        Check(source.Recommend(wukong, full with { Items = [3078, 3111, 6610, 3071, 3161, 3156] }, wukongBuild) is { Swap: null },
+            "si la build ya cubre al rival dominante, los cuatro rivales atrasados no fuerzan otro objeto defensivo");
+
+        var physicalLead = full with { Opponents = [..opponents.Take(3), opponents[3] with { Score = new(16, 3, 10) },
+            opponents[4] with { Score = new(1, 10, 5) }] };
+        Check(source.Recommend(wukong, physicalLead, wukongBuild)?.Swap is
+            { Incoming.Id: 6333, Reason: "Por la ventaja de Zed y su daño físico" },
+            "la respuesta también cambia cuando el marcador favorece al rival de daño físico");
+        var doubleAp = full with { Opponents = [..opponents.Take(3), new("Zoe", [6655, 3089], Score: new(15, 3, 10)), opponents[4]] };
+        Check(source.Recommend(wukong, doubleAp, wukongBuild)?.Swap is
+            { Incoming.Id: 3156, Reason: "Por el daño mágico de Kennen y Zoe, que llevan ventaja" },
+            "dos rivales de AP con ventaja compartida conservan prioridad frente a tres rivales físicos atrasados");
     }
 
     private static void Check(bool condition, string message)

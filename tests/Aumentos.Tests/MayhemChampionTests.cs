@@ -25,12 +25,20 @@ internal static class MayhemChampionTests
             var data = (await first).Data;
             Check(data is not null && data.SourcePatch == catalog.Patch &&
                 data.Letter("AurelionSol") == "A" && data.Letter("Jinx") == "A" && data.Letter("Kaisa") == "C" &&
-                data.Letter("Lux") is null && (await second).Data == data && response.Requests == 1,
-                "una consulta global traduce tiers y omite filas sin datos");
+                data.Letter("Lux") is null && data.Rank("aurelionsol") == 54 && data.Rank("Jinx") == 43 &&
+                data.Rank("Kaisa") is null && (await second).Data == data && response.Requests == 1,
+                "una consulta global lee tiers y posiciones publicados sin inventar los datos ausentes");
             using var offline = new TierPage(catalog.Patch) { Offline = true };
             using var offlineHttp = new HttpClient(offline);
             var cached = await new MayhemChampionTiers(catalog, folder.FullName, offlineHttp).ForCaptureAsync();
-            Check(cached.Data?.Letter("Kaisa") == "C" && offline.Requests == 0, "reutiliza la copia al reiniciar");
+            Check(cached.Data?.Letter("Kaisa") == "C" && cached.Data.Rank("Jinx") == 43 && offline.Requests == 0,
+                "reutiliza la copia de tiers y posiciones al reiniciar");
+
+            var cache = Path.Combine(folder.FullName, "opgg-mayhem-tiers", catalog.Patch, "champion-tiers.json");
+            StatsCache.Write(cache, data! with { Ranks = null });
+            var legacy = await new MayhemChampionTiers(catalog, folder.FullName, offlineHttp).ForCaptureAsync();
+            Check(legacy.Data?.Letter("Kaisa") == "C" && legacy.Data.Rank("Jinx") is null && offline.Requests == 1,
+                "la copia anterior sigue dando letras y consulta las posiciones sin esperar doce horas");
 
             if (LeaguePatch.Previous(catalog.Patch) is { } previous)
             {
@@ -151,7 +159,7 @@ internal static class MayhemChampionTests
     private static string Html(string patch)
     {
         const string list = """
-            4:{"champions":[{"key":"aurelionsol","tier":2},{"key":"jinx","tier":2},{"key":"kaisa","tier":4},{"key":"lux","tier":null}]}
+            4:{"champions":[{"key":"aurelionsol","tier":2,"rank":54},{"key":"jinx","tier":2,"rank":43},{"key":"kaisa","tier":4,"rank":0},{"key":"lux","tier":null}]}
             """;
         var flight = JsonSerializer.Serialize<object[]>([1, list]);
         return $"""

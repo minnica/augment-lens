@@ -159,6 +159,9 @@ public sealed class Ratings
         const string missingTierBadge = "estimacion local sin dato ";
         if (mode == Mode.Arena && query.StartsWith(missingTierBadge, StringComparison.Ordinal))
             return Exact(query[missingTierBadge.Length..]);
+        const string badLuck = "mala suerte ";
+        if (mode == Mode.Arena && query.StartsWith(badLuck, StringComparison.Ordinal))
+            return Exact(query[badLuck.Length..]);
         if (mode == Mode.Arena && Regex.Match(text, @"^\s*\(\d+\)\s+(.+)$") is { Success: true } prefix)
         {
             var title = Normalize(prefix.Groups[1].Value);

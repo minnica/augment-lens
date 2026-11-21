@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -18,7 +19,8 @@ internal sealed record SpellDisplay(Int32Rect Bounds, nint Target, string Champi
 internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgBuilds builds,
     ArenaChampionTierSource tiers, MayhemChampionTiers mayhemTiers, MayhemBenchPortraits mayhemBench,
     Dispatcher dispatcher, Action<SpellDisplay?> update,
-    Action<ArenaChampionDisplay?> updateArena, Action<MayhemChampionDisplay?> updateMayhem, ArenaTeamSource? teams = null)
+    Action<ArenaChampionDisplay?> updateArena, Action<MayhemChampionDisplay?> updateMayhem,
+    Action<MayhemTeamDisplay?> updateMayhemTeam, ArenaTeamSource? teams = null)
 {
     private int paused;
     internal bool Paused { get => Volatile.Read(ref paused) != 0; set => Volatile.Write(ref paused, value ? 1 : 0); }
@@ -28,6 +30,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         using var lobby = new ChampionSelectClient(Path.Combine(assets, "riotgames.pem"));
         var catalog = ratings.Catalog;
         var mayhemReader = new MayhemDraftReader(catalog);
+        var mayhemComposition = new MayhemCompositionAdvice(ratings);
         using var draftOcr = new Detection(ratings, Path.Combine(assets, "tessdata"));
         WindowCapture? capture = null;
         (nint Handle, Int32Rect Bounds, Int32Rect Frame)? scanWindow = null;
@@ -38,6 +41,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         SpellDisplay? previous = null;
         ArenaChampionDisplay? previousArena = null;
         MayhemChampionDisplay? previousMayhem = null;
+        MayhemTeamDisplay? previousMayhemTeam = null;
         long checkPatchAt = 0;
         long scanAt = 0;
         long captureRetryAt = 0;
@@ -51,6 +55,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                 SpellDisplay? display = null;
                 ArenaChampionDisplay? arena = null;
                 MayhemChampionDisplay? mayhem = null;
+                MayhemTeamDisplay? mayhemTeam = null;
                 bool scanning = false;
                 if (!Paused && ForegroundClient() is { } window)
                 {
@@ -78,6 +83,14 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                             }
                             var source = mayhemTiers.Current(cancellation);
                             ScanMayhem(window);
+                            var squad = session.MayhemTeam;
+                            var selectedKey = session.Pick?.Champion;
+                            var allies = squad?.Teammates ?? [];
+                            var (available, emptyMessage) = MayhemOptions(session, choices, bench);
+                            var grade = mayhemComposition.Evaluate(selectedKey, allies);
+                            var suggestions = mayhemComposition.Recommend(source.Data, selectedKey, allies, available);
+                            mayhemTeam = MayhemTeamDisplay.Create(window.Bounds, window.Handle, catalog, source, selectedKey,
+                                available, emptyMessage, suggestions, grade);
                             if (choices is { } visible)
                             {
                                 if (visible.Length > 0 || source.Data is null)
@@ -115,18 +128,20 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                     scanWindow = null;
                 }
                 if (display is not null || previous is not null || arena is not null || previousArena is not null ||
-                    mayhem is not null || previousMayhem is not null)
+                    mayhem is not null || previousMayhem is not null || mayhemTeam is not null || previousMayhemTeam is not null)
                 {
-                    (previous, previousArena, previousMayhem) = await dispatcher.InvokeAsync(() =>
+                    (previous, previousArena, previousMayhem, previousMayhemTeam) = await dispatcher.InvokeAsync(() =>
                     {
                         var foreground = Native.GetForegroundWindow();
                         var visible = !Paused && display?.Target == foreground ? display : null;
                         var visibleArena = !Paused && arena?.Target == foreground ? arena : null;
                         var visibleMayhem = !Paused && mayhem?.Target == foreground ? mayhem : null;
+                        var visibleTeam = !Paused && mayhemTeam?.Target == foreground ? mayhemTeam : null;
                         update(visible);
                         updateArena(visibleArena);
                         updateMayhem(visibleMayhem);
-                        return (visible, visibleArena, visibleMayhem);
+                        updateMayhemTeam(visibleTeam);
+                        return (visible, visibleArena, visibleMayhem, visibleTeam);
                     }, DispatcherPriority.Normal, cancellation);
                 }
                 await Task.Delay(420, cancellation).ConfigureAwait(false);
@@ -201,6 +216,28 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
             captureRetryAt = 0;
             lastFrame = 0;
         }
+    }
+
+    internal static (string[] Keys, string EmptyMessage) MayhemOptions(ChampionSelectSession session,
+        MayhemDraftChoice[]? cards, MayhemBenchChoice[] portraits)
+    {
+        var team = session.MayhemTeam;
+        if (team is { PicksOpen: false })
+            return ([], "Selección cerrada.");
+
+        var selected = session.Pick?.Champion;
+        var (visible, emptyMessage) = (selected, team) switch
+        {
+            (null, _) => ((cards ?? []).Select(card => card.Champion.Key), "Esperando tus cartas…"),
+            (_, { BenchKnown: true } draft) => ((IEnumerable<string>)draft.Bench, "El banco está vacío."),
+            _ => (portraits.Select(portrait => portrait.Champion.Key), "Esperando identificar el banco…")
+        };
+        var excluded = new HashSet<string>(team?.Unavailable ?? [], StringComparer.OrdinalIgnoreCase);
+        excluded.UnionWith(team?.Teammates ?? []);
+        if (selected is not null)
+            excluded.Add(selected);
+
+        return (visible.Where(key => !excluded.Contains(key)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), emptyMessage);
     }
 
     private static async Task<ChampionSelectSession?> ReadSession(ChampionSelectClient lobby, CancellationToken cancellation)

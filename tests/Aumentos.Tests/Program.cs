@@ -32,7 +32,8 @@ internal static class Program
         ArenaWikiMechanicsTests.Run(ratings, assets);
         ArenaAugmentAffinityTests.Run(ratings);
         ArenaContextReadTests.Run(ratings, assets, Option("--arena-level-shot"), Option("--arena-jax-upgrade-shot"),
-            Option("--arena-eureka-upgrade-shot"), Option("--arena-kindred-shot"));
+            Option("--arena-eureka-upgrade-shot"), Option("--arena-kindred-shot"), Option("--arena-soul-pair-shot"),
+            Option("--arena-anvil-pair-shot"));
         ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
             Option("--arena-prismatic-rank-shot"), Option("--arena-prismatic-renata-shot"));
@@ -40,6 +41,8 @@ internal static class Program
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
         MayhemBuildTests.Run(ratings, assets);
+        MayhemAugmentAdviceTests.Run(ratings, assets, Option("--mayhem-tie-shot"));
+        MayhemCompositionTests.Run(ratings);
         ArenaLiveMatchTests.Run();
         ArenaBuildTests.Run(ratings);
         BuildVisibilityTests.Run(ratings, assets, Option("--shop-shot"), Option("--shop-closed-shot"));
@@ -156,6 +159,8 @@ internal static class Program
             ChampionSelectTests.Smoke();
             MayhemChampionTests.Smoke(ratings.Catalog);
         }
+        if (args.Contains("--capture-smoke") || args.Contains("--mayhem-team-overlay-smoke"))
+            MayhemTeamOverlayTests.Smoke(ratings.Catalog);
         if (args.Contains("--capture-smoke") || args.Contains("--card-overlay-smoke"))
         {
             OverlaySmoke(assets);
@@ -656,14 +661,17 @@ internal static class Program
 
             var equipped = plan.Steps.Select(step => step with { Owned = true }).ToArray();
             overlay.Render(withAlternative with { Plan = new MayhemBuildPlan(equipped) });
-            Check(!HasRouteLabel() && rows.Children.OfType<TextBlock>().Any(text => text.Text == "Build completa"),
-                "una build completa oculta la ruta alternativa aunque falten objetos de esa ruta");
+            Check(!HasRouteLabel() && rows.Children.OfType<TextBlock>().Take(2).Select(text => text.Text)
+                .SequenceEqual(["Build completa", "Conserva tus objetos por ahora."]),
+                "una build completa en Caos aconseja conservar los objetos y oculta la ruta alternativa");
             overlay.Render(withAlternative with { Plan = new MayhemBuildPlan(equipped,
                 new(equipped[^1].Item, alternative[1], "Contra la composición rival")) });
-            Check(!HasRouteLabel() && BuildElements<TextBlock>(rows).Any(text => text.Text == "Cambio sugerido"),
-                "la ruta alternativa también se oculta con seis objetos y un cambio sugerido");
+            Check(!HasRouteLabel() && BuildElements<TextBlock>(rows).Any(text => text.Text == "Cambio sugerido") &&
+                rows.Children.OfType<TextBlock>().All(text => text.Text != "Conserva tus objetos por ahora."),
+                "con seis objetos, el cambio sugerido sustituye el mensaje de conservar los objetos");
             overlay.Render(withAlternative with { Plan = new MayhemBuildPlan([..equipped.Take(5), plan.Steps[5]]) });
-            Check(HasRouteLabel(), "la ruta alternativa vuelve a aparecer si se libera un espacio y falta algún objeto");
+            Check(HasRouteLabel() && rows.Children.OfType<TextBlock>().All(text => text.Text != "Conserva tus objetos por ahora."),
+                "al liberar un espacio reaparece la ruta alternativa sin el mensaje de build completa");
 
             bool HasRouteLabel() => rows.Children.OfType<TextBlock>().Any(text => text.Text == "Ruta alternativa · OP.GG");
 
@@ -1003,6 +1011,20 @@ internal static class Program
             overlay.Render(comparison);
             Check(VisibleLines(overlay.Windows[1]).SequenceEqual(["A", "OP.GG", "Local", "A"]),
                 "la vista detallada también muestra ambas letras una sola vez aunque coincidan");
+            overlay.ShowDetails = false;
+            var mayhemTie = new OverlayUpdate("ARAM Caos", bounds, layout,
+                [new("Sin dato", new OpGgCard("S"), LocalReason: "25 puntos de crítico para tu Q y tu W", RecommendedAugment: true),
+                 new("Sin dato", new OpGgCard("S")), new("Sin dato", new OpGgCard("S"))], Mode: Mode.Caos);
+            overlay.Render(mayhemTie);
+            Check(VisibleLines(first).SequenceEqual(["S", "OP.GG", "Recomendado"]) &&
+                VisibleLines(overlay.Windows[1]).SequenceEqual(["S", "OP.GG"]) &&
+                VisibleLines(overlay.Windows[2]).SequenceEqual(["S", "OP.GG"]),
+                "solo la ganadora muestra Recomendado junto al tier de OP.GG en vista compacta");
+            CheckTierLayout(first);
+            overlay.ShowDetails = true;
+            overlay.Render(mayhemTie);
+            Check(VisibleLines(first).Contains("25 puntos de crítico para tu Q y tu W"),
+                "la vista detallada de ARAM Caos muestra el motivo del desempate");
             overlay.ShowDetails = false;
             var reroll = new OverlayUpdate("Reroll", bounds, layout,
                 [new("Sin dato", new OpGgCard("B"), Mayhem: new(18.81m, "26.22", true)), null, new("A")]);

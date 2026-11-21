@@ -8,7 +8,8 @@ using Aumentos;
 
 internal static class ArenaContextReadTests
 {
-    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks, string? eureka, string? kindred)
+    internal static void Run(Ratings ratings, string assets, string? levels, string? fireworks, string? eureka, string? kindred,
+        string? soulPair, string? anvilPair)
     {
         CheckInventory();
         CheckCatalog(ratings);
@@ -40,7 +41,52 @@ internal static class ArenaContextReadTests
             "las recompensas de Kindred tienen tiers locales de acuerdo con sus efectos");
         if (kindred is not null)
             CheckKindredOffer(detector, assets, kindred);
+        if (soulPair is not null)
+            CheckUpgradePair(detector, assets, soulPair, 62, 2);
+        if (anvilPair is not null)
+            CheckUpgradePair(detector, assets, anvilPair, 355, null);
+        CheckUpgradePairRatings(ratings);
         Console.WriteLine("Contexto de Arena verificado con inventario propio y niveles por posición.");
+    }
+
+    private static void CheckUpgradePair(Detection detector, string assets, string path, int reward, int? level)
+    {
+        var source = Diagnostics.OpenBitmap(path);
+        var store = new LayoutStore(Path.Combine(assets, "layouts.json"), "");
+        foreach (double scale in new[] { 1, .75 })
+        {
+            var image = scale == 1 ? source : new TransformedBitmap(source, new ScaleTransform(scale, scale));
+            var bounds = new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight);
+            var layouts = store.Find(Mode.Arena, bounds.Width, bounds.Height);
+            var regular = layouts.Single(layout => layout.Titles.Length == 3);
+            detector.Clear();
+            var read = detector.ReadPanel(image, bounds, layouts, Mode.Arena, regular);
+            var details = read is { Layout.Titles.Length: 2 } ? read.Value.Result.Texts :
+                detector.Scan(image, bounds, layouts.Single(layout => layout.Titles.Length == 2), Mode.Arena, panelConfirmed: true).Texts;
+            Check(read is { Layout.Titles.Length: 2, Result: var result } && result.Cards.SequenceEqual([364, reward]) &&
+                result.UpgradeLevels?.SequenceEqual([null, level]) == true && result.CanShow(false),
+                $"oferta especial {reward} a {bounds.Width} × {bounds.Height}: {string.Join(" / ", details)} · " +
+                $"{read?.Layout.Titles.Length} posiciones · encabezado {detector.HasArenaUpgradeHeading(image)}");
+            Check(detector.ReadPanel(image, bounds, layouts, Mode.Arena, read!.Value.Layout)?.Layout == read.Value.Layout,
+                "la segunda lectura sostiene la oferta de mejora de dos cartas");
+        }
+    }
+
+    private static void CheckUpgradePairRatings(Ratings ratings)
+    {
+        var milio = new GameContext(Mode.Arena, "Milio");
+        var upgrade = CardComparison.ForOffer(ratings, milio, [364, 62], [false, false], null, upgradeLevels: [null, 2]);
+        var anvil = CardComparison.ForOffer(ratings, milio, [364, 355], [false, false], null, upgradeLevels: [null, null]);
+        Check(ratings.Recognize(Mode.Arena, "Mala Suerte:\nOmnialma")?.Id == 62 &&
+            ratings.Recognize(Mode.Arena, "Mala Suerte: desconocido") is null &&
+            upgrade is [{ IsArenaVariable: true }, { VisibleTierText: "B", UpgradeLevel: 2, RecommendedUpgrade: true,
+                UpgradeEffect: "Almas de Dragón de 2 a 3" }] &&
+            anvil is [{ IsArenaVariable: true }, { VisibleTierText: "B", UpgradeLevel: null, RecommendedUpgrade: false }],
+            "las dos alternativas conocidas tienen valoración local y Reemplazar Aumento conserva su afinidad variable");
+        Check(CardComparison.ForOffer(ratings, milio, [62], [false], null)[0]?.IsArenaVariable == true &&
+            CardComparison.ForOffer(ratings, milio, [62], [false], null, upgradeLevels: [3])[0] is
+                { VisibleTierText: "B", UpgradeEffect: "Almas de Dragón de 3 a 4", RecommendedUpgrade: false },
+            "Omnialma conserva la valoración base y muestra el cambio al nivel que se ofrece");
     }
 
     private static void CheckKindredOffer(Detection detector, string assets, string path)

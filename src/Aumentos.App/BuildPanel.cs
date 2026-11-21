@@ -229,7 +229,10 @@ internal sealed class BuildPanel : Border
             if (plan.Swap is { } swap)
                 AddSwap(swap, patch);
             else
+            {
                 AddLine("Build completa", 17, PurchaseAccent, bold: true);
+                AddLine("Conserva tus objetos por ahora.", 13, Muted, top: 3);
+            }
         }
 
         AddLine($"Equipados · {purchased.Length} de 6", 14, Brushes.WhiteSmoke, bold: true, top: 10);

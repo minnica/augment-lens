@@ -59,6 +59,7 @@
     { "augment": "RestlessRestoration", "tier": "B", "reason": "Te curas mientras te reposicionas" },
     { "augment": "CraftingSellAugment", "tier": "B", "reason": "Pierdes un aumento por mejoras aleatorias" },
     { "augment": "CraftingPrisStatAnvil", "tier": "A", "reason": "Eliges un fragmento prismático de inmediato" },
+    { "augment": "GainStatAnvil", "tier": "B", "reason": "Recibes un yunque aleatorio y conservas tus aumentos" },
     { "augment": "CraftingAugmentSlot", "tier": "C", "reason": "Debes sobrevivir varias rondas" }
   ],
   "exceptions": [

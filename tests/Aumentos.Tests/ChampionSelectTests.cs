@@ -12,11 +12,13 @@ internal static class ChampionSelectTests
         using var lobby = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":2400}}}""");
         using var started = JsonDocument.Parse("""{"phase":"InProgress","gameData":{"queue":{"id":2400}}}""");
         using var normalAram = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":450}}}""");
+        using var otherMayhem = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"gameMode":"KIWI"}}""");
         using var arena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":1710}}}""");
         using var otherArena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"gameMode":"CHERRY"}}}""");
         Check(ChampionSelectClient.SelectMode(lobby.RootElement) == Mode.Caos &&
             ChampionSelectClient.SelectMode(started.RootElement) is null &&
             ChampionSelectClient.SelectMode(normalAram.RootElement) is null &&
+            ChampionSelectClient.SelectMode(otherMayhem.RootElement) == Mode.Caos &&
             ChampionSelectClient.SelectMode(arena.RootElement) == Mode.Arena &&
             ChampionSelectClient.SelectMode(otherArena.RootElement) == Mode.Arena, "fase y colas de selección");
 
@@ -34,6 +36,7 @@ internal static class ChampionSelectTests
         Check(ChampionSelectClient.OwnPick(selection.RootElement) == (85, 32, 4) &&
             ChampionSelectClient.OwnPick(swapped.RootElement) == (103, 6, 4) &&
             ChampionSelectClient.OwnPick(empty.RootElement) is null, "campeón y hechizos de la propia celda al hacer un intercambio");
+        CheckMayhemRoster();
 
         var page = ReadSpells();
         var main = new OpGgSpellPair("Destello", "Marca");
@@ -42,6 +45,48 @@ internal static class ChampionSelectTests
             !SpellOverlay.Matches(main, new("Kennen", "Fantasma", "Destello")),
             "combinaciones de OP.GG sin duplicados y comparación independiente de D y F");
         Console.WriteLine("Selección de campeón y hechizos de OP.GG verificados.");
+    }
+
+    private static void CheckMayhemRoster()
+    {
+        using var offer = JsonDocument.Parse("""
+            {"queueId":2400,"localPlayerCellId":4,"benchEnabled":true,
+             "myTeam":[{"cellId":0,"championId":103},{"cellId":1,"championId":86},
+               {"cellId":2,"championId":0,"championPickIntent":99},{"cellId":3,"championId":0},
+               {"cellId":4,"championId":0}],"theirTeam":[{"cellId":5,"championId":0}],
+             "benchChampions":[{"championId":103,"isPriority":false},{"championId":16,"isPriority":true},
+               {"championId":45},{"championId":20},{"championId":16},{"championId":0}],
+             "bans":{"myTeamBans":[45,-1],"theirTeamBans":[0]},
+             "actions":[[{"championId":20,"type":"ban","completed":true},
+               {"championId":16,"type":"ban","completed":false}]],"timer":{"phase":"BAN_PICK"}}
+            """);
+        var visible = ChampionSelectClient.MayhemDraftIds(offer.RootElement);
+        Check(visible is { Teammates: [103, 86], Bench: [16], Unavailable: [45, 20], BenchKnown: true, PicksOpen: true } &&
+            ChampionSelectClient.OwnPick(offer.RootElement) is null,
+            "ARAM Caos lee aliados confirmados y banca aun durante la oferta propia");
+
+        const string swap = """
+            {"localPlayerCellId":4,"benchEnabled":true,
+             "myTeam":[{"cellId":0,"championId":85},{"cellId":1,"championId":86},
+               {"cellId":2,"championId":99},{"cellId":3,"championId":45},
+               {"cellId":4,"championId":103,"spell1Id":4,"spell2Id":32}],
+             "benchChampionIds":[103,16,32,32],"timer":{"phase":"FINALIZATION"}}
+            """;
+        using var swapped = JsonDocument.Parse(swap);
+        using var loading = JsonDocument.Parse(swap.Replace("FINALIZATION", "GAME_STARTING", StringComparison.Ordinal));
+        Check(ChampionSelectClient.MayhemDraftIds(swapped.RootElement) is
+            { Teammates: [85, 86, 99, 45], Bench: [16, 32], BenchKnown: true, PicksOpen: true } &&
+            ChampionSelectClient.OwnPick(swapped.RootElement) == (103, 4, 32) &&
+            ChampionSelectClient.MayhemDraftIds(loading.RootElement) is { Teammates.Length: 4, PicksOpen: false },
+            "el intercambio actualiza a cada jugador y las sugerencias siguen disponibles hasta iniciar la partida");
+
+        using var suppressed = JsonDocument.Parse(swap.Replace("true", "false", StringComparison.Ordinal));
+        using var missing = JsonDocument.Parse(swap.Replace("benchChampionIds", "unknownField", StringComparison.Ordinal));
+        using var empty = JsonDocument.Parse(swap.Replace("[103,16,32,32]", "[]", StringComparison.Ordinal));
+        Check(ChampionSelectClient.MayhemDraftIds(suppressed.RootElement) is { Bench: [], BenchKnown: true } &&
+            ChampionSelectClient.MayhemDraftIds(empty.RootElement) is { Bench: [], BenchKnown: true } &&
+            ChampionSelectClient.MayhemDraftIds(missing.RootElement) is { Bench: [], BenchKnown: false },
+            "la banca ausente activa el respaldo visual, mientras la banca vacía o deshabilitada se respeta");
     }
 
     internal static void Smoke()

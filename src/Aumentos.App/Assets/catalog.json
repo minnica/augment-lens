@@ -2160,7 +2160,11 @@
                          "key":  "OmniSoul",
                          "name":  "Omnialma",
                          "description":  "Obtienes @SoulsToAdd@ \u003cattention\u003eAlmas de Dragón\u003c/attention\u003e aleatorias.",
-                         "maxLevel":  3
+                         "maxLevel":  3,
+                         "upgradeEffects":  [
+                                                "Almas de Dragón de 2 a 3",
+                                                "Almas de Dragón de 3 a 4"
+                                            ]
                      },
                      {
                          "mode":  "Arena",

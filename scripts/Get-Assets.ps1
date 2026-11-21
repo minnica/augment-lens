@@ -148,6 +148,7 @@ $upgradeStats = @{
         AFAmp = 'Fuerza adaptable', 100, ' %'
     }
     JeweledGauntlet = [ordered]@{ CritDamage = 'Daño crítico de habilidades', 100, ' %' }
+    OmniSoul = [ordered]@{ SoulsToAdd = 'Almas de Dragón', 1, '' }
     FanTheHammer = [ordered]@{ Cooldown = 'Enfriamiento por dirección', 1, ' s' }
     Deathtouch = [ordered]@{ OnHitDamageRatio = 'Daño al impacto del Poder Maldito', 100, ' %' }
 }

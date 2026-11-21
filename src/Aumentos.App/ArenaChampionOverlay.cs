@@ -38,7 +38,30 @@ internal sealed record ArenaChampionDisplay(Int32Rect Bounds, nint Target, Arena
     }
 }
 
-internal sealed class ArenaChampionOverlay : Window
+internal sealed class ArenaChampionOverlay() : ChampionRankingOverlay(Mode.Arena)
+{
+    internal void Render(ArenaChampionDisplay? view) => RenderRanking(view is null ? null : new(
+        view.Bounds, view.Target, view.Source.Data is { } data ?
+            $"{ArenaChampionTierSource.Attribution} · {(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}"
+            : view.Source.Status,
+        view.Source.Data is not null, view.Source.Data?.IsPrevious == true,
+        view.Rows.Select(Normalize).ToArray(), view.Selection is { } selection ? Normalize(selection) : null,
+        view.Composition.Select(pick => new ChampionRankingPick(pick.Champion, pick.Tier, pick.Reason)).ToArray(),
+        view.Grade is { } grade ? new(grade.Tier, grade.Reason, grade.Members, grade.TeamSize,
+            grade.Observed is { } observed ? $"GGEZ.GG · {LeaguePatch.Public(observed.Patch)}" : null) : null));
+
+    private static ChampionRankingRow Normalize(ArenaChampionRow row) =>
+        new(row.Champion, row.Rating?.Tier, TopThreePercent: row.Rating?.TopThreePercent);
+}
+
+internal sealed record ChampionRankingRow(string Champion, string? Tier, int? Position = null, decimal? TopThreePercent = null);
+internal sealed record ChampionRankingPick(string Champion, string? Tier, string Reason);
+internal sealed record ChampionRankingGrade(string Tier, string Reason, int Members, int TeamSize, string? Source = null);
+internal sealed record ChampionRankingDisplay(Int32Rect Bounds, nint Target, string Caption, bool HasRatings, bool PreviousPatch,
+    ChampionRankingRow[] Rows, ChampionRankingRow? Selection, ChampionRankingPick[] Composition, ChampionRankingGrade? Grade,
+    string? EmptyMessage = null);
+
+internal abstract class ChampionRankingOverlay : Window
 {
     private const double RankingWidth = 326;
     private const double CompactRankingWidth = 268;
@@ -48,14 +71,17 @@ internal sealed class ArenaChampionOverlay : Window
     private static readonly Brush BadgeBackground = Overlay.Paint("#22334C");
     private readonly StackPanel rows = new();
     private readonly Border panel;
-    private ArenaChampionDisplay? displayed;
+    private readonly Mode mode;
+    private ChampionRankingDisplay? displayed;
     private bool displayedCompact;
+    private (double Width, double Height) displayedSpace;
     private nint handle;
     private Int32Rect placement;
 
-    internal ArenaChampionOverlay()
+    protected ChampionRankingOverlay(Mode mode)
     {
-        Title = "Aumentos LoL · Tier de campeones";
+        this.mode = mode;
+        Title = mode == Mode.Caos ? "Aumentos LoL · Composición de ARAM Caos" : "Aumentos LoL · Tier de campeones";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         ShowActivated = false;
@@ -84,7 +110,7 @@ internal sealed class ArenaChampionOverlay : Window
         };
     }
 
-    internal void Render(ArenaChampionDisplay? view)
+    protected void RenderRanking(ChampionRankingDisplay? view)
     {
         if (view is null)
         {
@@ -94,23 +120,31 @@ internal sealed class ArenaChampionOverlay : Window
         }
         var bounds = view.Bounds;
         var dpi = Math.Max(96u, Native.GetDpiForWindow(view.Target)) / 96.0;
-        bool compact = bounds.Width / dpi < 1600 || bounds.Height / dpi < 680;
-        if (displayed is null || displayedCompact != compact || displayed.Source != view.Source || displayed.Selection != view.Selection ||
-            displayed.Grade != view.Grade || !displayed.Rows.SequenceEqual(view.Rows) ||
+        bool mayhem = mode == Mode.Caos;
+        bool compact = mayhem || bounds.Width / dpi < 1600 || bounds.Height / dpi < 680;
+        var margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
+        // In Mayhem, reserve the central roster and the bottom-right spell advice.
+        int top = mayhem ? Math.Max(margin, (int)Math.Round(bounds.Height * .075)) : margin;
+        int bottom = mayhem ? (int)(bounds.Height * (bounds.Height / dpi >= 900 ? .73 : .64)) : bounds.Height - margin;
+        int availableWidth = Math.Max(1, mayhem ? (int)(bounds.Width * .23) - margin : bounds.Width - 2 * margin);
+        int availableHeight = Math.Max(1, bottom - top);
+        var space = mayhem ? (availableWidth / dpi, availableHeight / dpi) : default;
+        if (displayed is null || displayedCompact != compact || displayedSpace != space ||
+            displayed.Caption != view.Caption || displayed.HasRatings != view.HasRatings || displayed.PreviousPatch != view.PreviousPatch ||
+            displayed.EmptyMessage != view.EmptyMessage ||
+            displayed.Selection != view.Selection || displayed.Grade != view.Grade || !displayed.Rows.SequenceEqual(view.Rows) ||
             !displayed.Composition.SequenceEqual(view.Composition))
-            RenderRows(view, compact);
+            RenderRows(view, compact, space);
         displayed = view;
         displayedCompact = compact;
+        displayedSpace = space;
 
-        var margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         panel.Measure(new Size(panel.Width, double.PositiveInfinity));
         var canvas = panel.DesiredSize;
-        int availableWidth = Math.Max(1, bounds.Width - 2 * margin);
-        int availableHeight = Math.Max(1, bounds.Height - 2 * margin);
         var scale = Math.Min(dpi, Math.Min(availableWidth / canvas.Width, availableHeight / canvas.Height));
         int width = Math.Max(1, (int)Math.Floor(canvas.Width * scale));
         int height = Math.Max(1, (int)Math.Floor(canvas.Height * scale));
-        var position = new Int32Rect(bounds.X + bounds.Width - margin - width, bounds.Y + bounds.Height - margin - height, width, height);
+        var position = new Int32Rect(bounds.X + bounds.Width - margin - width, bounds.Y + (mayhem ? top : bottom - height), width, height);
         if (IsVisible && Native.IsWindowVisible(handle) && position == placement)
             return;
         Width = width / dpi;
@@ -120,14 +154,15 @@ internal sealed class ArenaChampionOverlay : Window
             placement = position;
     }
 
-    private void RenderRows(ArenaChampionDisplay view, bool compact)
+    private void RenderRows(ChampionRankingDisplay view, bool compact, (double Width, double Height) space)
     {
+        bool mayhem = mode == Mode.Caos;
         rows.Children.Clear();
-        panel.Width = compact ? CompactRankingWidth : RankingWidth;
+        panel.Width = mayhem ? Math.Clamp(space.Width, 155, CompactRankingWidth) : compact ? CompactRankingWidth : RankingWidth;
         panel.Padding = compact ? new Thickness(10, 7, 10, 8) : new Thickness(13, 10, 13, 11);
-        if (view.Selection is { } selection)
+        if (view.Selection is not null || mayhem && view.Grade is not null)
         {
-            rows.Children.Add(SelectionSummary(selection, view.Source.Data is not null, view.Grade, compact));
+            rows.Children.Add(SelectionSummary(view.Selection, view.HasRatings, view.Grade, compact, mayhem, panel.Width < 220));
             AddDivider(compact);
         }
 
@@ -135,43 +170,60 @@ internal sealed class ArenaChampionOverlay : Window
         {
             AddLine("Para tu equipo", 16, Brushes.WhiteSmoke, true);
             foreach (var pick in view.Composition)
-                rows.Children.Add(TeamPick(pick, compact));
+                rows.Children.Add(TeamPick(pick, compact, mayhem));
             AddDivider(compact);
         }
 
-        AddLine(view.Rows.Length > 0 ? $"Arena · Top {view.Rows.Length} general" : "Arena · Ranking general",
-            compact ? 19 : 21, Brushes.WhiteSmoke, true);
-        if (view.Source.Data is not { } data)
+        if (mayhem)
         {
-            AddLine(view.Source.Status, 13, SecondaryText);
-            return;
+            AddLine("Campeones disponibles", 17, Brushes.WhiteSmoke, true);
+            if (view.Rows.Length == 0 && view.EmptyMessage is { } message)
+            {
+                AddLine(message, 12, SecondaryText);
+                return;
+            }
         }
-
-        AddLine(SourceCaption(data), compact ? 12 : 13, data.IsPrevious ? TierColor("S") : SecondaryText);
+        else
+            AddLine(view.Rows.Length > 0 ? $"Arena · Top {view.Rows.Length} general" : "Arena · Ranking general",
+                compact ? 19 : 21, Brushes.WhiteSmoke, true);
+        AddLine(view.Caption, !view.HasRatings || !compact ? 13 : 12, view.PreviousPatch ? TierColor("S") : SecondaryText);
         if (view.Rows.Length > 0)
-            rows.Children.Add(RankingTable(view.Rows, compact));
+            rows.Children.Add(RankingTable(view.Rows, compact, mayhem));
     }
 
-    private static StackPanel SelectionSummary(ArenaChampionRow selection, bool hasSource, ArenaCompositionGrade? grade, bool compact)
+    private static StackPanel SelectionSummary(ChampionRankingRow? selection, bool hasSource, ChampionRankingGrade? grade,
+        bool compact, bool mayhem, bool narrow)
     {
         var summary = new StackPanel();
-        summary.Children.Add(SummaryBadge(selection.Champion, selection.Rating is { } rating ? $"{TopThree(rating)} top 3" :
-            hasSource ? "Sin tier publicado" : "Tier pendiente", selection.Rating?.Tier, compact));
+        if (selection is not null)
+        {
+            string championDetail = selection switch
+            {
+                { TopThreePercent: { } topThree } => $"{TopThree(topThree)} top 3",
+                { Position: { } rank } => $"Puesto {rank.ToString(Spanish)} en OP.GG",
+                { Tier: not null } => "Tier de OP.GG",
+                _ => hasSource ? "Sin tier publicado" : "Tier pendiente"
+            };
+            summary.Children.Add(SummaryBadge(selection.Champion, championDetail, selection.Tier, compact));
+        }
 
-        var composition = new StackPanel { Margin = new Thickness(0, compact ? 4 : 6, 0, 0) };
+        var composition = new StackPanel { Margin = new Thickness(0, selection is null ? 0 : compact ? 4 : 6, 0, 0) };
         var detail = grade switch
         {
             null => "Esperando un aliado",
-            { Observed: { } observed } => $"GGEZ.GG · {LeaguePatch.Public(observed.Patch)}",
+            { Source: { } source } => source,
             _ => $"Tier local · {grade.Members}/{grade.TeamSize}"
         };
-        if (!compact && grade is { Observed: null })
+        if ((mayhem && !narrow || !compact) && grade is { Source: null })
             detail += " campeones";
-        composition.Children.Add(SummaryBadge(compact ? "Composición" : "Composición Arena", detail, grade?.Tier, compact));
+        string compositionName = mayhem && !narrow ? "Composición ARAM Caos" : compact ? "Composición" : "Composición Arena";
+        composition.Children.Add(SummaryBadge(compositionName, detail, grade?.Tier, compact));
         if (grade is not null)
         {
             var reason = Label(grade.Reason, compact ? 12 : 13, SecondaryText);
             reason.Margin = new Thickness(0, 3, 0, 0);
+            if (mayhem)
+                reason.TextWrapping = TextWrapping.Wrap;
             composition.Children.Add(reason);
         }
         summary.Children.Add(composition);
@@ -202,7 +254,7 @@ internal sealed class ArenaChampionOverlay : Window
         return group;
     }
 
-    private static StackPanel TeamPick(ArenaCompositionPick pick, bool compact)
+    private static StackPanel TeamPick(ChampionRankingPick pick, bool compact, bool mayhem)
     {
         var text = new StackPanel { Margin = new Thickness(0, compact ? 1 : 3, 0, 0) };
         var header = new DockPanel();
@@ -216,40 +268,49 @@ internal sealed class ArenaChampionOverlay : Window
         header.Children.Add(Label(pick.Champion, 14, Brushes.WhiteSmoke, bold: true));
         text.Children.Add(header);
         var reason = Label(pick.Reason, 12, SecondaryText);
-        reason.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;
+        reason.TextWrapping = compact && !mayhem ? TextWrapping.NoWrap : TextWrapping.Wrap;
         text.Children.Add(reason);
         return text;
     }
 
-    private static Grid RankingTable(ArenaChampionRow[] rows, bool compact)
+    private static Grid RankingTable(ChampionRankingRow[] rows, bool compact, bool mayhem)
     {
         var grid = new Grid { Margin = new Thickness(0, 5, 0, 0) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 18 : 24) });
+        int championColumn = mayhem ? 0 : 1;
+        int tierColumn = championColumn + 1;
+        if (!mayhem)
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 18 : 24) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 21 : 26) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 44 : 50) });
+        if (!mayhem)
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 44 : 50) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 19 : 24) });
 
         int headerSize = compact ? 12 : 13;
-        AddCell(0, 1, "Campeón", headerSize, SecondaryText);
-        AddCell(0, 2, "Tier", headerSize, SecondaryText, TextAlignment.Center);
-        AddCell(0, 3, compact ? "Top 3 %" : "Top 3", headerSize, SecondaryText, TextAlignment.Right);
+        AddCell(0, championColumn, "Campeón", headerSize, SecondaryText);
+        AddCell(0, tierColumn, "Tier", headerSize, SecondaryText, TextAlignment.Center);
+        if (!mayhem)
+            AddCell(0, 3, compact ? "Top 3 %" : "Top 3", headerSize, SecondaryText, TextAlignment.Right);
         var rule = new Border { Background = Divider, Height = 1, VerticalAlignment = VerticalAlignment.Bottom };
-        Grid.SetColumnSpan(rule, 4);
+        Grid.SetColumnSpan(rule, grid.ColumnDefinitions.Count);
         grid.Children.Add(rule);
 
         for (int i = 0; i < rows.Length; i++)
         {
             var row = rows[i];
             int line = i + 1;
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(compact ? 20 : 25) });
-            AddCell(line, 0, line.ToString(Spanish), compact ? 12 : 13, SecondaryText);
-            AddCell(line, 1, row.Champion, compact ? 15 : 17, Brushes.WhiteSmoke, bold: true);
-            if (row.Rating is { } rating)
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(mayhem ? 18 : compact ? 20 : 25) });
+            if (!mayhem)
+                AddCell(line, 0, line.ToString(Spanish), compact ? 12 : 13, SecondaryText);
+            AddCell(line, championColumn, row.Champion, mayhem ? 14 : compact ? 15 : 17, Brushes.WhiteSmoke, bold: true);
+            int valueSize = compact ? 14 : 16;
+            if (row.Tier is { } tier)
+                AddCell(line, tierColumn, tier, valueSize, TierColor(tier), TextAlignment.Center, bold: true);
+            else if (mayhem)
+                AddCell(line, tierColumn, "—", headerSize, SecondaryText, TextAlignment.Center);
+            if (!mayhem && row.TopThreePercent is { } topThree)
             {
-                int valueSize = compact ? 14 : 16;
-                AddCell(line, 2, rating.Tier, valueSize, TierColor(rating.Tier), TextAlignment.Center, bold: true);
-                AddCell(line, 3, TopThree(rating, withUnit: !compact), valueSize, Brushes.WhiteSmoke, TextAlignment.Right);
+                AddCell(line, 3, TopThree(topThree, withUnit: !compact), valueSize, Brushes.WhiteSmoke, TextAlignment.Right);
             }
         }
         return grid;
@@ -267,11 +328,8 @@ internal sealed class ArenaChampionOverlay : Window
         }
     }
 
-    private static string TopThree(ArenaChampionTier rating, bool withUnit = true) =>
-        rating.TopThreePercent.ToString("0.#", Spanish) + (withUnit ? " %" : "");
-
-    private static string SourceCaption(ArenaChampionTierList data) =>
-        $"{ArenaChampionTierSource.Attribution} · {(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";
+    private static string TopThree(decimal percent, bool withUnit = true) =>
+        percent.ToString("0.#", Spanish) + (withUnit ? " %" : "");
 
     private static Brush TierColor(string tier) => Overlay.Paint(tier switch
     {

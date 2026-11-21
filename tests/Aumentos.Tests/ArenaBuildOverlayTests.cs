@@ -61,11 +61,12 @@ internal static class ArenaBuildOverlayTests
             !mayhemLabels.Contains("45% físico"), "la barra del lobby pertenece a la tienda de Arena");
 
         var full = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with { Detail = null, Owned = true }).ToArray());
-        renderer.Render(view with { Plan = full, Source = null });
+        renderer.Render(view with { Plan = full, Source = null }, 215);
+        renderer.Measure(new Size(215, double.PositiveInfinity));
         var fullLabels = ReadText(panel).ToArray();
-        Check(fullLabels.Contains("Build completa") && fullLabels.Contains("Equipados · 6 de 6") &&
-            !fullLabels.Contains("Siguiente compra") && !panel.Children.OfType<DockPanel>().Any(),
-            "inventario lleno sin una compra pendiente");
+        Check(fullLabels.Take(3).SequenceEqual(["Build completa", "Conserva tus objetos por ahora.", "Equipados · 6 de 6"]) &&
+            !fullLabels.Contains("Siguiente compra") && renderer.DesiredSize.Width == 215,
+            "Arena aconseja conservar el inventario lleno cuando no hay un cambio, también en el panel estrecho");
         var swap = new BuildSwap(full.Steps[^1].Item, new(223156, "Fauces de Malmortius"), "Contra el daño mágico de Brand");
         renderer.Render(view with { Plan = full with { Swap = swap }, Source = null }, 215);
         Check(ReadText(panel.Children.OfType<Border>().Single()).SequenceEqual(

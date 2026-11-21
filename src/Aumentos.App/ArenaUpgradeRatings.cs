@@ -7,8 +7,23 @@ internal static class ArenaUpgradeRatings
 {
     internal const int LightEmUp = 51;
     internal const int Cerberus = 323;
+    private const int OmniSoul = 62;
+    private const int ReplaceAugment = 364;
+
     internal static void Apply(Ratings ratings, GameContext game, int?[] ids, int?[] levels, CardComparison?[] badges)
     {
+        var soul = Array.IndexOf(ids, OmniSoul);
+        if (soul >= 0 && badges[soul] is { UpgradeEffect.Length: > 0 } upgrade)
+        {
+            badges[soul] = upgrade with
+            {
+                Local = nameof(Tier.B),
+                LocalReason = "Ganas un alma aleatoria y conservas tus aumentos",
+                RecommendedUpgrade = ids.Length == 2 && ids[1 - soul] == ReplaceAugment &&
+                    badges[1 - soul] is { IsArenaVariable: true }
+            };
+        }
+
         var fireworks = Array.IndexOf(ids, LightEmUp);
         if (fireworks >= 0 && levels[fireworks] == 2 && badges[fireworks] is { } light)
             badges[fireworks] = light with { LocalReason = "Fuegos artificiales de 4 a 5 · Daño de 90 % a 100 %" };

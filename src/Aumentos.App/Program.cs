@@ -182,6 +182,7 @@ internal static class Program
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
+            var mayhemTeamOverlay = new MayhemTeamOverlay();
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
             var arenaTeams = new ArenaTeamSource(ratings.Catalog, settings, http);
             var mayhemChampionTiers = new MayhemChampionTiers(ratings.Catalog, settings, http);
@@ -189,7 +190,8 @@ internal static class Program
                 championTiers, arenaTeams, mayhemChampionTiers, aramMayhem, aramHex);
             var mayhemBench = new MayhemBenchPortraits(ratings.Catalog, settings, http);
             var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers, mayhemChampionTiers, mayhemBench,
-                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render, arenaTeams);
+                app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render,
+                mayhemTeamOverlay.Render, arenaTeams);
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, ggezGlobal, aramHex,
@@ -273,6 +275,7 @@ internal static class Program
                     spellOverlay.Render(null);
                     arenaChampionOverlay.Render(null);
                     mayhemChampionOverlay.Render(null);
+                    mayhemTeamOverlay.Render(null);
                 }
             };
             menu.Items.Add(pause);
@@ -328,6 +331,7 @@ internal static class Program
                                 spellOverlay.Render(null);
                                 arenaChampionOverlay.Render(null);
                                 mayhemChampionOverlay.Render(null);
+                                mayhemTeamOverlay.Render(null);
                                 WriteStatus($"No se pudo mostrar el panel de selección de campeón · {error.GetType().Name}");
                             });
                     }

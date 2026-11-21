@@ -76,13 +76,15 @@ internal static class BuildVisibilityTests
         game.MissingChampion = false;
         var loaded = await LiveGame.ReadMatch(http, CancellationToken.None);
         Check(loaded is { Mode: Mode.Caos, Match.Game.Champion: "Gragas" }, "el aviso puede dar paso a una build al reconocer el campeón");
-        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":0.71775}""";
+        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":0.71775,"critChance":0.58,"lifeSteal":0,"attackRange":500}""";
         var withStatistics = await LiveGame.ReadMatch(http, CancellationToken.None);
         Check(withStatistics?.Match?.Mayhem is { MagicPenetration: { Flat: 20, Remaining: 0.71775 },
-            Opponents: [{ Champion: "Lux", Level: 14 }] }, "la API entrega la penetración acumulada y el nivel de los rivales");
-        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":"desconocido"}""";
-        Check(await LiveGame.ReadMatch(http, CancellationToken.None) is { Match.Mayhem: { MagicPenetration: null, Items: [3020] } },
-            "un campo de penetración inválido no oculta el inventario de la partida");
+            CombatStats: { CritChance: 0.58, LifeSteal: 0, AttackRange: 500 }, Opponents: [{ Champion: "Lux", Level: 14 }] },
+            "la API entrega las estadísticas de combate y el nivel de los rivales");
+        game.ActiveStats = """{"magicPenetrationFlat":20,"magicPenetrationPercent":"desconocido","critChance":8,"lifeSteal":0.1,"attackRange":0}""";
+        Check(await LiveGame.ReadMatch(http, CancellationToken.None) is
+            { Match.Mayhem: { MagicPenetration: null, CombatStats: { CritChance: null, LifeSteal: 0.1, AttackRange: null }, Items: [3020] } },
+            "un campo inválido no oculta las estadísticas válidas ni el inventario");
         game.SupportedMode = false;
         Check(await LiveGame.ReadMatch(http, CancellationToken.None) is null, "los modos incompatibles no muestran el aviso de campeón");
     }

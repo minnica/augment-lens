@@ -111,7 +111,8 @@ internal sealed class Detection : IDisposable
                 state.Clear();
             var result = Scan(image, scan, layout, mode, panelConfirmed: true);
             if (mode == Mode.Arena && layout.Titles.Length == 2 &&
-                result.Cards is not ([LambReward, WolfReward] or [WolfReward, LambReward]))
+                result.Cards is not ([LambReward, WolfReward] or [WolfReward, LambReward]) &&
+                !(result.Cards.All(id => id.HasValue) && HasArenaUpgradeHeading(image)))
                 continue;
             if (!marker && result.Matched < 2)
                 continue;
@@ -158,6 +159,7 @@ internal sealed class Detection : IDisposable
         var items = new bool[calibration.Titles.Length];
         var shards = new StatShard?[calibration.Titles.Length];
         var upgrades = mode == Mode.Arena ? new int?[calibration.Titles.Length] : null;
+        bool arenaPair = mode == Mode.Arena && calibration.Titles.Length == 2;
         long now = Environment.TickCount64;
         for (int index = 0; index < ids.Length; index++)
         {
@@ -180,11 +182,13 @@ internal sealed class Detection : IDisposable
                 bool anvilTitleMayWrap = mode == Mode.Arena && candidates is [{ AnvilCount: not null }];
                 if (!item && (candidates.Length != 1 || anvilTitleMayWrap) && (!shard.HasValue || mode == Mode.Caos))
                 {
-                    var extra = Math.Min(rect.Y, rect.Height * 3 / 4);
+                    // The two-slot reward title sits just below its icon and can wrap onto two lines.
+                    var extra = Math.Min(rect.Y, arenaPair ? rect.Height / 4 : rect.Height * 3 / 4);
                     var trim = rect.Width / 24;
+                    var bottomTrim = arenaPair ? 0 : rect.Height / 6;
                     var widerTitle = new Int32Rect(rect.X + trim, rect.Y - extra,
-                        rect.Width - trim * 2, rect.Height + extra - rect.Height / 6);
-                    var fallback = ReadTitle(image, widerTitle, PageSegMode.SingleBlock);
+                        rect.Width - trim * 2, rect.Height + extra - bottomTrim);
+                    var fallback = ReadTitle(image, widerTitle, PageSegMode.SingleBlock, minimumScale: arenaPair ? 2 : 1);
                     bool fallbackItem = mode == Mode.Arena && ratings.IsArenaItem(fallback);
                     var fallbackShard = fallbackItem ? null : StatShardRatings.Recognize(fallback);
                     var alternate = fallbackItem || fallbackShard.HasValue ? [] : ratings.FindTitle(mode, fallback);
@@ -352,8 +356,13 @@ internal sealed class Detection : IDisposable
     internal bool HasArenaUpgradeHeading(BitmapSource image)
     {
         var secondLine = new Region(0.425, 0.113, 0.15, 0.035).Pixels(image.PixelWidth, image.PixelHeight);
-        return secondLine.Width > 0 && secondLine.Height > 0 &&
-            Ratings.Normalize(ReadTitle(image, secondLine, PageSegMode.SingleLine)) == "aumento";
+        if (secondLine.Width > 0 && secondLine.Height > 0 &&
+            Ratings.Normalize(ReadTitle(image, secondLine, PageSegMode.SingleLine, minimumScale: 2)) == "aumento")
+            return true;
+
+        var firstLine = new Region(0.415, 0.084, 0.17, 0.03).Pixels(image.PixelWidth, image.PixelHeight);
+        return firstLine.Width > 0 && firstLine.Height > 0 &&
+            Ratings.Normalize(ReadTitle(image, firstLine, PageSegMode.SingleLine, minimumScale: 2)) == "sube de nivel un";
     }
 
     private static Int32Rect? DescriptionArea(BitmapSource image, Int32Rect title)

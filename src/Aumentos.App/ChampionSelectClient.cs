@@ -16,8 +16,10 @@ namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
 internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, int Size = 0);
+internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown,
+    bool PicksOpen = true);
 internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
-    string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null);
+    string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null);
 
 internal sealed class ChampionSelectClient : IDisposable
 {
@@ -47,8 +49,7 @@ internal sealed class ChampionSelectClient : IDisposable
             return new ChampionSelectSession(mode, ArenaChampion: champion, ArenaTeam: team);
         }
 
-        var pick = await ReadMayhemPick(connection, cancellation).ConfigureAwait(false);
-        return new ChampionSelectSession(mode, pick);
+        return await ReadMayhemDraft(connection, cancellation).ConfigureAwait(false);
     }
 
     private async Task<(string? Champion, ArenaDraftTeam? Team)> ReadArenaDraft(HttpClient connection, CancellationToken cancellation)
@@ -77,22 +78,29 @@ internal sealed class ChampionSelectClient : IDisposable
         }
     }
 
-    private async Task<ChampionSelection?> ReadMayhemPick(HttpClient connection, CancellationToken cancellation)
+    private async Task<ChampionSelectSession> ReadMayhemDraft(HttpClient connection, CancellationToken cancellation)
     {
         using var selection = await Get(connection, SelectionEndpoint, cancellation).ConfigureAwait(false);
-        if (selection is null || OwnPick(selection.RootElement) is not { } pick)
-            return null;
+        if (selection is null || MayhemDraftIds(selection.RootElement) is not { } draft ||
+            await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
+            return new(Mode.Caos);
 
-        var names = await ChampionNames(connection, cancellation).ConfigureAwait(false);
-        var key = names?.GetValueOrDefault(pick.Champion);
-        if (spells is null)
+        var team = new MayhemDraftTeam(Keys(draft.Teammates), Keys(draft.Bench), Keys(draft.Unavailable), draft.BenchKnown,
+            draft.PicksOpen);
+        ChampionSelection? picked = null;
+        if (OwnPick(selection.RootElement) is { } pick && names.GetValueOrDefault(pick.Champion) is { } key)
         {
-            using var spellData = await Get(connection, "/lol-game-data/assets/v1/summoner-spells.json", cancellation).ConfigureAwait(false);
-            spells = ReadNames(spellData, "name");
+            if (spells is null)
+            {
+                using var spellData = await Get(connection, "/lol-game-data/assets/v1/summoner-spells.json", cancellation).ConfigureAwait(false);
+                spells = ReadNames(spellData, "name");
+            }
+            picked = new(key, spells?.GetValueOrDefault(pick.Spell1), spells?.GetValueOrDefault(pick.Spell2));
         }
-        return key is not null
-            ? new ChampionSelection(key, spells?.GetValueOrDefault(pick.Spell1), spells?.GetValueOrDefault(pick.Spell2))
-            : null;
+        return new(Mode.Caos, picked, MayhemTeam: team);
+
+        string[] Keys(int[] ids) => ids.Select(id => names.GetValueOrDefault(id)).OfType<string>()
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private async Task<Dictionary<int, string>?> ChampionNames(HttpClient connection, CancellationToken cancellation)
@@ -112,11 +120,13 @@ internal sealed class ChampionSelectClient : IDisposable
             return null;
         if (data.TryGetProperty("queue", out var queue) && queue.ValueKind == JsonValueKind.Object)
         {
-            if (Number(queue, "id") == 2400)
+            if (Number(queue, "id") == 2400 || TextIs(queue, "gameMode", "KIWI"))
                 return Mode.Caos;
             if (Number(queue, "id") is 1700 or 1710 || TextIs(queue, "gameMode", "CHERRY"))
                 return Mode.Arena;
         }
+        if (TextIs(data, "gameMode", "KIWI"))
+            return Mode.Caos;
         return TextIs(data, "gameMode", "CHERRY") ? Mode.Arena : null;
     }
 
@@ -131,6 +141,33 @@ internal sealed class ChampionSelectClient : IDisposable
             ? (champion, Number(player, "spell1Id"), Number(player, "spell2Id")) : null;
     }
 
+    internal static (int[] Teammates, int[] Bench, int[] Unavailable, bool BenchKnown, bool PicksOpen)? MayhemDraftIds(JsonElement root)
+    {
+        if (OwnPlayer(root) is not { } own)
+            return null;
+
+        int localCell = Number(root, "localPlayerCellId");
+        var teammates = Elements(root, "myTeam")
+            .Where(ally => ally.ValueKind == JsonValueKind.Object && Number(ally, "cellId") is >= 0 and var cell && cell != localCell)
+            .Select(ally => Number(ally, "championId")).Where(id => id > 0).Distinct().ToArray();
+        var unavailable = ConfirmedBans(root).Concat(DraftActions(root)
+            .Where(action => TextIs(action, "type", "ban") && FlagIs(action, "completed", JsonValueKind.True))
+            .Select(action => Number(action, "championId"))).Distinct().ToArray();
+        bool picksOpen = !root.TryGetProperty("timer", out var timer) || timer.ValueKind != JsonValueKind.Object ||
+            !TextIs(timer, "phase", "GAME_STARTING");
+        if (FlagIs(root, "benchEnabled", JsonValueKind.False))
+            return (teammates, [], unavailable, true, picksOpen);
+
+        // Current Riot clients expose bench objects. Older clients published the same choices as an array of IDs.
+        bool benchKnown = TryArray(root, "benchChampions", out var bench) || TryArray(root, "benchChampionIds", out bench);
+        int ownChampion = Number(own, "championId");
+        var candidates = benchKnown ? bench.EnumerateArray()
+            .Select(entry => entry.ValueKind == JsonValueKind.Object ? Number(entry, "championId") : PositiveId(entry))
+            .Where(id => id > 0 && id != ownChampion && !teammates.Contains(id) && !unavailable.Contains(id))
+            .Distinct().ToArray() : [];
+        return (teammates, candidates, unavailable, benchKnown, picksOpen);
+    }
+
     internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize) ArenaDraftIds(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object)
@@ -140,10 +177,7 @@ internal sealed class ChampionSelectClient : IDisposable
         int localCell = Number(root, "localPlayerCellId");
         int localTeam = own is { } player ? ArenaTeamId(player) : -1;
         int teamSize = own is null ? 0 : 1;
-        var actions = Elements(root, "actions").Where(group => group.ValueKind == JsonValueKind.Array)
-            .SelectMany(group => group.EnumerateArray())
-            .Where(action => action.ValueKind == JsonValueKind.Object && Number(action, "championId") > 0)
-            .ToArray();
+        var actions = DraftActions(root).ToArray();
         var inProgressPicks = new Dictionary<int, int>();
         foreach (var action in actions)
         {
@@ -172,12 +206,7 @@ internal sealed class ChampionSelectClient : IDisposable
             if (enemy.ValueKind == JsonValueKind.Object)
                 AddEnemy(enemy);
 
-        if (root.TryGetProperty("bans", out var bans))
-        {
-            foreach (var ban in Elements(bans, "myTeamBans").Concat(Elements(bans, "theirTeamBans")))
-                if (ban.ValueKind == JsonValueKind.Number && ban.TryGetInt32(out var id) && id > 0)
-                    unavailable.Add(id);
-        }
+        unavailable.UnionWith(ConfirmedBans(root));
         foreach (var action in actions)
         {
             if (FlagIs(action, "completed", JsonValueKind.True) && (TextIs(action, "type", "ban") ||
@@ -195,9 +224,25 @@ internal sealed class ChampionSelectClient : IDisposable
         }
     }
 
+    private static IEnumerable<JsonElement> DraftActions(JsonElement root) => Elements(root, "actions")
+        .Where(group => group.ValueKind == JsonValueKind.Array).SelectMany(group => group.EnumerateArray())
+        .Where(action => action.ValueKind == JsonValueKind.Object && Number(action, "championId") > 0);
+
+    private static IEnumerable<int> ConfirmedBans(JsonElement root) => root.TryGetProperty("bans", out var bans)
+        ? Elements(bans, "myTeamBans").Concat(Elements(bans, "theirTeamBans")).Select(PositiveId).Where(id => id > 0) : [];
+
+    private static int PositiveId(JsonElement entry) => entry.ValueKind == JsonValueKind.Number &&
+        entry.TryGetInt32(out var id) && id > 0 ? id : -1;
+
     private static IEnumerable<JsonElement> Elements(JsonElement root, string key) =>
-        root.ValueKind == JsonValueKind.Object && root.TryGetProperty(key, out var array) &&
-        array.ValueKind == JsonValueKind.Array ? array.EnumerateArray() : [];
+        TryArray(root, key, out var array) ? array.EnumerateArray() : [];
+
+    private static bool TryArray(JsonElement root, string key, out JsonElement array)
+    {
+        array = default;
+        return root.ValueKind == JsonValueKind.Object && root.TryGetProperty(key, out array) &&
+            array.ValueKind == JsonValueKind.Array;
+    }
 
     private static int ArenaTeamId(JsonElement player) => Number(player, "teamId") is >= 0 and var team
         ? team : Number(player, "team");

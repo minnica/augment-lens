@@ -64,7 +64,9 @@ internal sealed class LiveOverlay
         using var live = new LiveGame(Path.Combine(assets, "riotgames.pem"));
         using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
         var shopDetector = new ShopDetection();
-        var mayhemBuilds = MayhemBuilds.Load(ratings, assets);
+        var mayhemItems = MayhemItemCatalog.Load(ratings.Catalog.Patch, assets);
+        var mayhemBuilds = new MayhemBuilds(ratings, mayhemItems);
+        var mayhemAdvice = new MayhemAugmentAdvice(ratings, mayhemItems);
         var arenaBuilds = new ArenaBuilds(ratings);
         WindowCapture? capture = null;
         Mode? activeMode = null;
@@ -180,8 +182,7 @@ internal sealed class LiveOverlay
                     }
                     var champion = game is not null ? ChampionName(game) : null;
                     result = activeMode is { } mode
-                        ? ReadOverlay(window, mode, champion is null ? null : game, champion,
-                            match?.Arena is { InventoryKnown: true } arenaMatch ? arenaMatch.Items : null)
+                        ? ReadOverlay(window, mode, champion is null ? null : game, champion, match)
                         : new OverlayUpdate("Esperando ARAM Caos o Arena…");
                     if (result is not null)
                     {
@@ -269,7 +270,7 @@ internal sealed class LiveOverlay
             shop = null;
         }
 
-        OverlayUpdate? ReadOverlay(GameWindow window, Mode mode, GameContext? current, string? name, IReadOnlyList<int>? arenaItems)
+        OverlayUpdate? ReadOverlay(GameWindow window, Mode mode, GameContext? current, string? name, LiveMatch? currentMatch)
         {
             if (!string.Equals(window.Patch, ratings.Catalog.Patch, StringComparison.Ordinal))
             {
@@ -363,7 +364,9 @@ internal sealed class LiveOverlay
                         previous = candidate;
                         var badges = CardComparison.ForOffer(ratings, current, result.Cards, result.Items,
                             source.Data, source.Loading, mayhem?.Data, arena?.Data,
-                            upgradeLevels: result.UpgradeLevels, arenaItems: arenaItems, ggezGlobal: global?.Data,
+                            upgradeLevels: result.UpgradeLevels,
+                            arenaItems: currentMatch?.Arena is { InventoryKnown: true } arenaMatch ? arenaMatch.Items : null,
+                            ggezGlobal: global?.Data,
                             aramHex: hex?.Data);
                         if (arenaUpgradeHeading is null && result.UpgradeLevels?.Any(level => level.HasValue) == true)
                             arenaUpgradeHeading = detector.HasArenaUpgradeHeading(frame);
@@ -371,6 +374,7 @@ internal sealed class LiveOverlay
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
+                        mayhemAdvice.Apply(current, currentMatch?.Mayhem, result.Cards, badges);
                         var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
                             badge == CardComparison.Unread ? "?" : $"{badge.ExternalText} / {badge.VisibleTierText}" +
                             (badge.RecommendedUpgrade ? " · Mejora recomendada" :
