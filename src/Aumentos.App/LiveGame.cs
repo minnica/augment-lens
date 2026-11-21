@@ -318,10 +318,19 @@ internal sealed class LiveGame : IDisposable
 
     private static string? ChampionKey(JsonElement player)
     {
-        const string prefix = "game_character_displayname_";
+        const string displayNamePrefix = "game_character_displayname_";
+        const string characterPrefix = "Character_";
+        const string characterSuffix = "_Name";
         var name = Identity(player, "rawChampionName");
-        return name?.Length > prefix.Length && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? name[prefix.Length..] : null;
+        if (name is null)
+            return null;
+        if (name.Length > displayNamePrefix.Length && name.StartsWith(displayNamePrefix, StringComparison.OrdinalIgnoreCase))
+            return name[displayNamePrefix.Length..];
+        if (name.Length > characterPrefix.Length + characterSuffix.Length &&
+            name.StartsWith(characterPrefix, StringComparison.OrdinalIgnoreCase) &&
+            name.EndsWith(characterSuffix, StringComparison.OrdinalIgnoreCase))
+            return name[characterPrefix.Length..^characterSuffix.Length];
+        return null;
     }
 
     private static int[]? ReadItems(JsonElement player)

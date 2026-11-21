@@ -95,10 +95,15 @@ internal static class Program
             && LiveGame.ParseMode("ARAM") is null, "detección de modos");
         using var players = JsonDocument.Parse("""
             [{"riotId":"other#000","rawChampionName":"game_character_displayname_Brand"},
-             {"riotId":"player#000","rawChampionName":"game_character_displayname_DrMundo"}]
+             {"riotId":"player#000","rawChampionName":"game_character_displayname_DrMundo"},
+             {"riotId":"seraphine#000","rawChampionName":"Character_Seraphine_Name","team":"ORDER","items":[{"itemID":6655}]}]
             """);
         Check(LiveGame.ParseMatch(Mode.Caos, players.RootElement, "player#000")?.Game.Champion == "DrMundo",
             "campeón del jugador activo");
+        var seraphine = LiveGame.ParseMatch(Mode.Caos, players.RootElement, "seraphine#000");
+        Check(seraphine?.Game.Champion == "Seraphine" && seraphine.Mayhem?.Items.SequenceEqual([6655]) == true &&
+            ratings.Catalog.Champions.Any(champion => champion.Key == seraphine.Game.Champion),
+            "la clave Character_Seraphine_Name identifica el campeón del catálogo y conserva el inventario");
         var arena = ratings.Recognize(Mode.Arena, "Misión: Endurece tu corazón");
         var reading = ratings.Recognize(Mode.Caos, " ENDURECE   TU CORAZÓN ");
         Check(arena is not null && reading is not null && reading.Mode == "Caos", "catálogo y normalización por modo");
