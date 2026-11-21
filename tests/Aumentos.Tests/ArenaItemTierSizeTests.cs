@@ -3,8 +3,9 @@ using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Threading;
 using Aumentos;
 
@@ -12,30 +13,15 @@ internal static class ArenaItemTierSizeTests
 {
     internal static void Smoke()
     {
-        var overlay = new Overlay();
+        var folder = Directory.CreateTempSubdirectory("aumentos-item-size");
+        var path = Path.Combine(folder.FullName, "item-tier-size.json");
+        var preference = new BuildSizePreference(path);
+        var overlay = new Overlay(preference.Save);
         foreach (var window in overlay.Windows)
         {
             window.Left = -30000;
             window.Top = -30000;
         }
-
-        var folder = Path.Combine(Path.GetTempPath(), $"aumentos-item-size-{Guid.NewGuid():N}");
-        var path = Path.Combine(folder, "item-tier-size.json");
-        var preference = new BuildSizePreference(path);
-        BuildSizeWindow? settings = null;
-        overlay.ItemSizeRequested += () =>
-        {
-            settings = new BuildSizeWindow(preference.Load(), overlay.CreateTierPreview(arenaItems: true), percent =>
-            {
-                overlay.SetTierSize(percent);
-                return preference.Save(percent);
-            })
-            {
-                Left = -30000, Top = -30000, ShowActivated = false,
-                WindowStartupLocation = WindowStartupLocation.Manual
-            };
-            settings.Show();
-        };
 
         try
         {
@@ -49,27 +35,30 @@ internal static class ArenaItemTierSizeTests
                 new("A", ArenaChoice: new("Reverberación", Tier.A, "Inmovilizar activa impactos", Recommended: true, TopPosition: 4))
             ];
             const int edge = 241;
-            var offer = new OverlayUpdate("Prismáticos", bounds, layout, labels, Mode: Mode.Arena, ArenaCardTop: edge);
+            var offer = new OverlayUpdate("Arena", bounds, layout, labels, Mode: Mode.Arena, ArenaCardTop: edge);
             overlay.Render(offer);
             var unchanged = Position(overlay.Windows[1]);
-            overlay.Render(offer with { ArenaItemOffer = true });
+            var prismatics = new PrismaticDisplay(new([], 0), layout, "26.23");
+            overlay.Render(offer with { ArenaItemOffer = true, Prismatics = prismatics });
             var initial = Position(overlay.Windows[1]);
             Check(initial.Width > unchanged.Width && initial.Height > unchanged.Height, "los tiers de objetos tienen un tamaño inicial mayor");
 
-            var sizeButton = overlay.Windows[0].OwnedWindows.OfType<BuildSizeButton>().Single();
-            var button = (Button)sizeButton.Content;
-            var location = Position(sizeButton);
-            Check(sizeButton.IsVisible && location.Y >= bounds.Y && location.Y + location.Height < bounds.Y + edge &&
-                location.X > bounds.X + layout.Titles[^1].Pixels(bounds.Width, bounds.Height).X,
-                "el botón de tamaño acepta clics fuera de la carta");
-            var peer = new ButtonAutomationPeer(button);
-            ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(settings is { IsVisible: true } && settings.Title.Contains(Overlay.TierSizeTitle, StringComparison.Ordinal),
-                "el botón abre el ajuste de tiers de cartas");
+            var sizeButton = overlay.Windows.SelectMany(window => window.OwnedWindows.OfType<BuildSizeButton>()).Single();
+            var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
+            var buttonPosition = Position(sizeButton);
+            var (topOnLeft, _) = BuildOverlay.PrismaticSide(bounds, titles, 1);
+            Check(sizeButton.IsVisible && buttonPosition.Y >= bounds.Y && buttonPosition.Y + buttonPosition.Height < bounds.Y + edge &&
+                (topOnLeft ? buttonPosition.X > bounds.X + titles[^1].X + titles[^1].Width
+                    : buttonPosition.X + buttonPosition.Width < bounds.X + titles[0].X),
+                "el control queda fuera de las cartas y del lado opuesto al Top 5");
 
-            var slider = (Slider)settings!.FindName("SizeSlider");
-            var preview = (FrameworkElement)((ContentPresenter)settings.FindName("PreviewHost")).Content;
+            var slider = OpenEditor(sizeButton, 100);
+            var editorPosition = Position(sizeButton);
+            slider.ApplyTemplate();
+            var track = (Track)slider.Template.FindName("PART_Track", slider);
+            track.Thumb.RaiseEvent(new DragDeltaEventArgs(50, 0) { RoutedEvent = Thumb.DragDeltaEvent });
+            Check(slider.Value > 100 && preference.Load() == (int)slider.Value && Position(sizeButton) == editorPosition,
+                "el arrastre redimensiona en partida y guarda el valor sin mover el control");
             slider.Value = BuildSizePreference.Minimum;
             var smallest = Position(overlay.Windows[1]);
             slider.Value = BuildSizePreference.Maximum;
@@ -79,23 +68,33 @@ internal static class ArenaItemTierSizeTests
                 Math.Abs(largest.Y + largest.Height / 2.0 - center) <= 1 &&
                 largest.Y >= bounds.Y + (int)(bounds.Height * .09),
                 "el deslizamiento cambia los distintivos en pantalla y mantiene su centro y el reloj");
-            Check(preference.Load() == BuildSizePreference.Maximum &&
-                preview.LayoutTransform is ScaleTransform { ScaleX: 1.5, ScaleY: 1.5 },
-                "la vista previa y la preferencia reflejan el porcentaje");
-            var reset = (Button)settings.FindName("ResetButton");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(preference.Load() == BuildSizePreference.Maximum && overlay.TierSizePercent == BuildSizePreference.Maximum &&
+                ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "150 %" &&
+                Position(sizeButton) == editorPosition, "el ajuste visible y la preferencia reflejan el porcentaje");
+            slider.Value = BuildSizePreference.Default;
             Check(preference.Load() == BuildSizePreference.Default && Position(overlay.Windows[1]) == initial,
-                "restablecer recupera el tamaño inicial");
+                "100 % recupera el tamaño inicial");
+            var editor = (BuildScaleEditor)sizeButton.Content;
+            editor.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount) { RoutedEvent = Mouse.MouseLeaveEvent });
+            WaitForAutoClose();
+            Check(sizeButton.Content is Button && sizeButton.IsVisible && overlay.IsVisible && Position(sizeButton) == buttonPosition,
+                "apartarse del ajuste vuelve al botón y mantiene visibles las cartas");
+
+            slider = OpenEditor(sizeButton, 100);
             slider.Value = BuildSizePreference.Maximum;
             overlay.Render(offer);
-            Check(Position(overlay.Windows[1]).Width > unchanged.Width && !sizeButton.IsVisible,
-                "el mismo ajuste escala las demás cartas de Arena y el botón queda reservado para los objetos");
+            Check(Position(overlay.Windows[1]).Width > unchanged.Width && sizeButton.IsVisible && sizeButton.Content is Button,
+                "el mismo ajuste escala aumentos de Arena y cierra el editor de una oferta anterior");
+            OpenEditor(sizeButton, BuildSizePreference.Maximum).Value = BuildSizePreference.Default;
+            overlay.Render(offer with { ArenaUpgradeHeading = true });
+            Check(sizeButton.IsVisible && sizeButton.Content is Button, "el control aparece al presentar mejoras de Arena");
 
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            overlay.Render(new("Aumentos de ARAM Caos", bounds, layout,
+            var mayhem = new OverlayUpdate("Aumentos de ARAM Caos", bounds, layout,
                 [new("A", new OpGgCard("A")), new(CardComparison.Missing, new OpGgCard("B")), new("A", new OpGgCard("S"))],
-                Mode: Mode.Caos));
+                Mode: Mode.Caos);
+            overlay.Render(mayhem);
             var mayhemDefault = Position(overlay.Windows[1]);
+            slider = OpenEditor(sizeButton, 100);
             slider.Value = BuildSizePreference.Minimum;
             var mayhemSmallest = Position(overlay.Windows[1]);
             slider.Value = BuildSizePreference.Maximum;
@@ -106,21 +105,68 @@ internal static class ArenaItemTierSizeTests
             Check(overlay.Windows.Where(window => window.IsVisible).Select(Position).All(position =>
                 position.Width == mayhemLargest.Width && position.Height == mayhemLargest.Height && position.Y == mayhemLargest.Y),
                 "la escala conserva el mismo tamaño y alineación para toda la oferta de ARAM Caos");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            slider.Value = BuildSizePreference.Default;
             Check(Position(overlay.Windows[1]) == mayhemDefault,
-                "restablecer recupera también el tamaño original en ARAM Caos");
+                "100 % recupera también el tamaño original en ARAM Caos");
+
+            var compact = new Int32Rect(bounds.X, bounds.Y, 1280, 720);
+            var wideCards = layout with
+            {
+                Titles = [new(.06, .39, .16, .04), new(.3, .39, .16, .04), new(.54, .39, .16, .04), new(.78, .39, .16, .04)]
+            };
+            overlay.Render(mayhem with { Bounds = compact, Layout = wideCards,
+                Labels = [.. mayhem.Labels!, new("S", new OpGgCard("S"))] });
+            var compactDefault = Position(overlay.Windows[1]);
+            slider = OpenEditor(sizeButton, 100);
+            slider.Value = BuildSizePreference.Minimum;
+            var compactSmallest = Position(overlay.Windows[1]);
+            Check(compactSmallest.Width < compactDefault.Width && compactSmallest.Height < compactDefault.Height,
+                "en 1280×720 el 75 % reduce el tamaño que cabe al 100 %");
+            slider.Value = BuildSizePreference.Maximum;
+            var compactControl = Position(sizeButton);
+            Check(compactControl.X >= compact.X + compact.Width * 2 / 3 &&
+                compactControl.X + compactControl.Width <= compact.X + compact.Width &&
+                overlay.Windows.Where(window => window.IsVisible).Select(Position)
+                    .All(rect => rect.Y >= compactControl.Y + compactControl.Height),
+                "en 1280×720 el ajuste cabe por encima de todas las cartas sin cubrir el centro");
+            overlay.Hide();
+            Check(!overlay.IsVisible && !sizeButton.IsVisible && sizeButton.Content is Button &&
+                preference.Load() == BuildSizePreference.Maximum, "al cerrar la oferta desaparece el control y se conserva la escala");
         }
         finally
         {
-            settings?.Close();
             overlay.Close();
             File.Delete(path);
-            if (Directory.Exists(folder))
-                Directory.Delete(folder);
+            folder.Delete();
         }
     }
 
     private static Int32Rect Position(Window window) => Native.Bounds(new WindowInteropHelper(window).Handle);
+
+    private static Slider OpenEditor(BuildSizeButton sizeButton, int percent)
+    {
+        Check(sizeButton.IsVisible && sizeButton.Content is Button, "el botón de tiers está visible");
+        var peer = new ButtonAutomationPeer((Button)sizeButton.Content);
+        ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+        var slider = ((BuildScaleEditor)sizeButton.Content).FindName("SizeSlider") as Slider;
+        Check(slider is { Minimum: 75, Maximum: 150 } && slider.Value == percent,
+            "Tiers abre el ajuste en partida y recupera la escala guardada");
+        return slider!;
+    }
+
+    private static void WaitForAutoClose()
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer { Interval = BuildScaleEditor.PointerExitDelay + TimeSpan.FromMilliseconds(100) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
+    }
 
     private static void Check(bool condition, string message)
     {

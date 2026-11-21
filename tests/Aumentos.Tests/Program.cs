@@ -959,25 +959,10 @@ internal static class Program
 
     private static void PrismaticOverlaySmoke(Ratings ratings, string assets)
     {
-        var overlay = new BuildOverlay { Left = -30000, Top = -30000, ShowInTaskbar = false };
         var path = Path.Combine(Path.GetTempPath(), $"aumentos-prismatics-{Guid.NewGuid():N}.json");
         var preference = new BuildSizePreference(path);
-        BuildSizeWindow? settings = null;
-        overlay.PrismaticSizeRequested += () =>
-        {
-            var preview = overlay.CreatePrismaticPreview("Renata Glasc", ratings.Prismatics.TopForChampion("Renata")!,
-                ratings.Catalog.Patch);
-            settings = new BuildSizeWindow(preference.Load(), preview, percent =>
-            {
-                overlay.SetPrismaticSize(percent);
-                return preference.Save(percent);
-            }, BuildOverlay.PrismaticSizeTitle)
-            {
-                WindowStartupLocation = WindowStartupLocation.Manual,
-                Left = -30000, Top = -30000, ShowActivated = false
-            };
-            settings.Show();
-        };
+        var overlay = new BuildOverlay(savePrismaticSize: preference.Save)
+            { Left = -30000, Top = -30000, ShowInTaskbar = false };
         try
         {
             var bounds = new Int32Rect(-30000, -30000, 1280, 720);
@@ -992,7 +977,9 @@ internal static class Program
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
             var sizeButton = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
-            var buttonPosition = Native.Bounds(new WindowInteropHelper(sizeButton).Handle);
+            var button = (Button)sizeButton.Content;
+            var buttonHandle = new WindowInteropHelper(sizeButton).Handle;
+            var buttonPosition = Native.Bounds(buttonHandle);
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             var rows = panel.Children.OfType<DockPanel>().ToArray();
             Check(Native.IsWindowVisible(handle) && placement.X >= bounds.X &&
@@ -1002,19 +989,29 @@ internal static class Program
                     .Select(text => text.Text).SequenceEqual(["Cuota del Segador · S+", "Velocidad de ataque y daño al impacto", "En oferta"]),
                 "panel prismático de cinco filas con su botón de tamaño encima, tier y disponibilidad");
 
+            var peer = new ButtonAutomationPeer(button);
+            ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var editor = (FrameworkElement)sizeButton.Content;
+            var slider = (Slider)editor.FindName("SizeSlider");
+            var editorPosition = Native.Bounds(buttonHandle);
+            Check(slider is { Minimum: 75, Maximum: 150, Value: 100 } &&
+                editorPosition.X == placement.X && editorPosition.X + editorPosition.Width < bounds.X +
+                    layout.Titles[0].Pixels(bounds.Width, bounds.Height).X &&
+                (Native.GetWindowLongW(buttonHandle, -20) & 0x08000020) == 0x08000000,
+                "Tamaño abre el editor de prismáticos dentro del juego incluso en 1280 × 720");
+            slider!.Value = BuildSizePreference.Minimum;
+            Check(Native.Bounds(handle).Width < placement.Width && Native.Bounds(buttonHandle) == editorPosition,
+                "el editor compacto permanece fijo al reducir el panel");
+            slider.Value = BuildSizePreference.Default;
+
             var spacious = bounds with { Width = 2560, Height = 1440 };
             overlay.Render(view with { Bounds = spacious });
             var defaultSize = Native.Bounds(handle);
+            editorPosition = Native.Bounds(buttonHandle);
             overlay.SetSize(BuildSizePreference.Maximum);
             Check(Native.Bounds(handle) == defaultSize, "el tamaño de las builds no cambia el panel prismático");
-            var peer = new ButtonAutomationPeer((Button)sizeButton.Content);
-            ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(settings is { IsVisible: true } && settings.Title.StartsWith(BuildOverlay.PrismaticSizeTitle, StringComparison.Ordinal),
-                "el botón abre el ajuste del panel prismático");
 
-            var slider = (Slider)settings!.FindName("SizeSlider");
-            var preview = (BuildPanel)((ContentPresenter)settings.FindName("PreviewHost")).Content;
             slider.Value = BuildSizePreference.Minimum;
             var small = Native.Bounds(handle);
             slider.Value = BuildSizePreference.Maximum;
@@ -1022,11 +1019,10 @@ internal static class Program
             Check(small.Width < defaultSize.Width && small.Height < defaultSize.Height &&
                 large.Width > defaultSize.Width && large.Height > defaultSize.Height &&
                 large.X + large.Width < spacious.X + layout.Titles[0].Pixels(spacious.Width, spacious.Height).X &&
-                preference.Load() == BuildSizePreference.Maximum &&
-                preview.LayoutTransform is ScaleTransform { ScaleX: 1.5, ScaleY: 1.5 } &&
-                ((StackPanel)preview.Child).Children.OfType<TextBlock>().Any(line => line.Text == "Afinidad con Tristana"),
-                "el control guarda el porcentaje, escala la vista previa de la oferta y evita cubrir las cartas");
-            ((Button)settings.FindName("ResetButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                preference.Load() == BuildSizePreference.Maximum && overlay.PrismaticSizePercent == BuildSizePreference.Maximum &&
+                Native.Bounds(buttonHandle) == editorPosition && ((TextBlock)editor.FindName("PercentText")).Text == "150 %",
+                "el deslizador escala el Top 5 real, guarda el porcentaje y evita cubrir las cartas");
+            slider.Value = BuildSizePreference.Default;
             Check(preference.Load() == BuildSizePreference.Default && Native.Bounds(handle) == defaultSize,
                 "el panel prismático vuelve a su tamaño original al restablecerlo");
 
@@ -1034,12 +1030,12 @@ internal static class Program
             Check(panel.Children.OfType<DockPanel>().First().Children.OfType<StackPanel>().Single().Children.Count == 2,
                 "la marca de oferta se actualiza al cambiar las cartas");
             overlay.Render(null);
-            Check(!Native.IsWindowVisible(handle) && !sizeButton.IsVisible, "el Top 5 y su botón se ocultan al cerrar la selección");
+            Check(!Native.IsWindowVisible(handle) && !sizeButton.IsVisible && ReferenceEquals(sizeButton.Content, button),
+                "el Top 5 y su editor se cierran al elegir una carta");
             Console.WriteLine("Panel lateral de prismáticos verificado en WPF.");
         }
         finally
         {
-            settings?.Close();
             overlay.Close();
             File.Delete(path);
         }

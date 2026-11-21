@@ -13,13 +13,13 @@ internal sealed partial class BuildSizeButton : Window
     internal const int ButtonWidth = 92;
     internal const int ButtonHeight = 34;
     internal const int ScaleEditorWidth = 240;
-    internal const int ScaleEditorMinimumWidth = 174;
+    internal const int ScaleEditorMinimumWidth = 132;
     private static readonly Geometry MinimizeMark = CreateMark("M 2,7 H 12");
     private static readonly Geometry RestoreMark = CreateMark("M 2,7 H 12 M 7,2 V 12");
     private nint handle;
     private Int32Rect placement;
 
-    internal BuildSizeButton(Action open, string? title = null)
+    internal BuildSizeButton(Action open, string? title = null, string? label = null)
     {
         InitializeComponent();
         if (title is not null)
@@ -27,6 +27,8 @@ internal sealed partial class BuildSizeButton : Window
             Title = title;
             AutomationProperties.SetName(OpenButton, title);
         }
+        if (label is not null)
+            OpenButton.Content = label;
         OpenButton.Background = OverlayPanelStyle.Surface;
         OpenButton.BorderBrush = OverlayPanelStyle.Frame;
         OpenButton.Click += (_, _) => open();

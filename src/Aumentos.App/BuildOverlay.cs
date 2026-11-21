@@ -66,6 +66,7 @@ internal sealed class BuildOverlay : Window
 
     private readonly BuildItemIcons? itemIcons;
     private readonly Func<int, bool>? saveSize;
+    private readonly Func<int, bool>? savePrismaticSize;
     private readonly BuildPanel panel;
     private BuildDisplay? displayed;
     private Int32Rect placement;
@@ -81,14 +82,15 @@ internal sealed class BuildOverlay : Window
     private int sizePercent = BuildSizePreference.Default;
     private int prismaticSizePercent = BuildSizePreference.Default;
 
-    internal event Action? PrismaticSizeRequested;
     internal BuildSizeButton? MayhemDisclosure { get; private set; }
     internal int SizePercent => sizePercent;
+    internal int PrismaticSizePercent => prismaticSizePercent;
 
-    internal BuildOverlay(BuildItemIcons? itemIcons = null, Func<int, bool>? saveSize = null)
+    internal BuildOverlay(BuildItemIcons? itemIcons = null, Func<int, bool>? saveSize = null, Func<int, bool>? savePrismaticSize = null)
     {
         this.itemIcons = itemIcons;
         this.saveSize = saveSize;
+        this.savePrismaticSize = savePrismaticSize;
         Title = "Aumentos LoL · Recomendaciones de objetos";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -162,7 +164,8 @@ internal sealed class BuildOverlay : Window
             else if (wParam == SizeHotkeyId && sizeShortcutRegistered)
             {
                 handled = true;
-                ToggleSizeEditor();
+                if (displayed?.Prismatics is null)
+                    ToggleSizeEditor();
             }
         }
         return 0;
@@ -170,18 +173,25 @@ internal sealed class BuildOverlay : Window
 
     private void ToggleSizeEditor()
     {
-        if (saveSize is null || sizeButton is not { IsVisible: true } button || !IsVisible ||
-            displayed is not { Prismatics: null } view || (view.Target != 0 && Native.GetForegroundWindow() != view.Target))
+        if (!IsVisible || displayed is not { } view || (view.Target != 0 && Native.GetForegroundWindow() != view.Target))
+            return;
+        bool prismatics = view.Prismatics is not null;
+        var button = prismatics ? prismaticSizeButton : sizeButton;
+        var save = prismatics ? savePrismaticSize : saveSize;
+        if (save is null || button is not { IsVisible: true })
             return;
         if (sizeEditorOpen)
             CloseSizeEditor();
         else
         {
             sizeEditorOpen = true;
-            button.OpenScaleEditor(sizePercent, percent =>
+            button.OpenScaleEditor(prismatics ? prismaticSizePercent : sizePercent, percent =>
             {
-                SetSize(percent);
-                return saveSize(percent);
+                if (prismatics)
+                    SetPrismaticSize(percent);
+                else
+                    SetSize(percent);
+                return save(percent);
             }, FinishSizeEditing);
         }
         Render(view);
@@ -202,6 +212,7 @@ internal sealed class BuildOverlay : Window
             return;
         sizeEditorOpen = false;
         sizeButton?.CloseScaleEditor();
+        prismaticSizeButton?.CloseScaleEditor();
     }
 
     internal void SetSize(int percent)
@@ -264,7 +275,8 @@ internal sealed class BuildOverlay : Window
         var targetDpi = view.Target == 0 ? 0 : Native.GetDpiForWindow(view.Target);
         double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
         bool prismatics = view.Prismatics is not null;
-        if (prismatics || displayed is null || displayed.Target != view.Target || displayed.Mode != view.Mode)
+        if (displayed is null || displayed.Target != view.Target || displayed.Mode != view.Mode ||
+            displayed.Prismatics?.Layout != view.Prismatics?.Layout)
             CloseSizeEditor();
         double requestedScale = dpi * sizePercent / 100.0;
         int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
@@ -275,13 +287,9 @@ internal sealed class BuildOverlay : Window
         {
             layoutWidth = BuildPanel.PrismaticWidth;
             var titles = layout.Titles.Select(region => region.Pixels(bounds.Width, bounds.Height)).ToArray();
-            // Los recortes del OCR cubren solo el texto. Deja espacio para los bordes y el resplandor.
-            int padding = bounds.Width / 24;
-            int leftSpace = titles.Min(title => title.X) - padding - 2 * margin;
-            int rightSpace = bounds.Width - titles.Max(title => title.X + title.Width) - padding - 2 * margin;
-            int desiredWidth = (int)Math.Ceiling(layoutWidth * dpi);
-            placeLeft = leftSpace >= desiredWidth || leftSpace >= rightSpace;
-            maxWidth = Math.Min(maxWidth, Math.Max(1, placeLeft ? leftSpace : rightSpace));
+            var side = PrismaticSide(bounds, titles, dpi);
+            placeLeft = side.OnLeft;
+            maxWidth = Math.Min(maxWidth, Math.Max(1, side.AvailableWidth));
         }
         else if (view.Shop is { } shop)
         {
@@ -323,14 +331,13 @@ internal sealed class BuildOverlay : Window
         var restorePosition = !prismatics && view.Mode == Mode.Caos && roomForControls && maxWidth >= buttonHeight &&
             view.Shop is { } openShop ? PlaceRestoreButton(bounds, openShop, placeLeft, buttonHeight, buttonGap) : null;
         bool collapsed = restorePosition.HasValue && mayhemCollapsed;
-        bool inlineSizeFits = saveSize is not null && roomForControls &&
+        bool inlineSizeFits = (prismatics ? savePrismaticSize : saveSize) is not null && roomForControls &&
             maxWidth >= (int)Math.Ceiling(BuildSizeButton.ScaleEditorMinimumWidth * dpi);
         if (!inlineSizeFits || collapsed)
             CloseSizeEditor();
         bool showDisclosure = restorePosition.HasValue && !sizeEditorOpen;
         int controlsWidth = buttonWidth + (showDisclosure ? buttonHeight + buttonGap : 0);
-        bool sizeButtonFits = (prismatics ? PrismaticSizeRequested is not null && roomForControls : inlineSizeFits) &&
-            maxWidth >= controlsWidth;
+        bool sizeButtonFits = inlineSizeFits && maxWidth >= controlsWidth;
         bool showSizeButton = !collapsed && (sizeEditorOpen || sizeButtonFits);
         if (sizeEditorOpen)
             buttonWidth = Math.Min(maxWidth, (int)Math.Ceiling(BuildSizeButton.ScaleEditorWidth * dpi));
@@ -390,7 +397,7 @@ internal sealed class BuildOverlay : Window
         if (showSizeButton && Native.IsWindowVisible(handle))
         {
             var button = prismatics
-                ? prismaticSizeButton ??= new BuildSizeButton(() => PrismaticSizeRequested?.Invoke(), PrismaticSizeTitle) { Owner = this }
+                ? prismaticSizeButton ??= new BuildSizeButton(ToggleSizeEditor, PrismaticSizeTitle) { Owner = this }
                 : sizeButton ??= new BuildSizeButton(ToggleSizeEditor) { Owner = this };
             int x = (prismatics || sizeEditorOpen) && placeLeft
                 ? target.X : Math.Max(target.X + target.Width - buttonWidth, bounds.X + margin);
@@ -403,6 +410,17 @@ internal sealed class BuildOverlay : Window
             sizeButton?.Hide();
             prismaticSizeButton?.Hide();
         }
+    }
+
+    internal static (bool OnLeft, int AvailableWidth) PrismaticSide(Int32Rect bounds, Int32Rect[] titles, double dpi)
+    {
+        int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
+        // Los recortes del OCR cubren solo el texto. Deja espacio para los bordes y el resplandor.
+        int clearance = bounds.Width / 24 + 2 * margin;
+        int left = titles.Min(title => title.X) - clearance;
+        int right = bounds.Width - titles.Max(title => title.X + title.Width) - clearance;
+        bool onLeft = left >= Math.Ceiling(BuildPanel.PrismaticWidth * dpi) || left >= right;
+        return (onLeft, onLeft ? left : right);
     }
 
     private static Int32Rect? PlaceRestoreButton(Int32Rect bounds, Int32Rect shop, bool placeLeft, int size, int gap)

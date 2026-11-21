@@ -161,22 +161,18 @@ internal static class Program
                     diagnostics.Hide();
                 }
             };
-            var overlay = new Overlay();
             var tierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"));
-            int tierSize = tierSizePreference.Load();
-            overlay.SetTierSize(tierSize);
+            var overlay = new Overlay(tierSizePreference.Save);
+            overlay.SetTierSize(tierSizePreference.Load());
             BuildSizeWindow? tierSizeWindow = null;
-            overlay.ItemSizeRequested += () => OpenTierSize(previewArenaItems: true);
             var itemIcons = new BuildItemIcons(http);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
-            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save);
-            buildOverlay.SetSize(sizePreference.Load());
-            BuildSizeWindow? buildSizeWindow = null;
             var prismaticSizePreference = new BuildSizePreference(Path.Combine(settings, "prismatic-panel-size.json"));
-            int prismaticSize = prismaticSizePreference.Load();
-            buildOverlay.SetPrismaticSize(prismaticSize);
+            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save, prismaticSizePreference.Save);
+            buildOverlay.SetSize(sizePreference.Load());
+            buildOverlay.SetPrismaticSize(prismaticSizePreference.Load());
+            BuildSizeWindow? buildSizeWindow = null;
             BuildSizeWindow? prismaticSizeWindow = null;
-            buildOverlay.PrismaticSizeRequested += OpenPrismaticSize;
             var spellOverlay = new SpellOverlay();
             var arenaChampionOverlay = new ArenaChampionOverlay();
             var arenaVoteOverlay = new ArenaVoteOverlay();
@@ -402,9 +398,8 @@ internal static class Program
                     return;
                 }
 
-                var window = new BuildSizeWindow(tierSize, overlay.CreateTierPreview(previewArenaItems), percent =>
+                var window = new BuildSizeWindow(overlay.TierSizePercent, overlay.CreateTierPreview(previewArenaItems), percent =>
                 {
-                    tierSize = percent;
                     overlay.SetTierSize(percent);
                     return tierSizePreference.Save(percent);
                 });
@@ -426,9 +421,8 @@ internal static class Program
 
                 var top = ratings.Prismatics.TopForChampion("Renata") ?? new([], 0);
                 var preview = buildOverlay.CreatePrismaticPreview("Renata Glasc", top, ratings.Catalog.Patch);
-                var window = new BuildSizeWindow(prismaticSize, preview, percent =>
+                var window = new BuildSizeWindow(buildOverlay.PrismaticSizePercent, preview, percent =>
                 {
-                    prismaticSize = percent;
                     buildOverlay.SetPrismaticSize(percent);
                     return prismaticSizePreference.Save(percent);
                 }, BuildOverlay.PrismaticSizeTitle);
