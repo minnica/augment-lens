@@ -23,7 +23,7 @@ internal static class OverlayPanelStyle
         _ => Ink
     };
 
-    private static Brush VerticalGradient(string top, string bottom)
+    internal static Brush VerticalGradient(string top, string bottom)
     {
         var brush = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(top),
             (Color)ColorConverter.ConvertFromString(bottom), 90);

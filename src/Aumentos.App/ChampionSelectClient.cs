@@ -16,8 +16,7 @@ namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
 internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, int Size = 0);
-internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown,
-    bool PicksOpen = true);
+internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown);
 internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
     string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null,
     bool ArenaPicksClosed = false);
@@ -81,15 +80,17 @@ internal sealed class ChampionSelectClient : IDisposable
         }
     }
 
-    private async Task<ChampionSelectSession> ReadMayhemDraft(HttpClient connection, CancellationToken cancellation)
+    internal async Task<ChampionSelectSession?> ReadMayhemDraft(HttpClient connection, CancellationToken cancellation)
     {
         using var selection = await Get(connection, SelectionEndpoint, cancellation).ConfigureAwait(false);
-        if (selection is null || MayhemDraftIds(selection.RootElement) is not { } draft ||
+        // Gameflow can still say ChampSelect after the bench and spell picker have closed.
+        if (selection is null || !MayhemSelectionOpen(selection.RootElement))
+            return null;
+        if (MayhemDraftIds(selection.RootElement) is not { } draft ||
             await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
             return new(Mode.Caos);
 
-        var team = new MayhemDraftTeam(Keys(draft.Teammates), Keys(draft.Bench), Keys(draft.Unavailable), draft.BenchKnown,
-            draft.PicksOpen);
+        var team = new MayhemDraftTeam(Keys(draft.Teammates), Keys(draft.Bench), Keys(draft.Unavailable), draft.BenchKnown);
         ChampionSelection? picked = null;
         if (OwnPick(selection.RootElement) is { } pick && names.GetValueOrDefault(pick.Champion) is { } key)
         {
@@ -144,7 +145,24 @@ internal sealed class ChampionSelectClient : IDisposable
             ? (champion, Number(player, "spell1Id"), Number(player, "spell2Id")) : null;
     }
 
-    internal static (int[] Teammates, int[] Bench, int[] Unavailable, bool BenchKnown, bool PicksOpen)? MayhemDraftIds(JsonElement root)
+    private static bool MayhemSelectionOpen(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            return false;
+        if (!root.TryGetProperty("timer", out var timer) || timer.ValueKind != JsonValueKind.Object ||
+            !timer.TryGetProperty("phase", out var phase) || phase.ValueKind != JsonValueKind.String)
+            return OwnPlayer(root) is not null;
+
+        if (phase.ValueEquals("GAME_STARTING"))
+            return false;
+        if (phase.ValueEquals("FINALIZATION") && !FlagIs(timer, "isInfinite", JsonValueKind.True) &&
+            timer.TryGetProperty("adjustedTimeLeftInPhase", out var left) && left.ValueKind == JsonValueKind.Number &&
+            left.TryGetInt64(out long milliseconds))
+            return milliseconds > 0;
+        return true;
+    }
+
+    private static (int[] Teammates, int[] Bench, int[] Unavailable, bool BenchKnown)? MayhemDraftIds(JsonElement root)
     {
         if (OwnPlayer(root) is not { } own)
             return null;
@@ -156,10 +174,8 @@ internal sealed class ChampionSelectClient : IDisposable
         var unavailable = ConfirmedBans(root).Concat(DraftActions(root)
             .Where(action => TextIs(action, "type", "ban") && FlagIs(action, "completed", JsonValueKind.True))
             .Select(action => Number(action, "championId"))).Distinct().ToArray();
-        bool picksOpen = !root.TryGetProperty("timer", out var timer) || timer.ValueKind != JsonValueKind.Object ||
-            !TextIs(timer, "phase", "GAME_STARTING");
         if (FlagIs(root, "benchEnabled", JsonValueKind.False))
-            return (teammates, [], unavailable, true, picksOpen);
+            return (teammates, [], unavailable, true);
 
         // Current Riot clients expose bench objects. Older clients published the same choices as an array of IDs.
         bool benchKnown = TryArray(root, "benchChampions", out var bench) || TryArray(root, "benchChampionIds", out bench);
@@ -168,7 +184,7 @@ internal sealed class ChampionSelectClient : IDisposable
             .Select(entry => entry.ValueKind == JsonValueKind.Object ? Number(entry, "championId") : PositiveId(entry))
             .Where(id => id > 0 && id != ownChampion && !teammates.Contains(id) && !unavailable.Contains(id))
             .Distinct().ToArray() : [];
-        return (teammates, candidates, unavailable, benchKnown, picksOpen);
+        return (teammates, candidates, unavailable, benchKnown);
     }
 
     private static bool ArenaPicksClosed(JsonElement root) =>

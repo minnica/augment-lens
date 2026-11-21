@@ -74,11 +74,13 @@ internal sealed class BuildOverlay : Window
     private bool sizeShortcutRegistered;
     private BuildSizeButton? sizeButton;
     private BuildSizeButton? prismaticSizeButton;
+    private bool mayhemCollapsed;
     private int sizePercent = BuildSizePreference.Default;
     private int prismaticSizePercent = BuildSizePreference.Default;
 
     internal event Action? SizeRequested;
     internal event Action? PrismaticSizeRequested;
+    internal BuildSizeButton? MayhemDisclosure { get; private set; }
 
     internal BuildOverlay(BuildItemIcons? itemIcons = null)
     {
@@ -140,6 +142,7 @@ internal sealed class BuildOverlay : Window
         onToggle = null;
         sizeShortcutRegistered = false;
         hotkeySource = null;
+        MayhemDisclosure?.Close();
         base.OnClosed(e);
     }
 
@@ -190,12 +193,23 @@ internal sealed class BuildOverlay : Window
         return preview;
     }
 
+    private void ToggleMayhemPanel()
+    {
+        if (displayed is not { Mode: Mode.Caos, Prismatics: null } view ||
+            (view.Target != 0 && Native.GetForegroundWindow() != view.Target))
+            return;
+        mayhemCollapsed = !mayhemCollapsed;
+        MayhemDisclosure?.SetDisclosure(mayhemCollapsed);
+        Render(view);
+    }
+
     internal void Render(BuildDisplay? view)
     {
         if (view is null || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
         {
             sizeButton?.Hide();
             prismaticSizeButton?.Hide();
+            MayhemDisclosure?.Hide();
             if (IsVisible)
                 Hide();
             displayed = null;
@@ -257,9 +271,16 @@ internal sealed class BuildOverlay : Window
         int buttonWidth = (int)Math.Ceiling(BuildSizeButton.ButtonWidth * dpi);
         int buttonHeight = (int)Math.Ceiling(BuildSizeButton.ButtonHeight * dpi);
         int buttonGap = (int)Math.Ceiling(5 * dpi);
-        bool showSizeButton = (prismatics ? PrismaticSizeRequested : SizeRequested) is not null &&
-            maxWidth >= buttonWidth && maxHeight >= 2 * buttonHeight + buttonGap;
-        int top = margin + (showSizeButton ? buttonHeight + buttonGap : 0);
+        bool roomForControls = maxHeight >= 2 * buttonHeight + buttonGap;
+        var restorePosition = !prismatics && view.Mode == Mode.Caos && roomForControls && maxWidth >= buttonHeight &&
+            view.Shop is { } openShop ? PlaceRestoreButton(bounds, openShop, placeLeft, buttonHeight, buttonGap) : null;
+        bool showDisclosure = restorePosition.HasValue;
+        bool collapsed = showDisclosure && mayhemCollapsed;
+        int controlsWidth = buttonWidth + (showDisclosure ? buttonHeight + buttonGap : 0);
+        bool sizeButtonFits = (prismatics ? PrismaticSizeRequested : SizeRequested) is not null &&
+            roomForControls && maxWidth >= controlsWidth;
+        bool showSizeButton = !collapsed && sizeButtonFits;
+        int top = margin + (showDisclosure || showSizeButton ? buttonHeight + buttonGap : 0);
         maxHeight -= top - margin;
         double fittingScale = Math.Min(maxWidth / desired.Width, maxHeight / desired.Height);
         if (prismatics)
@@ -270,7 +291,12 @@ internal sealed class BuildOverlay : Window
         var target = new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
             bounds.Y + Math.Clamp((int)(bounds.Height * 0.12), top, bounds.Height - margin - height), width, height);
 
-        if (!IsVisible || !Native.IsWindowVisible(handle) || target != placement)
+        if (collapsed)
+        {
+            if (IsVisible)
+                Hide();
+        }
+        else if (!IsVisible || !Native.IsWindowVisible(handle) || target != placement)
         {
             Width = width / dpi;
             Height = height / dpi;
@@ -280,6 +306,25 @@ internal sealed class BuildOverlay : Window
             if (Native.SetWindowPos(handle, -1, target.X, target.Y, target.Width, target.Height, showWithoutActivation))
                 placement = target;
         }
+
+        int controlsY = target.Y - buttonHeight - buttonGap;
+        int disclosureX = target.X;
+        if (showDisclosure)
+        {
+            int toolbarWidth = sizeButtonFits ? controlsWidth : buttonHeight;
+            if (!placeLeft)
+                disclosureX = Math.Min(disclosureX, target.X + target.Width - toolbarWidth);
+            if (MayhemDisclosure is null)
+            {
+                MayhemDisclosure = new BuildSizeButton(ToggleMayhemPanel, "Recomendaciones de objetos de ARAM Caos");
+                MayhemDisclosure.SetDisclosure(mayhemCollapsed);
+            }
+            var buttonPosition = collapsed ? restorePosition.GetValueOrDefault()
+                : new Int32Rect(disclosureX, controlsY, buttonHeight, buttonHeight);
+            MayhemDisclosure.Display(buttonPosition, dpi);
+        }
+        else
+            MayhemDisclosure?.Hide();
 
         if (prismatics)
             sizeButton?.Hide();
@@ -291,13 +336,34 @@ internal sealed class BuildOverlay : Window
                 ? prismaticSizeButton ??= new BuildSizeButton(() => PrismaticSizeRequested?.Invoke(), PrismaticSizeTitle) { Owner = this }
                 : sizeButton ??= new BuildSizeButton(() => SizeRequested?.Invoke()) { Owner = this };
             int x = prismatics && placeLeft ? target.X : Math.Max(target.X + target.Width - buttonWidth, bounds.X + margin);
-            button.Display(new Int32Rect(x, target.Y - buttonHeight - buttonGap, buttonWidth, buttonHeight), dpi);
+            if (showDisclosure)
+                x = Math.Max(x, disclosureX + buttonHeight + buttonGap);
+            button.Display(new Int32Rect(x, controlsY, buttonWidth, buttonHeight), dpi);
         }
         else
         {
             sizeButton?.Hide();
             prismaticSizeButton?.Hide();
         }
+    }
+
+    private static Int32Rect? PlaceRestoreButton(Int32Rect bounds, Int32Rect shop, bool placeLeft, int size, int gap)
+    {
+        int maxX = bounds.Width - size;
+        int maxY = bounds.Height - size;
+        int left = shop.X - size - gap;
+        int right = shop.X + shop.Width + gap;
+        int y = Math.Clamp(shop.Y, 0, maxY);
+        if (left >= 0 && (placeLeft || right > maxX))
+            return new Int32Rect(bounds.X + left, bounds.Y + y, size, size);
+        if (right <= maxX)
+            return new Int32Rect(bounds.X + right, bounds.Y + y, size, size);
+
+        int x = Math.Clamp(shop.X + shop.Width - size, 0, maxX);
+        int above = shop.Y - size - gap;
+        int below = shop.Y + shop.Height + gap;
+        y = above >= 0 ? above : below;
+        return y <= maxY ? new Int32Rect(bounds.X + x, bounds.Y + y, size, size) : null;
     }
 
     [DllImport("user32.dll")]

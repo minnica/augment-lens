@@ -69,12 +69,11 @@ internal abstract class ChampionRankingOverlay : Window
     private static readonly Brush ArenaGold = Overlay.Paint("#D8BE85");
     private static readonly Brush ArenaRowTint = Overlay.Paint("#111C22");
     private static readonly Brush ArenaSelectionTint = Overlay.Paint("#30291D");
-    private static readonly Brush MayhemRowTint = Overlay.Paint("#441F4347");
-    private static readonly Brush MayhemBadge = Overlay.Paint("#10202A");
-    private static readonly Brush PrimaryText = OverlayPanelStyle.Ink;
+    private static readonly Brush ArenaBadgeBackground = Overlay.Paint("#1A252B");
+    private const double MayhemTierColumn = 32;
+    private readonly Brush primaryText;
     private readonly Brush secondaryText;
     private readonly Brush divider;
-    private readonly Brush badgeBackground;
     private readonly StackPanel rows = new();
     private readonly Border panel;
     private readonly bool mayhem;
@@ -87,9 +86,9 @@ internal abstract class ChampionRankingOverlay : Window
     protected ChampionRankingOverlay(Mode mode)
     {
         mayhem = mode == Mode.Caos;
-        secondaryText = mayhem ? OverlayPanelStyle.Muted : Overlay.Paint("#BBAF94");
-        divider = mayhem ? OverlayPanelStyle.Divider : Overlay.Paint("#594A33");
-        badgeBackground = mayhem ? MayhemBadge : Overlay.Paint("#1A252B");
+        primaryText = mayhem ? MayhemTierStyle.Ink : OverlayPanelStyle.Ink;
+        secondaryText = mayhem ? MayhemTierStyle.Muted : Overlay.Paint("#BBAF94");
+        divider = mayhem ? MayhemTierStyle.Divider : Overlay.Paint("#594A33");
         Title = mayhem ? "Aumentos LoL · Composición de ARAM Caos" : "Aumentos LoL · Tier de campeones";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -100,12 +99,10 @@ internal abstract class ChampionRankingOverlay : Window
         Background = Brushes.Transparent;
         Focusable = false;
         IsHitTestVisible = false;
-        panel = new Border
+        panel = mayhem ? MayhemTierStyle.Panel(rows, new Thickness(11, 8, 11, 9)) : new Border
         {
-            CornerRadius = new CornerRadius(mayhem ? 3 : 0),
-            Background = mayhem ? OverlayPanelStyle.Surface : Overlay.Paint("#FA0B141A"),
-            BorderBrush = mayhem ? OverlayPanelStyle.Frame : Overlay.Paint("#806B46"),
-            BorderThickness = mayhem ? new Thickness(2, 3, 2, 2) : new Thickness(1, 2, 1, 1),
+            Background = Overlay.Paint("#FA0B141A"), BorderBrush = Overlay.Paint("#806B46"),
+            BorderThickness = new Thickness(1, 2, 1, 1),
             Child = rows
         };
         TextOptions.SetTextFormattingMode(panel, TextFormattingMode.Display);
@@ -172,7 +169,8 @@ internal abstract class ChampionRankingOverlay : Window
     {
         rows.Children.Clear();
         panel.Width = mayhem ? MayhemSidePanel.PreferredWidth(space.Width) : compact ? CompactArenaWidth : ArenaRankingWidth;
-        panel.Padding = compact ? new Thickness(10, 7, 10, 8) : new Thickness(13, 10, 13, 11);
+        if (!mayhem)
+            panel.Padding = compact ? new Thickness(10, 7, 10, 8) : new Thickness(13, 10, 13, 11);
         bool narrowMayhem = mayhem && panel.Width < 235;
         if (view.Selection is not null || mayhem && view.Grade is not null)
         {
@@ -182,9 +180,7 @@ internal abstract class ChampionRankingOverlay : Window
 
         if (view.Composition.Length > 0)
         {
-            var heading = AddLine("Para tu equipo", 16, mayhem ? OverlayPanelStyle.Gold : ArenaGold, true);
-            if (mayhem)
-                heading.FontFamily = OverlayPanelStyle.Heading;
+            AddHeading("Para tu equipo", 16, serif: mayhem);
             foreach (var pick in view.Composition)
                 rows.Children.Add(TeamPick(pick, compact));
             AddDivider(compact);
@@ -192,8 +188,7 @@ internal abstract class ChampionRankingOverlay : Window
 
         if (mayhem)
         {
-            var heading = AddLine("Campeones disponibles", narrowMayhem ? 15 : 17, OverlayPanelStyle.Gold, true);
-            heading.FontFamily = OverlayPanelStyle.Heading;
+            AddHeading("Campeones disponibles", narrowMayhem ? 15 : 17);
             if (view.Rows.Length == 0 && view.EmptyMessage is { } message)
             {
                 AddLine(message, 12, secondaryText);
@@ -202,9 +197,8 @@ internal abstract class ChampionRankingOverlay : Window
         }
         else
         {
-            var heading = AddLine(view.Rows.Length > 0 ? $"Arena · Top {view.Rows.Length} general" : "Arena · Ranking general",
-                compact ? 18 : 21, ArenaGold, true);
-            heading.FontFamily = OverlayPanelStyle.Heading;
+            AddHeading(view.Rows.Length > 0 ? $"Arena · Top {view.Rows.Length} general" : "Arena · Ranking general",
+                compact ? 18 : 21);
         }
         AddLine(view.Caption, !view.HasRatings || !compact ? 13 : 12, view.PreviousPatch ? TierColor("S") : secondaryText);
         if (view.Rows.Length > 0)
@@ -257,24 +251,37 @@ internal abstract class ChampionRankingOverlay : Window
         var group = new DockPanel { VerticalAlignment = VerticalAlignment.Top };
         if (tier is not null)
         {
-            var grade = Label(tier, compact ? 22 : 27, TierColor(tier), bold: true);
-            grade.TextAlignment = TextAlignment.Center;
-            grade.VerticalAlignment = VerticalAlignment.Center;
-            var badge = new Border
-            {
-                Width = compact ? 30 : 39, Height = compact ? 34 : 40, CornerRadius = new CornerRadius(mayhem ? 2 : 0),
-                Background = badgeBackground, BorderBrush = mayhem ? OverlayPanelStyle.Frame : divider, BorderThickness = new Thickness(1),
-                Margin = new Thickness(6, 0, 0, 0), Child = grade
-            };
+            var badge = mayhem ? MayhemTierStyle.Badge(tier, MayhemTierColumn, MayhemTierColumn, 22)
+                : ArenaSummaryBadge(tier, compact);
+            badge.Margin = new Thickness(6, 0, 0, 0);
             DockPanel.SetDock(badge, Dock.Right);
             group.Children.Add(badge);
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(Label(name, compact ? 14 : 17, PrimaryText, bold: true));
+        var title = Label(name, compact ? 14 : 17, primaryText, bold: true);
+        if (mayhem)
+        {
+            title.FontFamily = MayhemTierStyle.Heading;
+            title.FontWeight = FontWeights.Bold;
+            title.TextWrapping = TextWrapping.Wrap;
+        }
+        text.Children.Add(title);
         text.Children.Add(Label(detail, compact ? 12 : 13, secondaryText));
         group.Children.Add(text);
         return group;
+    }
+
+    private Border ArenaSummaryBadge(string tier, bool compact)
+    {
+        var grade = Label(tier, compact ? 22 : 27, TierColor(tier), bold: true);
+        grade.TextAlignment = TextAlignment.Center;
+        grade.VerticalAlignment = VerticalAlignment.Center;
+        return new Border
+        {
+            Width = compact ? 30 : 39, Height = compact ? 34 : 40, Background = ArenaBadgeBackground,
+            BorderBrush = divider, BorderThickness = new Thickness(1), Child = grade
+        };
     }
 
     private StackPanel TeamPick(ChampionRankingPick pick, bool compact)
@@ -285,10 +292,16 @@ internal abstract class ChampionRankingOverlay : Window
         {
             var grade = Label(tier, 14, TierColor(tier), bold: true);
             grade.Margin = new Thickness(6, 0, 0, 0);
+            if (mayhem)
+            {
+                grade.FontFamily = MayhemTierStyle.Heading;
+                grade.Width = MayhemTierColumn;
+                grade.TextAlignment = TextAlignment.Center;
+            }
             DockPanel.SetDock(grade, Dock.Right);
             header.Children.Add(grade);
         }
-        header.Children.Add(Label(pick.Champion, 14, PrimaryText, bold: true));
+        header.Children.Add(Label(pick.Champion, 14, primaryText, bold: true));
         text.Children.Add(header);
         var reason = Label(pick.Reason, 12, secondaryText);
         reason.TextWrapping = TextWrapping.Wrap;
@@ -312,13 +325,13 @@ internal abstract class ChampionRankingOverlay : Window
         if (!mayhem)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 24 : 31) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 21 : 26) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(mayhem ? MayhemTierColumn : compact ? 21 : 26) });
         if (!mayhem)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 52 : 60) });
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(headerHeight) });
 
         int headerSize = compact ? 12 : 13;
-        var headerText = mayhem ? OverlayPanelStyle.Gold : ArenaGold;
+        var headerText = mayhem ? secondaryText : ArenaGold;
         AddCell(0, championColumn, "Campeón", headerSize, headerText, bold: true);
         AddCell(0, tierColumn, "Tier", headerSize, headerText, TextAlignment.Center, bold: true);
         if (!mayhem)
@@ -333,9 +346,9 @@ internal abstract class ChampionRankingOverlay : Window
             int line = i + 1;
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(rowHeight) });
             bool selected = !mayhem && row == selection;
-            if (selected || i % 2 != 0)
+            if (!mayhem && (selected || i % 2 != 0))
             {
-                var background = new Border { Background = mayhem ? MayhemRowTint : selected ? ArenaSelectionTint : ArenaRowTint };
+                var background = new Border { Background = selected ? ArenaSelectionTint : ArenaRowTint };
                 Grid.SetRow(background, line);
                 Grid.SetColumnSpan(background, grid.ColumnDefinitions.Count);
                 grid.Children.Add(background);
@@ -344,14 +357,14 @@ internal abstract class ChampionRankingOverlay : Window
                 AddCell(line, 0, line.ToString(Spanish), compact ? 12 : 13, selected ? ArenaGold : secondaryText,
                     TextAlignment.Right);
             AddCell(line, championColumn, row.Champion, mayhem ? 14 : compact ? 15 : 17,
-                selected ? ArenaGold : PrimaryText, bold: true);
+                selected ? ArenaGold : primaryText, bold: !mayhem);
             int valueSize = compact ? 14 : 16;
             if (row.Tier is { } tier)
                 AddCell(line, tierColumn, tier, valueSize, TierColor(tier), TextAlignment.Center, bold: true);
             else if (mayhem)
                 AddCell(line, tierColumn, "—", headerSize, secondaryText, TextAlignment.Center);
             if (!mayhem && row.TopThreePercent is { } topThree)
-                AddCell(line, 3, TopThree(topThree), valueSize, PrimaryText, TextAlignment.Right);
+                AddCell(line, 3, TopThree(topThree), valueSize, primaryText, TextAlignment.Right);
         }
         return grid;
 
@@ -361,6 +374,8 @@ internal abstract class ChampionRankingOverlay : Window
             var text = Label(value, size, color, bold);
             text.TextAlignment = alignment;
             text.VerticalAlignment = VerticalAlignment.Center;
+            if (mayhem && row > 0 && column == tierColumn)
+                text.FontFamily = MayhemTierStyle.Heading;
             if (!mayhem && column == 0)
                 text.Margin = new Thickness(0, 0, 9, 0);
             if (!mayhem && column == 3)
@@ -374,7 +389,7 @@ internal abstract class ChampionRankingOverlay : Window
 
     private static string TopThree(decimal percent) => percent.ToString("0.#", Spanish) + " %";
 
-    private Brush TierColor(string tier) => mayhem ? OverlayPanelStyle.Tier(tier) : Overlay.Paint(tier switch
+    private Brush TierColor(string tier) => mayhem ? MayhemTierStyle.Tier(tier) : Overlay.Paint(tier switch
     {
         "S" => "#EDC675",
         "A" => "#9ED5BF",
@@ -384,8 +399,18 @@ internal abstract class ChampionRankingOverlay : Window
 
     private void AddDivider(bool compact) => rows.Children.Add(new Border
     {
-        Height = 1, Background = divider, Margin = compact ? new Thickness(0, 4, 0, 3) : new Thickness(0, 8, 0, 5)
+        Height = 1, Background = divider,
+        Margin = mayhem ? new Thickness(0, 6, 0, 4) : compact ? new Thickness(0, 4, 0, 3) : new Thickness(0, 8, 0, 5)
     });
+
+    private void AddHeading(string text, double size, bool serif = true)
+    {
+        var heading = AddLine(text, size, mayhem ? primaryText : ArenaGold, bold: true);
+        if (serif)
+            heading.FontFamily = mayhem ? MayhemTierStyle.Heading : OverlayPanelStyle.Heading;
+        if (mayhem)
+            heading.FontWeight = FontWeights.Bold;
+    }
 
     private TextBlock AddLine(string text, double size, Brush color, bool bold = false)
     {

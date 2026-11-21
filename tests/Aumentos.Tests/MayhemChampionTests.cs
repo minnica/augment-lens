@@ -118,9 +118,8 @@ internal static class MayhemChampionTests
             var bounds = new Int32Rect(-30000, -30000, 1200, 675);
             var data = new MayhemChampionTierList(catalog.Patch, DateTimeOffset.UtcNow, new()
                 { ["jinx"] = 2, ["kaisa"] = 4, ["aurelionsol"] = 2, ["camille"] = 3, ["belveth"] = 2, ["gragas"] = 3 });
-            var source = new MayhemChampionTierView(data, MayhemChampionTiers.Caption(data, catalog.Patch));
             MayhemDraftChoice[] choices = [new(662, Champion("Kaisa")), new(1000, Champion("Jinx")), new(1338, Champion("AurelionSol"))];
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, source, choices));
+            overlay.Render(new MayhemChampionDisplay(bounds, 0, data, choices));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
@@ -129,19 +128,19 @@ internal static class MayhemChampionTests
             Check(Native.IsWindowVisible(handle) && placement.Y >= bounds.Y + (int)(bounds.Height * 0.667) &&
                 placement.Y + placement.Height < bounds.Y + (int)(bounds.Height * 0.784) &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                displayed.SequenceEqual(["C", "A", "A", source.Status]),
-                "muestra los tiers en orden bajo sus cartas con clics transparentes");
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, source, [choices[2]]));
-            Check(badges.Children.Count == 2 && Canvas.GetLeft(badges.Children[0]) > 700,
+                displayed.SequenceEqual(["C", "A", "A"]),
+                "debajo de las cartas solo aparecen los tiers en orden y con clics transparentes");
+            overlay.Render(new MayhemChampionDisplay(bounds, 0, data, [choices[2]]));
+            Check(badges.Children.Count == 1 && Canvas.GetLeft(badges.Children[0]) > 700,
                 "una lectura parcial conserva la posición del campeón reconocido");
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, source,
+            overlay.Render(new MayhemChampionDisplay(bounds, 0, data,
                 [new(831, Champion("Camille")), new(1169, Champion("Belveth"), 780)]));
             placement = Native.Bounds(handle);
             Check(placement.Y >= bounds.Y + (int)(bounds.Height * 0.693) &&
-                displayed.SequenceEqual(["B", "A", source.Status]) &&
+                displayed.SequenceEqual(["B", "A"]) &&
                 Canvas.GetLeft(badges.Children[0]) > 275 && Canvas.GetLeft(badges.Children[1]) > 610,
                 "dos tiers centrados y colocados debajo del borde de la carta ampliada");
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, source, [],
+            overlay.Render(new MayhemChampionDisplay(bounds, 0, data, [],
                 [new(3, Champion("Gragas")), new(6, Champion("Belveth"))]));
             placement = Native.Bounds(handle);
             Check(placement.Y == bounds.Y + 10 && displayed.SequenceEqual(["B", "A"]) &&

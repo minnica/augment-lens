@@ -1,3 +1,6 @@
+using System.IO;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,7 +39,7 @@ internal static class ChampionSelectTests
         Check(ChampionSelectClient.OwnPick(selection.RootElement) == (85, 32, 4) &&
             ChampionSelectClient.OwnPick(swapped.RootElement) == (103, 6, 4) &&
             ChampionSelectClient.OwnPick(empty.RootElement) is null, "campeón y hechizos de la propia celda al hacer un intercambio");
-        CheckMayhemRoster();
+        CheckMayhemRoster().GetAwaiter().GetResult();
 
         var page = ReadSpells();
         var main = new OpGgSpellPair("Destello", "Marca");
@@ -47,9 +50,18 @@ internal static class ChampionSelectTests
         Console.WriteLine("Selección de campeón y hechizos de OP.GG verificados.");
     }
 
-    private static void CheckMayhemRoster()
+    private static async Task CheckMayhemRoster()
     {
-        using var offer = JsonDocument.Parse("""
+        var fixture = new MayhemLobby();
+        using var connection = new HttpClient(fixture) { BaseAddress = new Uri("https://127.0.0.1") };
+        using var lobby = new ChampionSelectClient(Path.Combine(AppContext.BaseDirectory, "Assets", "riotgames.pem"));
+        Task<ChampionSelectSession?> Read(string? session)
+        {
+            fixture.Session = session;
+            return lobby.ReadMayhemDraft(connection, CancellationToken.None);
+        }
+
+        const string offer = """
             {"queueId":2400,"localPlayerCellId":4,"benchEnabled":true,
              "myTeam":[{"cellId":0,"championId":103},{"cellId":1,"championId":86},
                {"cellId":2,"championId":0,"championPickIntent":99},{"cellId":3,"championId":0},
@@ -59,10 +71,10 @@ internal static class ChampionSelectTests
              "bans":{"myTeamBans":[45,-1],"theirTeamBans":[0]},
              "actions":[[{"championId":20,"type":"ban","completed":true},
                {"championId":16,"type":"ban","completed":false}]],"timer":{"phase":"BAN_PICK"}}
-            """);
-        var visible = ChampionSelectClient.MayhemDraftIds(offer.RootElement);
-        Check(visible is { Teammates: [103, 86], Bench: [16], Unavailable: [45, 20], BenchKnown: true, PicksOpen: true } &&
-            ChampionSelectClient.OwnPick(offer.RootElement) is null,
+            """;
+        var visible = await Read(offer);
+        Check(visible is { Mode: Mode.Caos, Pick: null, MayhemTeam: { Teammates: ["Ahri", "Garen"],
+            Bench: ["Soraka"], Unavailable: ["Veigar", "Nunu"], BenchKnown: true } },
             "ARAM Caos lee aliados confirmados y banca aun durante la oferta propia");
 
         const string swap = """
@@ -72,21 +84,59 @@ internal static class ChampionSelectTests
                {"cellId":4,"championId":103,"spell1Id":4,"spell2Id":32}],
              "benchChampionIds":[103,16,32,32],"timer":{"phase":"FINALIZATION"}}
             """;
-        using var swapped = JsonDocument.Parse(swap);
-        using var loading = JsonDocument.Parse(swap.Replace("FINALIZATION", "GAME_STARTING", StringComparison.Ordinal));
-        Check(ChampionSelectClient.MayhemDraftIds(swapped.RootElement) is
-            { Teammates: [85, 86, 99, 45], Bench: [16, 32], BenchKnown: true, PicksOpen: true } &&
-            ChampionSelectClient.OwnPick(swapped.RootElement) == (103, 4, 32) &&
-            ChampionSelectClient.MayhemDraftIds(loading.RootElement) is { Teammates.Length: 4, PicksOpen: false },
-            "el intercambio actualiza a cada jugador y las sugerencias siguen disponibles hasta iniciar la partida");
+        var own = new ChampionSelection("Ahri", "Destello", "Marca");
+        var swapped = await Read(swap);
+        Check(swapped is { MayhemTeam: { Teammates: ["Kennen", "Garen", "Lux", "Veigar"],
+            Bench: ["Soraka", "Amumu"], BenchKnown: true } } && swapped.Pick == own,
+            "el intercambio actualiza el banco y los hechizos también si FINALIZATION carece de contador");
 
-        using var suppressed = JsonDocument.Parse(swap.Replace("true", "false", StringComparison.Ordinal));
-        using var missing = JsonDocument.Parse(swap.Replace("benchChampionIds", "unknownField", StringComparison.Ordinal));
-        using var empty = JsonDocument.Parse(swap.Replace("[103,16,32,32]", "[]", StringComparison.Ordinal));
-        Check(ChampionSelectClient.MayhemDraftIds(suppressed.RootElement) is { Bench: [], BenchKnown: true } &&
-            ChampionSelectClient.MayhemDraftIds(empty.RootElement) is { Bench: [], BenchKnown: true } &&
-            ChampionSelectClient.MayhemDraftIds(missing.RootElement) is { Bench: [], BenchKnown: false },
+        var suppressed = await Read(swap.Replace("true", "false", StringComparison.Ordinal));
+        var empty = await Read(swap.Replace("[103,16,32,32]", "[]", StringComparison.Ordinal));
+        var missing = await Read(swap.Replace("benchChampionIds", "unknownField", StringComparison.Ordinal));
+        Check(suppressed?.MayhemTeam is { Bench: [], BenchKnown: true } &&
+            empty?.MayhemTeam is { Bench: [], BenchKnown: true } && missing?.MayhemTeam is { Bench: [], BenchKnown: false },
             "la banca ausente activa el respaldo visual, mientras la banca vacía o deshabilitada se respeta");
+
+        const string final = """{"phase":"FINALIZATION"}""";
+        const string positive = """{"phase":"FINALIZATION","adjustedTimeLeftInPhase":200,"isInfinite":false}""";
+        const string infinite = """{"phase":"FINALIZATION","adjustedTimeLeftInPhase":0,"isInfinite":true}""";
+        const string expired = """{"phase":"FINALIZATION","adjustedTimeLeftInPhase":0,"isInfinite":false}""";
+        const string starting = """{"phase":"GAME_STARTING"}""";
+        Check((await Read(swap.Replace(final, positive, StringComparison.Ordinal)))?.Pick == own &&
+            (await Read(swap.Replace(final, infinite, StringComparison.Ordinal)))?.Pick == own,
+            "el banco y los hechizos siguen disponibles mientras la selección tiene tiempo o es infinita");
+        Check(await Read(swap.Replace(final, expired, StringComparison.Ordinal)) is null &&
+            await Read(swap.Replace(final, starting, StringComparison.Ordinal)) is null,
+            "el contador agotado y GAME_STARTING retiran la sesión aunque el último equipo siga en la respuesta");
+        Check(await Read("""{"timer":{"phase":"GAME_STARTING"}}""") is null &&
+            await Read("""{"timer":{"phase":"FINALIZATION","adjustedTimeLeftInPhase":0}}""") is null,
+            "el cierre también se reconoce cuando ya se ha retirado el equipo");
+        Check(await Read(null) is null && await Read(null) is null && await Read("{}") is null,
+            "los siguientes sondeos con 404 o sesión vacía mantienen ocultos los paneles");
+        Check(await Read("""{"timer":{"phase":"BAN_PICK"},"myTeam":[]}""") is { Mode: Mode.Caos, Pick: null } &&
+            await Read(offer) is { Pick: null, MayhemTeam.Bench: ["Soraka"] },
+            "la selección siguiente vuelve a ofrecer las cartas mientras carga el equipo y recupera su banco");
+    }
+
+    private sealed class MayhemLobby : HttpMessageHandler
+    {
+        internal string? Session { get; set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellation)
+        {
+            string? body = request.RequestUri?.AbsolutePath switch
+            {
+                "/lol-champ-select/v1/session" => Session,
+                "/lol-game-data/assets/v1/champion-summary.json" => """
+                    [{"id":103,"alias":"Ahri"},{"id":86,"alias":"Garen"},{"id":16,"alias":"Soraka"},{"id":45,"alias":"Veigar"},
+                     {"id":20,"alias":"Nunu"},{"id":85,"alias":"Kennen"},{"id":99,"alias":"Lux"},{"id":32,"alias":"Amumu"}]
+                    """,
+                "/lol-game-data/assets/v1/summoner-spells.json" => """[{"id":4,"name":"Destello"},{"id":32,"name":"Marca"}]""",
+                _ => throw new InvalidOperationException($"Ruta de selección inesperada: {request.RequestUri?.AbsolutePath}")
+            };
+            return Task.FromResult(body is null ? new HttpResponseMessage(HttpStatusCode.NotFound) :
+                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+        }
     }
 
     internal static void Smoke()

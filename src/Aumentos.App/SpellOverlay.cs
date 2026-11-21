@@ -26,13 +26,7 @@ internal sealed class SpellOverlay : Window
         Background = Brushes.Transparent;
         Focusable = false;
         IsHitTestVisible = false;
-        panel = new Border
-        {
-            Padding = new Thickness(10, 8, 10, 9), CornerRadius = new CornerRadius(3),
-            Background = OverlayPanelStyle.Surface, BorderBrush = OverlayPanelStyle.Frame, BorderThickness = new Thickness(2, 3, 2, 2),
-            Child = rows
-        };
-        TextOptions.SetTextFormattingMode(panel, TextFormattingMode.Display);
+        panel = MayhemTierStyle.Panel(rows, new Thickness(12, 8, 12, 10));
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
         SourceInitialized += (_, _) =>
         {
@@ -82,42 +76,44 @@ internal sealed class SpellOverlay : Window
         if (view.Tier is { } tier && view.TierCaption is { } caption)
         {
             var header = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var badge = MayhemTierBadge.Create(tier, view.Champion, 32, 32, 22);
+            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 32, 32, 22);
             badge.Margin = new Thickness(0, 0, 9, 0);
             DockPanel.SetDock(badge, Dock.Left);
             header.Children.Add(badge);
             var champion = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            champion.Children.Add(Line(view.Champion, 15, OverlayPanelStyle.Ink, bold: true));
-            champion.Children.Add(Line(caption, 11, OverlayPanelStyle.Muted));
+            var name = Line(view.Champion, 16, MayhemTierStyle.Ink, bold: true);
+            name.FontFamily = MayhemTierStyle.Heading;
+            champion.Children.Add(name);
+            champion.Children.Add(Line(caption, 11, MayhemTierStyle.Muted));
             header.Children.Add(champion);
             rows.Children.Add(header);
-            rows.Children.Add(new Border { Height = 1, Background = OverlayPanelStyle.Divider });
+            rows.Children.Add(new Border { Height = 1, Background = MayhemTierStyle.Divider });
             AddHeading("Hechizos");
         }
         else
             AddHeading($"{view.Champion} · Hechizos de OP.GG");
         if (view.Source.Data is not { } data)
         {
-            AddLine(view.Source.Status, 12, OverlayPanelStyle.Ink);
+            AddLine(view.Source.Status, 12, MayhemTierStyle.Ink);
             return;
         }
         if (data.Spells is null)
-            AddLine("Hechizos sin datos guardados", 12, OverlayPanelStyle.Ink);
+            AddLine("Hechizos sin datos guardados", 12, MayhemTierStyle.Ink);
         else if (data.Spells is not { Length: > 0 } pairs)
-            AddLine("Sin combinación publicada", 12, OverlayPanelStyle.Ink);
+            AddLine("Sin combinación publicada", 12, MayhemTierStyle.Ink);
         else
         {
             var main = pairs[0];
-            AddLine($"{main.First} + {main.Second}", 16, OverlayPanelStyle.Ink, bold: true);
+            AddLine($"{main.First} + {main.Second}", 16, MayhemTierStyle.Ink, bold: true);
             if (Matches(main, view.Selection))
-                AddLine("Ya tienes estos hechizos", 11, OverlayPanelStyle.Tier("A"));
+                AddLine("Ya tienes estos hechizos", 11, MayhemTierStyle.Gold);
             if (pairs.Length > 1)
-                AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, OverlayPanelStyle.Muted);
+                AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, MayhemTierStyle.Muted);
         }
         var patch = $"{(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";
         if (view.TierCaption != $"OP.GG · {patch}")
             AddLine(view.Tier is null ? patch : $"Hechizos · {patch}", 11,
-                data.IsPrevious ? OverlayPanelStyle.Gold : OverlayPanelStyle.Muted);
+                data.IsPrevious ? MayhemTierStyle.Gold : MayhemTierStyle.Muted);
     }
 
     internal static bool Matches(OpGgSpellPair pair, ChampionSelection selection)
@@ -135,9 +131,9 @@ internal sealed class SpellOverlay : Window
 
     private void AddHeading(string text)
     {
-        var heading = Line(text, 15, OverlayPanelStyle.Gold, bold: true);
-        heading.FontFamily = OverlayPanelStyle.Heading;
-        heading.Margin = new Thickness(0, 4, 0, 0);
+        var heading = Line(text, 16, MayhemTierStyle.Ink, bold: true);
+        heading.FontFamily = MayhemTierStyle.Heading;
+        heading.Margin = new Thickness(0, 6, 0, 0);
         rows.Children.Add(heading);
     }
 

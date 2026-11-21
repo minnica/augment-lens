@@ -804,7 +804,8 @@ internal static class Program
         {
             var bounds = new Int32Rect(-30000, -30000, 1600, 900);
             var shop = new Int32Rect(350, 75, 870, 690);
-            overlay.Render(new BuildDisplay(bounds, 0, "Lillia", Mode.Caos, null, shop));
+            var view = new BuildDisplay(bounds, 0, "Lillia", Mode.Caos, null, shop);
+            overlay.Render(view);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var sizeControl = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
             var button = (Button)sizeControl.Content;
@@ -820,8 +821,56 @@ internal static class Program
             action.Invoke();
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             Check(settings is { IsVisible: true } && settings.FindName("SizeSlider") is Slider, "el botón abre el ajuste de tamaño");
+
+            var disclosure = overlay.MayhemDisclosure!;
+            var disclosureHandle = new WindowInteropHelper(disclosure).Handle;
+            var disclosurePosition = Native.Bounds(disclosureHandle);
+            var toggle = (Button)disclosure.Content;
+            Check(disclosure.IsVisible && disclosurePosition.Y == position.Y &&
+                disclosurePosition.X == overlayPosition.X && disclosurePosition.X + disclosurePosition.Width < position.X &&
+                disclosurePosition.Width == disclosurePosition.Height && Marks() == 1 &&
+                (Native.GetWindowLongW(disclosureHandle, -20) & 0x08000020) == 0x08000000 &&
+                Label() == "Minimizar recomendaciones de objetos", "el icono menos queda a la izquierda y acepta clics sin tomar el foco");
+            InvokeDisclosure();
+            Check(!overlay.IsVisible && !sizeControl.IsVisible && disclosure.IsVisible &&
+                AttachedToShop(shop) && Marks() == 2 && Label() == "Mostrar recomendaciones de objetos",
+                "al plegar la build el icono más queda junto al borde de la tienda");
+            var movedShop = shop with { X = shop.X + 22, Y = shop.Y + 19 };
+            overlay.Render(view with { Shop = movedShop });
+            Check(disclosure.IsVisible && AttachedToShop(movedShop), "el icono acompaña a la tienda cuando se mueve");
             overlay.Render(null);
-            Check(!sizeControl.IsVisible, "el botón se oculta con la build");
+            Check(!sizeControl.IsVisible && !disclosure.IsVisible, "cerrar la tienda también oculta el control plegado");
+            overlay.Render(view with { Shop = null });
+            Check(!disclosure.IsVisible, "una build abierta con el atajo sin tienda no deja el icono más en el mapa");
+            overlay.Render(view with { Source = new(null, "Consultando compras…") });
+            Check(!overlay.IsVisible && disclosure.IsVisible && AttachedToShop(shop),
+                "al reabrir la tienda se recuerda el estado plegado y el icono queda anclado");
+            InvokeDisclosure();
+            Check(overlay.IsVisible && sizeControl.IsVisible && Label() == "Minimizar recomendaciones de objetos" &&
+                BuildElements<TextBlock>((BuildPanel)((Viewbox)overlay.Content).Child).Any(text => text.Text == "Consultando compras…"),
+                "el icono más vuelve a mostrar la build con la actualización recibida mientras estaba plegada");
+
+            overlay.Render(view with { Mode = Mode.Arena });
+            Check(overlay.IsVisible && sizeControl.IsVisible && !disclosure.IsVisible, "el control aparece en la tienda de ARAM Caos");
+            overlay.Render(null);
+            Check(!sizeControl.IsVisible, "el botón Tamaño se oculta con la build");
+
+            string Label() => System.Windows.Automation.AutomationProperties.GetName(toggle);
+            int Marks() => ((System.Windows.Shapes.Path)((Canvas)toggle.Content).Children[0]).Data.GetFlattenedPathGeometry().Figures.Count;
+
+            bool AttachedToShop(Int32Rect shopArea)
+            {
+                var icon = Native.Bounds(disclosureHandle);
+                int gap = icon.X - (bounds.X + shopArea.X + shopArea.Width);
+                return icon.Y == bounds.Y + shopArea.Y && gap > 0 && gap < icon.Width / 4;
+            }
+
+            void InvokeDisclosure()
+            {
+                var togglePeer = new ButtonAutomationPeer(toggle);
+                ((IInvokeProvider)togglePeer.GetPattern(PatternInterface.Invoke)).Invoke();
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            }
         }
         finally
         {

@@ -96,13 +96,13 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                                 available, emptyMessage, suggestions, grade);
                             if (choices is { } visible)
                             {
-                                if (visible.Length > 0 || source.Data is null)
-                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, source, visible);
+                                if (visible.Length > 0 && source.Data is { } offerTiers)
+                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, offerTiers, visible);
                             }
                             else
                             {
-                                if (source.Data is not null && bench.Length > 0)
-                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, source, [], bench);
+                                if (source.Data is { } benchTiers && bench.Length > 0)
+                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, benchTiers, [], bench);
                                 if (session.Pick is { } selected)
                                 {
                                     var champion = catalog.Champions.FirstOrDefault(item =>
@@ -229,9 +229,6 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         MayhemDraftChoice[]? cards, MayhemBenchChoice[] portraits)
     {
         var team = session.MayhemTeam;
-        if (team is { PicksOpen: false })
-            return ([], "Selección cerrada.");
-
         var selected = session.Pick?.Champion;
         var (visible, emptyMessage) = (selected, team) switch
         {

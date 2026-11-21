@@ -76,7 +76,12 @@ internal static class MayhemTeamOverlayTests
                 "las opciones identificadas aparecen mientras llegan sus tiers");
 
             overlay.Render(null);
+            overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el panel de Caos se retira al salir de selección");
+            overlay.Render(view);
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Check(Native.IsWindowVisible(handle) && Labels(panel).Contains("Puesto 34 en OP.GG") &&
+                !Labels(panel).Contains("Consultando tiers de OP.GG…"), "la siguiente selección vuelve a mostrar sus propios datos");
             Console.WriteLine("Panel de composición de ARAM Caos en WPF verificado.");
 
             void CheckPlacement(Int32Rect client, double bottom)
@@ -106,9 +111,6 @@ internal static class MayhemTeamOverlayTests
         Check(ChampionSelectAdvice.MayhemOptions(chosen with { MayhemTeam = team with { Bench = [] } }, cards, portraits).Keys.Length == 0 &&
             ChampionSelectAdvice.MayhemOptions(chosen with { MayhemTeam = team with { BenchKnown = false } }, cards, portraits).Keys
                 .SequenceEqual(["Trundle"]), "un banco confirmado vacío prevalece sobre el OCR y el OCR cubre la falta de datos");
-        var closed = ChampionSelectAdvice.MayhemOptions(chosen with { MayhemTeam = team with { PicksOpen = false } }, cards, portraits);
-        Check(closed.Keys.Length == 0 && closed.EmptyMessage == "Selección cerrada.", "al cerrar los cambios se retiran las opciones");
-
         Champion Champion(string key) => catalog.Champions.Single(champion => champion.Key == key);
     }
 

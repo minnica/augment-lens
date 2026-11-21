@@ -97,6 +97,8 @@ Al pie del panel, **Daño rival estimado** muestra el daño **físico** en naran
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 
+En **ARAM Caos**, pulsa **−** en la esquina superior izquierda de la build para ocultar las recomendaciones con la tienda abierta. Pulsa **+** junto al borde de la tienda para recuperarlas. El icono se oculta al cerrar la tienda. La app recuerda si la build está plegada cuando vuelves a abrirla durante la misma sesión.
+
 Con la build visible, haz clic en **Tamaño…** encima del panel. También puedes pulsar **Ctrl + Shift + 9** con el **9 de la fila superior** o elegir **Tamaño de las builds…** desde el icono de la bandeja. Mueve el control de **75 % a 150 %** para ver el cambio en la vista previa, o usa **Restablecer 100 %**. El tamaño se guarda automáticamente y se aplica a las builds de ARAM Caos y Arena. Al volver a League, el panel se ajusta al espacio disponible junto a la tienda.
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
@@ -115,9 +117,11 @@ La lista de campeones usa la muestra de Arena de todas las regiones y muestra su
 
 En la selección de campeón de **ARAM Caos**, el panel lateral muestra el tier de tu campeón y la lista de **Campeones disponibles**. La lista ordena por tier de OP.GG las cartas de tu oferta inicial y, después de elegir, los campeones del banco. **Composición ARAM Caos** muestra una estimación local de S a D y cuántos de los cinco campeones reconoce el cliente. La letra considera la primera línea, el control, la protección y el daño del equipo. **Para tu equipo** sugiere campeones de la lista que cubren lo que falta y muestra el motivo junto a su tier cuando está publicado. La lista y las sugerencias se actualizan al elegir o intercambiar un campeón. [Tier list de campeones de ARAM Caos en OP.GG](https://op.gg/es-419/lol/modes/aram-mayhem)
 
-También aparece una letra debajo de cada carta reconocida en ofertas de dos o tres cartas. En **Campeones disponibles**, los retratos reconocidos muestran su letra en la esquina inferior derecha. Las letras **S, A, B, C y D** corresponden a los tiers **1 a 5** de la tabla de OP.GG. La app guarda la tabla en la caché local y muestra su parche debajo de las cartas. Si usa el parche anterior, lo indica en pantalla.
+También aparece una letra debajo de cada carta reconocida en ofertas de dos o tres cartas. En **Campeones disponibles**, los retratos reconocidos muestran su letra en la esquina inferior derecha. Las letras **S, A, B, C y D** corresponden a los tiers **1 a 5** de la tabla de OP.GG. La app guarda la tabla en la caché local y muestra su parche en el panel lateral de **Campeones disponibles**. Si usa el parche anterior, lo indica en pantalla.
 
-Al elegir un campeón, su letra pasa al panel de hechizos de OP.GG, abajo a la derecha. El panel se actualiza cuando cambias de campeón y se retira al salir de selección. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
+Las insignias y los paneles de tiers de ARAM Caos usan el fondo azul oscuro, los marcos rectos de oro viejo y la tipografía con serif del selector de hechizos. Al elegir un campeón, su letra pasa al panel de hechizos de OP.GG, abajo a la derecha. El panel se actualiza cuando cambias de campeón. Muestra la combinación principal y una alternativa cuando OP.GG publica otra. Si ya tienes los dos hechizos recomendados, aparece **Ya tienes estos hechizos**, independientemente de cuál esté en **D** o en **F**. La selección de los hechizos se hace en el cliente de League.
+
+Cuando se agota el tiempo final de selección o el cliente anuncia **¡Prepárate para la batalla!**, se ocultan a la vez las letras del banco y los paneles de composición y hechizos.
 
 ## Historial de aumentos
 
