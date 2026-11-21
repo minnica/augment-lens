@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Aumentos;
 
@@ -46,14 +47,15 @@ internal static class ArenaItemTierSizeTests
             var sizeButton = overlay.Windows.SelectMany(window => window.OwnedWindows.OfType<BuildSizeButton>()).Single();
             var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
             var buttonPosition = Position(sizeButton);
-            var (topOnLeft, _) = BuildOverlay.PrismaticSide(bounds, titles, 1);
             Check(sizeButton.IsVisible && buttonPosition.Y >= bounds.Y && buttonPosition.Y + buttonPosition.Height < bounds.Y + edge &&
-                (topOnLeft ? buttonPosition.X > bounds.X + titles[^1].X + titles[^1].Width
-                    : buttonPosition.X + buttonPosition.Width < bounds.X + titles[0].X),
-                "el control queda fuera de las cartas y del lado opuesto al Top 5");
+                buttonPosition.X > bounds.X + titles[^1].X + titles[^1].Width && RightAligned(bounds, buttonPosition) &&
+                sizeButton.Content is Button { Content: "Tamaño de los tiers" },
+                "el botón identifica el ajuste de tiers y queda fuera de la oferta, en el borde derecho");
 
             var slider = OpenEditor(sizeButton, 100);
             var editorPosition = Position(sizeButton);
+            Check(RightAligned(bounds, editorPosition) && editorPosition.Y == buttonPosition.Y,
+                "el ajuste abierto conserva el anclaje al borde derecho");
             slider.ApplyTemplate();
             var track = (Track)slider.Template.FindName("PART_Track", slider);
             track.Thumb.RaiseEvent(new DragDeltaEventArgs(50, 0) { RoutedEvent = Thumb.DragDeltaEvent });
@@ -124,14 +126,35 @@ internal static class ArenaItemTierSizeTests
                 "en 1280×720 el 75 % reduce el tamaño que cabe al 100 %");
             slider.Value = BuildSizePreference.Maximum;
             var compactControl = Position(sizeButton);
-            Check(compactControl.X >= compact.X + compact.Width * 2 / 3 &&
-                compactControl.X + compactControl.Width <= compact.X + compact.Width &&
+            Check(compactControl.X >= compact.X + compact.Width * 2 / 3 && RightAligned(compact, compactControl) &&
                 overlay.Windows.Where(window => window.IsVisible).Select(Position)
                     .All(rect => rect.Y >= compactControl.Y + compactControl.Height),
                 "en 1280×720 el ajuste cabe por encima de todas las cartas sin cubrir el centro");
+
+            var shiftedLayout = layout with { Titles = layout.Titles.Select(title => title with { X = title.X - .09 }).ToArray() };
+            var rightPrismatics = prismatics with { Layout = shiftedLayout };
+            overlay.Render(offer with { Bounds = compact, Layout = shiftedLayout, ArenaCardTop = 120,
+                ArenaItemOffer = true, Prismatics = rightPrismatics });
+            var topPanel = new BuildOverlay(savePrismaticSize: _ => true) { Left = -30000, Top = -30000 };
+            try
+            {
+                topPanel.Render(new BuildDisplay(compact, 0, "Elise", Mode.Arena, null, Prismatics: rightPrismatics));
+                var topButton = topPanel.OwnedWindows.OfType<BuildSizeButton>().Single();
+                OpenEditor(sizeButton, BuildSizePreference.Maximum);
+                var tierEditor = Position(sizeButton);
+                var topControl = Position(topButton);
+                Check(RightAligned(compact, tierEditor) && topControl.X > compact.X + compact.Width / 2 &&
+                    tierEditor.Y + tierEditor.Height < topControl.Y,
+                    "cuando el Top 5 está a la derecha, su botón queda debajo del ajuste de tiers");
+            }
+            finally { topPanel.Close(); }
+
             overlay.Hide();
             Check(!overlay.IsVisible && !sizeButton.IsVisible && sizeButton.Content is Button &&
                 preference.Load() == BuildSizePreference.Maximum, "al cerrar la oferta desaparece el control y se conserva la escala");
+
+            bool RightAligned(Int32Rect area, Int32Rect control) => control.X + control.Width == area.X + area.Width -
+                (int)Math.Round(14 * VisualTreeHelper.GetDpi(overlay.Windows[0]).DpiScaleX);
         }
         finally
         {

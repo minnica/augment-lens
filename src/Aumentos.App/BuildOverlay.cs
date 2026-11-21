@@ -343,6 +343,14 @@ internal sealed class BuildOverlay : Window
             buttonWidth = Math.Min(maxWidth, (int)Math.Ceiling(BuildSizeButton.ScaleEditorWidth * dpi));
         int preferredTop = (int)(bounds.Height * 0.12);
         int top = margin + (showDisclosure || showSizeButton ? buttonHeight + buttonGap : 0);
+        if (prismatics && !placeLeft && roomForControls)
+        {
+            // Leave the right corner clear for the card-size control and its slider.
+            int tierBottom = Overlay.TierControlTop(bounds, dpi) + buttonHeight;
+            int panelTop = tierBottom + buttonGap + (showSizeButton ? buttonHeight + buttonGap : 0);
+            if (panelTop < bounds.Height - margin)
+                top = Math.Max(top, panelTop);
+        }
         if (sizeEditorOpen)
             top = Math.Max(top, preferredTop);
         maxHeight -= top - margin;

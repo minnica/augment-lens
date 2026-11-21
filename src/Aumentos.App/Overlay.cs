@@ -12,6 +12,8 @@ namespace Aumentos;
 internal sealed class Overlay
 {
     internal const string TierSizeTitle = "Tamaño de los tiers de cartas";
+    private const string TierSizeButtonLabel = "Tamaño de los tiers";
+    private const int TierSizeButtonWidth = 148;
     private const int SummaryWidth = 160;
     private const int MayhemSummaryWidth = 132;
     private const int ArenaEvidenceWidth = 200;
@@ -142,8 +144,9 @@ internal sealed class Overlay
             arenaCardEdge = null;
         }
         int maxOverlap = (int)(bounds.Height * frameOverlap);
+        bool prismaticsOnRight = update.Prismatics is not null && !BuildOverlay.PrismaticSide(bounds, titles, dpi).OnLeft;
         var tierControl = saveTierSize is not null && cardEdge is { } edge
-            ? PlaceTierSizeButton(bounds, titles, edge, margin, dpi, arenaItems)
+            ? PlaceTierSizeButton(bounds, titles, edge, margin, dpi, prismaticsOnRight)
             : null;
         int tierClearance = tierControl is { InTopBand: true, Bounds: var reserved } ? reserved.Y + reserved.Height + margin : margin;
 
@@ -200,46 +203,44 @@ internal sealed class Overlay
                 allowUpscale: scale > 1, contentHeight: mayhemHeight / dpi);
         }
 
-        if (tierControl is { Bounds: var slot, OnLeft: var onLeft } && IsVisible)
-            ShowTierSizeButton(bounds, slot, onLeft, dpi);
+        if (tierControl is { Bounds: var slot } && IsVisible)
+            ShowTierSizeButton(bounds, slot, dpi);
         else
             HideTierSizeButton();
     }
 
-    private static (Int32Rect Bounds, bool OnLeft, bool InTopBand)? PlaceTierSizeButton(
-        Int32Rect bounds, Int32Rect[] titles, int cardEdge, int gap, double dpi, bool arenaItems)
+    private static (Int32Rect Bounds, bool InTopBand)? PlaceTierSizeButton(
+        Int32Rect bounds, Int32Rect[] titles, int cardEdge, int gap, double dpi, bool prismaticsOnRight)
     {
         int height = (int)Math.Ceiling(BuildSizeButton.ButtonHeight * dpi);
-        int minimumWidth = (int)Math.Ceiling(BuildSizeButton.ScaleEditorMinimumWidth * dpi);
-        int leftEnd = titles.Min(title => title.X) - gap;
+        int minimumWidth = (int)Math.Ceiling(TierSizeButtonWidth * dpi);
+        int right = bounds.Width - (int)Math.Round(14 * dpi);
         int rightStart = titles.Max(title => title.X + title.Width) + gap;
-        int leftWidth = leftEnd - gap;
-        int rightWidth = bounds.Width - rightStart - gap;
-        // Keep both size controls on separate sides when the Top 5 panel is shown.
-        bool onLeft = arenaItems ? !BuildOverlay.PrismaticSide(bounds, titles, dpi).OnLeft
-            : rightWidth < minimumWidth && leftWidth >= minimumWidth;
-        int width = onLeft ? leftWidth : rightWidth;
-        int y = cardEdge - height - gap;
+        int width = right - rightStart;
+        int y = prismaticsOnRight ? TierControlTop(bounds, dpi) : cardEdge - height - gap;
         if (width >= minimumWidth && y >= gap)
-            return (new(onLeft ? gap : rightStart, y, width, height), onLeft, false);
+            return (new(rightStart, y, width, height), false);
 
-        // At narrow window sizes, use an outer third above the badges and away from Arena's central clock.
-        y = Math.Max(gap, (int)Math.Ceiling(bounds.Height * 0.055));
-        width = bounds.Width / 3 - 2 * gap;
+        // When the right gutter is narrow, keep the control near the edge above the cards.
+        y = TierControlTop(bounds, dpi);
+        width = right - bounds.Width * 2 / 3;
         if (width < minimumWidth || y + height + gap >= cardEdge)
             return null;
-        return (new(onLeft ? gap : bounds.Width - width - gap, y, width, height), onLeft, true);
+        return (new(right - width, y, width, height), true);
     }
 
-    private void ShowTierSizeButton(Int32Rect bounds, Int32Rect slot, bool onLeft, double dpi)
+    internal static int TierControlTop(Int32Rect bounds, double dpi) =>
+        Math.Max((int)Math.Ceiling(6 * dpi), (int)Math.Ceiling(bounds.Height * 0.055));
+
+    private void ShowTierSizeButton(Int32Rect bounds, Int32Rect slot, double dpi)
     {
-        tierSizeButton ??= new BuildSizeButton(OpenTierSizeEditor, TierSizeTitle, label: "Tiers…");
+        tierSizeButton ??= new BuildSizeButton(OpenTierSizeEditor, TierSizeTitle, label: TierSizeButtonLabel);
         var owner = badges.First(badge => badge.NativeVisible);
         if (tierSizeButton.Owner != owner)
             tierSizeButton.Owner = owner;
-        int preferredWidth = tierSizeButton.Content is BuildScaleEditor ? BuildSizeButton.ScaleEditorWidth : BuildSizeButton.ButtonWidth;
+        int preferredWidth = tierSizeButton.Content is BuildScaleEditor ? BuildSizeButton.ScaleEditorWidth : TierSizeButtonWidth;
         int width = Math.Min(slot.Width, (int)Math.Ceiling(preferredWidth * dpi));
-        int x = onLeft ? slot.X + slot.Width - width : slot.X;
+        int x = slot.X + slot.Width - width;
         tierSizeButton.Display(new(bounds.X + x, bounds.Y + slot.Y, width, slot.Height), dpi);
     }
 

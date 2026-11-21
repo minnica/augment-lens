@@ -57,7 +57,7 @@ Las ofertas de dos cartas de **Sube de nivel un aumento** también muestran su v
 
 Al elegir un **fragmento del Yunque de estadísticas** en **ARAM Caos o Arena**, el overlay muestra el tier local. El motivo según tu campeón está en **Detalles de las cartas**. En **Arena**, también valora los objetos legendarios y prismáticos. Durante una oferta prismática, un panel lateral muestra los **cinco objetos prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
 
-Para ajustar el tamaño de las insignias de **ARAM Caos** y **Arena**, pulsa **Tiers…** junto a la oferta. Mueve el deslizador de **75 % a 150 %** para ver el cambio en las cartas y aparta el cursor para cerrar el ajuste. El tamaño se guarda automáticamente y se adapta al espacio disponible. Desde la bandeja, **Tamaño de los tiers de cartas…** abre la vista previa de escritorio.
+Para ajustar el tamaño de las insignias de **ARAM Caos** y **Arena**, pulsa **Tamaño de los tiers** en el borde derecho de la pantalla durante una oferta. Mueve el deslizador de **75 % a 150 %** para ver el cambio en las cartas y aparta el cursor para cerrar el ajuste. El tamaño se guarda automáticamente y se adapta al espacio disponible. Desde la bandeja, **Tamaño de los tiers de cartas…** abre la vista previa de escritorio.
 
 Para ajustar el panel **Top 5 prismáticos**, pulsa **Tamaño…** encima del panel y ajusta su escala en partida. El panel guarda su propio tamaño y se ajusta al espacio disponible junto a las cartas. Desde la bandeja, **Tamaño del panel de prismáticos…** abre la vista previa de escritorio.
 
