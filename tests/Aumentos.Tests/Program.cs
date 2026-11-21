@@ -789,22 +789,15 @@ internal static class Program
 
     private static void BuildSizeButtonSmoke(string patch)
     {
-        var overlay = new BuildOverlay { Left = -30000, Top = -30000 };
-        BuildSizeWindow? settings = null;
-        overlay.SizeRequested += () =>
-        {
-            settings = new BuildSizeWindow(100, patch, null, _ => true)
-            {
-                WindowStartupLocation = WindowStartupLocation.Manual, ShowActivated = false,
-                Left = -30000, Top = -30000
-            };
-            settings.Show();
-        };
+        var folder = Directory.CreateTempSubdirectory("aumentos-build-inline");
+        var sizePath = Path.Combine(folder.FullName, "size.json");
+        var preference = new BuildSizePreference(sizePath);
+        var overlay = new BuildOverlay(saveSize: preference.Save) { Left = -30000, Top = -30000 };
         try
         {
             var bounds = new Int32Rect(-30000, -30000, 1600, 900);
             var shop = new Int32Rect(350, 75, 870, 690);
-            var view = new BuildDisplay(bounds, 0, "Lillia", Mode.Caos, null, shop);
+            var view = new BuildDisplay(bounds, 0, "Lillia", Mode.Caos, null, shop, ClientPatch: patch);
             overlay.Render(view);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var sizeControl = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
@@ -816,11 +809,31 @@ internal static class Program
                 position.X + position.Width <= bounds.X + bounds.Width &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000000,
                 "el botón queda encima de la build y acepta clics sin tomar el foco");
-            var peer = new System.Windows.Automation.Peers.ButtonAutomationPeer(button);
-            var action = (System.Windows.Automation.Provider.IInvokeProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke);
-            action.Invoke();
-            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(settings is { IsVisible: true } && settings.FindName("SizeSlider") is Slider, "el botón abre el ajuste de tamaño");
+            Invoke(button);
+            var editor = (FrameworkElement)sizeControl.Content;
+            var slider = (Slider)editor.FindName("SizeSlider");
+            var editorPosition = Native.Bounds(handle);
+            var expandedPosition = Native.Bounds(new WindowInteropHelper(overlay).Handle);
+            Check(slider is { Minimum: 75, Maximum: 150, Value: 100 } &&
+                editor.FindName("CloseButton") is null &&
+                editorPosition.Y + editorPosition.Height < expandedPosition.Y && editorPosition.X >= bounds.X + shop.X + shop.Width &&
+                editorPosition.X + editorPosition.Width <= bounds.X + bounds.Width,
+                "el ajuste muestra el deslizador arriba de la build dentro del juego, sin un botón de cierre");
+            slider!.Value = 135;
+            Check(preference.Load() == 135 && overlay.SizePercent == 135 &&
+                ((TextBlock)editor.FindName("PercentText")).Text == "135 %" &&
+                Native.Bounds(new WindowInteropHelper(overlay).Handle).Height > expandedPosition.Height &&
+                Native.Bounds(handle) == editorPosition, "arrastrar escala la build real, guarda el tamaño y mantiene fijo el editor");
+            MovePointer(System.Windows.Input.Mouse.MouseLeaveEvent);
+            MovePointer(System.Windows.Input.Mouse.MouseEnterEvent);
+            WaitForDismissal();
+            Check(ReferenceEquals(sizeControl.Content, editor), "volver al deslizador cancela el cierre automático");
+            MovePointer(System.Windows.Input.Mouse.MouseLeaveEvent);
+            WaitForDismissal();
+            Check(ReferenceEquals(sizeControl.Content, button) && overlay.IsVisible && preference.Load() == 135,
+                "al apartar el cursor solo se cierra el ajuste y se conserva la escala guardada");
+            position = Native.Bounds(handle);
+            overlayPosition = Native.Bounds(new WindowInteropHelper(overlay).Handle);
 
             var disclosure = overlay.MayhemDisclosure!;
             var disclosureHandle = new WindowInteropHelper(disclosure).Handle;
@@ -831,7 +844,7 @@ internal static class Program
                 disclosurePosition.Width == disclosurePosition.Height && Marks() == 1 &&
                 (Native.GetWindowLongW(disclosureHandle, -20) & 0x08000020) == 0x08000000 &&
                 Label() == "Minimizar recomendaciones de objetos", "el icono menos queda a la izquierda y acepta clics sin tomar el foco");
-            InvokeDisclosure();
+            Invoke(toggle);
             Check(!overlay.IsVisible && !sizeControl.IsVisible && disclosure.IsVisible &&
                 AttachedToShop(shop) && Marks() == 2 && Label() == "Mostrar recomendaciones de objetos",
                 "al plegar la build el icono más queda junto al borde de la tienda");
@@ -845,18 +858,38 @@ internal static class Program
             overlay.Render(view with { Source = new(null, "Consultando compras…") });
             Check(!overlay.IsVisible && disclosure.IsVisible && AttachedToShop(shop),
                 "al reabrir la tienda se recuerda el estado plegado y el icono queda anclado");
-            InvokeDisclosure();
+            Invoke(toggle);
             Check(overlay.IsVisible && sizeControl.IsVisible && Label() == "Minimizar recomendaciones de objetos" &&
                 BuildElements<TextBlock>((BuildPanel)((Viewbox)overlay.Content).Child).Any(text => text.Text == "Consultando compras…"),
                 "el icono más vuelve a mostrar la build con la actualización recibida mientras estaba plegada");
 
             overlay.Render(view with { Mode = Mode.Arena });
             Check(overlay.IsVisible && sizeControl.IsVisible && !disclosure.IsVisible, "el control aparece en la tienda de ARAM Caos");
+            Invoke(button);
+            Check(((FrameworkElement)sizeControl.Content).FindName("SizeSlider") is Slider { Value: 135 },
+                "el ajuste en Arena usa la escala guardada durante ARAM Caos");
             overlay.Render(null);
-            Check(!sizeControl.IsVisible, "el botón Tamaño se oculta con la build");
+            Check(!sizeControl.IsVisible && ReferenceEquals(sizeControl.Content, button), "el ajuste se cierra al ocultar la build");
 
             string Label() => System.Windows.Automation.AutomationProperties.GetName(toggle);
             int Marks() => ((System.Windows.Shapes.Path)((Canvas)toggle.Content).Children[0]).Data.GetFlattenedPathGeometry().Figures.Count;
+
+            void MovePointer(RoutedEvent routedEvent) => editor.RaiseEvent(
+                new System.Windows.Input.MouseEventArgs(System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount)
+                    { RoutedEvent = routedEvent });
+
+            static void WaitForDismissal()
+            {
+                var frame = new DispatcherFrame();
+                var timer = new DispatcherTimer { Interval = BuildScaleEditor.PointerExitDelay + TimeSpan.FromMilliseconds(100) };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    frame.Continue = false;
+                };
+                timer.Start();
+                Dispatcher.PushFrame(frame);
+            }
 
             bool AttachedToShop(Int32Rect shopArea)
             {
@@ -865,17 +898,18 @@ internal static class Program
                 return icon.Y == bounds.Y + shopArea.Y && gap > 0 && gap < icon.Width / 4;
             }
 
-            void InvokeDisclosure()
+            void Invoke(Button target)
             {
-                var togglePeer = new ButtonAutomationPeer(toggle);
-                ((IInvokeProvider)togglePeer.GetPattern(PatternInterface.Invoke)).Invoke();
+                var peer = new ButtonAutomationPeer(target);
+                ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             }
         }
         finally
         {
-            settings?.Close();
             overlay.Close();
+            File.Delete(sizePath);
+            folder.Delete();
         }
     }
 

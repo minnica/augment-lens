@@ -39,7 +39,8 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         MayhemDraftChoice[]? choices = null;
         MayhemBenchChoice[] bench = [];
         Task<MayhemDraftChoice[]?>? draftRead = null;
-        int captureGeneration = 0, draftGeneration = 0;
+        int captureGeneration = 0;
+        int? draftGeneration = null;
         SpellDisplay? previous = null;
         ArenaChampionDisplay? previousArena = null;
         MayhemChampionDisplay? previousMayhem = null;
@@ -85,33 +86,25 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                                 scanWindow = window;
                             }
                             var source = mayhemTiers.Current(cancellation);
-                            ScanMayhem(window);
+                            var selected = session.Pick;
+                            ScanMayhem(window, readOffer: selected is null);
                             var squad = session.MayhemTeam;
-                            var selectedKey = session.Pick?.Champion;
+                            var selectedKey = selected?.Champion;
                             var allies = squad?.Teammates ?? [];
                             var (available, emptyMessage) = MayhemOptions(session, choices, bench);
                             var grade = mayhemComposition.Evaluate(selectedKey, allies);
                             var suggestions = mayhemComposition.Recommend(source.Data, selectedKey, allies, available);
                             mayhemTeam = MayhemTeamDisplay.Create(window.Bounds, window.Handle, catalog, source, selectedKey,
                                 available, emptyMessage, suggestions, grade);
-                            if (choices is { } visible)
+                            mayhem = MayhemChampionDisplay.Create(window.Bounds, window.Handle, source.Data, selected, choices, bench);
+                            if (selected is not null)
                             {
-                                if (visible.Length > 0 && source.Data is { } offerTiers)
-                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, offerTiers, visible);
-                            }
-                            else
-                            {
-                                if (source.Data is { } benchTiers && bench.Length > 0)
-                                    mayhem = new MayhemChampionDisplay(window.Bounds, window.Handle, benchTiers, [], bench);
-                                if (session.Pick is { } selected)
-                                {
-                                    var champion = catalog.Champions.FirstOrDefault(item =>
-                                        string.Equals(item.Key, selected.Champion, StringComparison.OrdinalIgnoreCase));
-                                    if (champion is not null)
-                                        display = new SpellDisplay(window.Bounds, window.Handle, champion.Name, selected,
-                                            builds.Current(new GameContext(Mode.Caos, champion.Key), cancellation),
-                                            source.Data?.Letter(champion.Key), source.Status);
-                                }
+                                var champion = catalog.Champions.FirstOrDefault(item =>
+                                    string.Equals(item.Key, selected.Champion, StringComparison.OrdinalIgnoreCase));
+                                if (champion is not null)
+                                    display = new SpellDisplay(window.Bounds, window.Handle, champion.Name, selected,
+                                        builds.Current(new GameContext(Mode.Caos, champion.Key), cancellation),
+                                        source.Data?.Letter(champion.Key), source.Status);
                             }
                         }
                         else if (session.Mode == Mode.Arena)
@@ -161,9 +154,16 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                 await draftRead.ConfigureAwait(false);
         }
 
-        void ScanMayhem((nint Handle, Int32Rect Bounds, Int32Rect Frame) window)
+        void ScanMayhem((nint Handle, Int32Rect Bounds, Int32Rect Frame) window, bool readOffer)
         {
             var now = Environment.TickCount64;
+            if (!readOffer)
+            {
+                // A pending OCR result can refer to a frame before the client confirmed the pick.
+                choices = null;
+                draftGeneration = null;
+                scanAt = 0;
+            }
             if (now - lastFrame > 1500)
             {
                 choices = null;
@@ -181,7 +181,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                 // The portrait row can change as allies choose or swap. Title OCR runs independently.
                 bench = mayhemBench.Read(frame);
                 lastFrame = now;
-                if (draftRead is null && now >= scanAt)
+                if (readOffer && draftRead is null && now >= scanAt)
                 {
                     scanAt = now + 600;
                     draftGeneration = captureGeneration;

@@ -119,7 +119,7 @@ internal static class MayhemChampionTests
             var data = new MayhemChampionTierList(catalog.Patch, DateTimeOffset.UtcNow, new()
                 { ["jinx"] = 2, ["kaisa"] = 4, ["aurelionsol"] = 2, ["camille"] = 3, ["belveth"] = 2, ["gragas"] = 3 });
             MayhemDraftChoice[] choices = [new(662, Champion("Kaisa")), new(1000, Champion("Jinx")), new(1338, Champion("AurelionSol"))];
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, data, choices));
+            overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, null, choices, []));
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
@@ -140,14 +140,19 @@ internal static class MayhemChampionTests
                 displayed.SequenceEqual(["B", "A"]) &&
                 Canvas.GetLeft(badges.Children[0]) > 275 && Canvas.GetLeft(badges.Children[1]) > 610,
                 "dos tiers centrados y colocados debajo del borde de la carta ampliada");
-            overlay.Render(new MayhemChampionDisplay(bounds, 0, data, [],
-                [new(3, Champion("Gragas")), new(6, Champion("Belveth"))]));
+            var selected = new ChampionSelection("Camille", "Marca", "Destello");
+            overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, selected, choices, []));
+            Check(!Native.IsWindowVisible(handle), "al elegir se retiran los tiers de la oferta aunque quede una lectura anterior");
+            MayhemBenchChoice[] bench = [new(3, Champion("Gragas")), new(6, Champion("Belveth"))];
+            overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, selected, choices, bench));
             placement = Native.Bounds(handle);
             Check(placement.Y == bounds.Y + 10 && displayed.SequenceEqual(["B", "A"]) &&
                 Canvas.GetLeft(badges.Children[0]) < Canvas.GetLeft(badges.Children[1]),
-                "el tier queda sobre cada retrato disponible y conserva los huecos de la fila");
+                "después de elegir solo se dibujan los tiers del banco superior aunque aún lleguen cartas de la oferta anterior");
+            overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, null, choices, []));
+            Check(displayed.SequenceEqual(["C", "A", "A"]), "una nueva oferta vuelve a mostrar sus tiers debajo de las cartas");
             overlay.Render(null);
-            Check(!Native.IsWindowVisible(handle), "el tier bajo las cartas se oculta al elegir o salir");
+            Check(!Native.IsWindowVisible(handle), "el tier bajo las cartas se oculta al salir de la selección");
         }
         finally { overlay.Close(); }
         Console.WriteLine("Tiers de ARAM Caos debajo de las cartas verificados en WPF.");

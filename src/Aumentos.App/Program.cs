@@ -168,12 +168,10 @@ internal static class Program
             BuildSizeWindow? tierSizeWindow = null;
             overlay.ItemSizeRequested += () => OpenTierSize(previewArenaItems: true);
             var itemIcons = new BuildItemIcons(http);
-            var buildOverlay = new BuildOverlay(itemIcons);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
-            int buildSize = sizePreference.Load();
-            buildOverlay.SetSize(buildSize);
+            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save);
+            buildOverlay.SetSize(sizePreference.Load());
             BuildSizeWindow? buildSizeWindow = null;
-            buildOverlay.SizeRequested += OpenBuildSize;
             var prismaticSizePreference = new BuildSizePreference(Path.Combine(settings, "prismatic-panel-size.json"));
             int prismaticSize = prismaticSizePreference.Load();
             buildOverlay.SetPrismaticSize(prismaticSize);
@@ -383,9 +381,8 @@ internal static class Program
                     return;
                 }
 
-                var window = new BuildSizeWindow(buildSize, ratings.Catalog.Patch, itemIcons, percent =>
+                var window = new BuildSizeWindow(buildOverlay.SizePercent, ratings.Catalog.Patch, itemIcons, percent =>
                 {
-                    buildSize = percent;
                     buildOverlay.SetSize(percent);
                     return sizePreference.Save(percent);
                 });

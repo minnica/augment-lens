@@ -11,6 +11,16 @@ internal sealed record MayhemChampionDisplay(Int32Rect Bounds, nint Target,
     MayhemChampionTierList Tiers, MayhemDraftChoice[] Choices, MayhemBenchChoice[]? Bench = null)
 {
     internal int Top => Bench is not null ? 16 : Choices.Select(choice => choice.Bottom).DefaultIfEmpty(752).Max() + 1;
+
+    internal static MayhemChampionDisplay? Create(Int32Rect bounds, nint target, MayhemChampionTierList? tiers,
+        ChampionSelection? selected, MayhemDraftChoice[]? choices, MayhemBenchChoice[] bench)
+    {
+        if (tiers is null)
+            return null;
+        if (selected is not null)
+            return bench.Length > 0 ? new(bounds, target, tiers, [], bench) : null;
+        return choices is { Length: > 0 } ? new(bounds, target, tiers, choices) : null;
+    }
 }
 
 internal sealed class MayhemChampionOverlay : Window

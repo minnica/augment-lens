@@ -12,6 +12,8 @@ internal sealed partial class BuildSizeButton : Window
 {
     internal const int ButtonWidth = 92;
     internal const int ButtonHeight = 34;
+    internal const int ScaleEditorWidth = 240;
+    internal const int ScaleEditorMinimumWidth = 174;
     private static readonly Geometry MinimizeMark = CreateMark("M 2,7 H 12");
     private static readonly Geometry RestoreMark = CreateMark("M 2,7 H 12 M 7,2 V 12");
     private nint handle;
@@ -34,6 +36,7 @@ internal sealed partial class BuildSizeButton : Window
             const int exStyle = -20;
             const int noActivateToolWindow = 0x08000080;
             Native.SetWindowLongW(handle, exStyle, Native.GetWindowLongW(handle, exStyle) | noActivateToolWindow);
+            HwndSource.FromHwnd(handle)?.AddHook(KeepGameFocus);
         };
     }
 
@@ -50,11 +53,33 @@ internal sealed partial class BuildSizeButton : Window
         OpenButton.Content = content;
     }
 
+    internal void OpenScaleEditor(int percent, Func<int, bool> apply, Action close)
+    {
+        if (Content is not BuildScaleEditor)
+            Content = new BuildScaleEditor(percent, apply, close);
+    }
+
+    internal void CloseScaleEditor()
+    {
+        if (Content is BuildScaleEditor)
+            Content = OpenButton;
+    }
+
     private static Geometry CreateMark(string data)
     {
         var geometry = Geometry.Parse(data);
         geometry.Freeze();
         return geometry;
+    }
+
+    private static nint KeepGameFocus(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+    {
+        const int mouseActivate = 0x0021;
+        const int noActivate = 3;
+        if (message != mouseActivate)
+            return 0;
+        handled = true;
+        return noActivate;
     }
 
     internal void Display(Int32Rect target, double dpi)
