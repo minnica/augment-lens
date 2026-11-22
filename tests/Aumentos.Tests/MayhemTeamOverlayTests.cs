@@ -17,7 +17,7 @@ internal static class MayhemTeamOverlayTests
         var data = new MayhemChampionTierList(catalog.Patch, DateTimeOffset.UtcNow, tiers, ranks);
         var picks = new MayhemCompositionPick[] { new("Amumu", "A", "Aporta primera línea y control"),
             new("Anivia", "S", "Aporta daño mágico y limpieza de oleadas"), new("Sona", "B", "Aporta protección al equipo") };
-        var grade = new MayhemCompositionGrade("A", "Daño mixto con primera línea", 3, 5);
+        var grade = new MayhemCompositionGrade("B", "Falta daño sostenido", 3, 5);
         var view = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, "Datos de prueba"), "Sivir",
             available, "El banco está vacío.", picks, grade);
         Check(view.Rows.Length == available.Length && view.Rows.Take(4).Select(row => row.Champion)
@@ -39,6 +39,13 @@ internal static class MayhemTeamOverlayTests
                 Labels(panel).Contains(grade.Reason) &&
                 picks.All(pick => Labels(panel).Contains(pick.Champion) && Labels(panel).Contains(pick.Reason)),
                 "tier, evaluación y sugerencias se muestran juntos sin interceptar clics");
+            var summary = (StackPanel)panel.Children[0];
+            var composition = ((DockPanel)summary.Children[0]).Children.OfType<StackPanel>().Single();
+            var status = (TextBlock)composition.Children[1];
+            var detail = (TextBlock)composition.Children[2];
+            Check(status.Text == grade.Reason && status.FontWeight == FontWeights.SemiBold &&
+                status.FontSize > detail.FontSize && status.TextWrapping == TextWrapping.Wrap,
+                "la necesidad se muestra antes que el tier local y el campeón elegido, con mayor jerarquía");
             CheckPlacement(bounds, .73);
             var ranking = panel.Children.OfType<Grid>().Single();
             Check(ranking.ColumnDefinitions.Count == 2 && ranking.RowDefinitions.Count == 11 &&
@@ -49,12 +56,17 @@ internal static class MayhemTeamOverlayTests
             var compact = new Int32Rect(bounds.X, bounds.Y, 1280, 720);
             overlay.Render(view with { Bounds = compact, Grade = grade with { Members = 5, Tier = "S" } });
             CheckPlacement(compact, .64);
-            Check(Labels(panel).Contains("Tier local · 5/5 campeones") && panel.Children.OfType<Grid>().Single().RowDefinitions.Count == 11,
-                "una ventana pequeña conserva la nota y las diez opciones");
+            var balanced = Labels(panel).ToArray();
+            Check(balanced.Contains("Equipo equilibrado") && balanced.Contains("Tier local · 5/5 campeones") &&
+                !balanced.Contains("Para tu equipo") && !balanced.Contains(grade.Reason) &&
+                panel.Children.OfType<Grid>().Single().RowDefinitions.Count == 11,
+                "un equipo completo de tier S conserva el banco y confirma que la composición está equilibrada");
 
             overlay.Render(view with { Selection = null });
             Check(Labels(panel).Contains("Composición ARAM Caos") && Labels(panel).Contains("Tier local · 3/5 campeones") &&
-                !Labels(panel).Contains("Puesto 34 en OP.GG"), "la composición provisional aparece antes de la elección propia");
+                Labels(panel).Contains("Para tu equipo") && Labels(panel).Contains(grade.Reason) &&
+                !Labels(panel).Contains("Equipo equilibrado") && !Labels(panel).Contains("Puesto 34 en OP.GG"),
+                "la composición provisional recupera el aviso y las sugerencias al cambiar el equipo");
 
             var previousPatch = LeaguePatch.Previous(catalog.Patch) ?? catalog.Patch;
             var legacy = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data with { SourcePatch = previousPatch, Ranks = null }, ""),

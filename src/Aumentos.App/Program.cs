@@ -129,11 +129,16 @@ internal static class Program
                 return 1;
             }
         }
+        using var showDiagnostics = new EventWaitHandle(false, EventResetMode.AutoReset, @"Local\AumentosLoL.AbrirDiagnostico");
         using var instance = new Mutex(true, @"Local\AumentosLoL", out var firstInstance);
         if (!firstInstance)
         {
             if (!args.Contains("--reanudar-parche", StringComparer.Ordinal))
+            {
+                if (args.Length == 0)
+                    showDiagnostics.Set();
                 return 0;
+            }
             try { if (!instance.WaitOne(TimeSpan.FromSeconds(15))) return 0; }
             catch (AbandonedMutexException) { }
         }
@@ -335,7 +340,10 @@ internal static class Program
                     }
                 });
             };
-            return app.Run();
+            var openRequest = ThreadPool.RegisterWaitForSingleObject(showDiagnostics,
+                (_, _) => app.Dispatcher.InvokeAsync(OpenDiagnostics), null, Timeout.Infinite, executeOnlyOnce: false);
+            try { return app.Run(); }
+            finally { openRequest.Unregister(null); }
 
             void RunMaintenance(Func<Task> run)
             {
@@ -434,6 +442,8 @@ internal static class Program
 
             void OpenDiagnostics()
             {
+                if (diagnostics.WindowState == WindowState.Minimized)
+                    diagnostics.WindowState = WindowState.Normal;
                 diagnostics.Show();
                 diagnostics.Activate();
             }

@@ -10,10 +10,13 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 | Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
 | Invitados de Honor | — | Tier local junto a las opciones de votación |
 
-## Iniciar en Windows
+## Instalar en Windows
 
-1. Después de iniciar sesión en Windows, abre `dist/win-x64-auto/Iniciar.cmd` para usar la versión actualizada de este equipo. Si publicas con el destino predeterminado, el paquete queda en `dist/win-x64`. Cada paquete incluye la app, el runtime y el modelo de español.
-2. Usa League en **ventana sin bordes** y déjalo en primer plano cuando quieras ver los paneles. Desde el icono de **Aumentos LoL** en la bandeja puedes abrir **Diagnóstico y calibración**, **Pausar overlay** o salir.
+1. En Windows 10 (versión 2004 o posterior) o Windows 11 **x64**, haz doble clic en `Instalar-AumentosLoL-x64.exe`. El instalador incluye .NET, el lector de cartas en español y el catálogo. Se instala para tu cuenta, sin permisos de administrador.
+2. Deja marcada **Iniciar Aumentos LoL en la bandeja al iniciar sesión en Windows** y pulsa **Instalar**. Al finalizar, **Abrir Aumentos LoL** te lleva al diagnóstico. En los siguientes inicios de sesión la app arrancará en la bandeja, junto al reloj.
+3. Usa League en **ventana sin bordes** y déjalo en primer plano para ver los paneles. Puedes abrir **Aumentos LoL** desde el menú Inicio o hacer doble clic en su icono junto al reloj. El menú del icono permite pausar el overlay o salir.
+
+Para cambiar el inicio automático, abre **Configuración → Aplicaciones → Inicio** en Windows. Para actualizar el programa, elige **Salir** en la bandeja y ejecuta el instalador nuevo. Para quitarlo, elige **Salir** y desinstala **Aumentos LoL** desde **Configuración → Aplicaciones**. La desinstalación retira los accesos directos y conserva tu historial y calibración en `%LOCALAPPDATA%\AumentosLoL`.
 
 ### Calibrar la lectura de aumentos
 
@@ -67,7 +70,7 @@ En **ARAM Caos**, **ARAMMayhem.com** muestra el porcentaje de elección global d
 
 **AramHex** aporta una letra de respaldo para el campeón a partir de partidas de **China** con reglas normales, con al menos **300 partidas** para la combinación. Los detalles identifican el origen, el parche y la muestra. Cuando se usa el parche anterior, solo entran cartas con mecánicas verificadas entre ambos parches y la letra publicada de OP.GG o la estimación local conserva prioridad. La app guarda las letras y el tamaño de la muestra. [AramHex · CC BY-NC 4.0](https://github.com/czgreat/aramhex-data)
 
-Para auditar la cobertura desde PowerShell sin entrar a una partida, ejecuta `.\dist\win-x64-auto\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
+Para auditar la cobertura desde PowerShell con el paquete de desarrollo, ejecuta `.\dist\win-x64\Iniciar.cmd --verificar-tiers Arena Renata` o cambia `Arena` por `Caos`. El resultado cuenta las cartas del catálogo por fuente de su letra visible e indica cuáles quedan sin muestra.
 
 ## Votar por Invitados de Honor en Arena
 
@@ -103,7 +106,7 @@ Con la build visible, pulsa **Tamaño…** encima del panel o usa **Ctrl + Shift
 
 La app guarda una copia de las recomendaciones por campeón, modo y parche en `%LOCALAPPDATA%\AumentosLoL\opgg-builds`. Cuando muestra datos del parche inmediatamente anterior de la misma temporada, el panel indica **Parche anterior** y su número. Los iconos se descargan de OP.GG y se reutilizan en memoria durante la sesión. Los nombres aparecen mientras se cargan las imágenes.
 
-Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada por OP.GG con `.\dist\win-x64-auto\Iniciar.cmd --verificar-build Caos Kennen` o `.\dist\win-x64-auto\Iniciar.cmd --verificar-build Arena Elise`.
+Desde PowerShell, en la raíz del proyecto, puedes consultar la build publicada por OP.GG con `.\dist\win-x64\Iniciar.cmd --verificar-build Caos Kennen` o `.\dist\win-x64\Iniciar.cmd --verificar-build Arena Elise`.
 
 ## Selección de campeón
 
@@ -115,7 +118,9 @@ Cuando el cliente informa los campeones de tus compañeros, el panel sugiere opc
 
 La lista de campeones usa la muestra de Arena de todas las regiones y muestra su parche. GGEZ.GG calcula la letra con un ajuste por tamaño de muestra. La app reutiliza la copia de `%LOCALAPPDATA%\AumentosLoL\ggez-arena\<parche>\champion-tiers.json` y puede mostrar el parche inmediatamente anterior con su etiqueta. El acceso de la bandeja **Tier de campeones de Arena** abre la fuente. [Tier list de Arena](https://ggez.gg/tierlist/arena) · [Licencia de GGEZ.GG · CC BY 4.0](https://ggez.gg/about#using-our-numbers)
 
-En la selección de campeón de **ARAM Caos**, el panel lateral muestra el tier de tu campeón y la lista de **Campeones disponibles**. La lista ordena por tier de OP.GG las cartas de tu oferta inicial y, después de elegir, los campeones del banco. **Composición ARAM Caos** muestra una estimación local de S a D y cuántos de los cinco campeones reconoce el cliente. La letra considera la primera línea, el control, la protección y el daño del equipo. **Para tu equipo** sugiere campeones de la lista que cubren lo que falta y muestra el motivo junto a su tier cuando está publicado. La lista y las sugerencias se actualizan al elegir o intercambiar un campeón. [Tier list de campeones de ARAM Caos en OP.GG](https://op.gg/es-419/lol/modes/aram-mayhem)
+En la selección de campeón de **ARAM Caos**, el panel lateral destaca arriba la evaluación de la composición, por ejemplo **Falta daño sostenido**. La estimación local de S a D considera la primera línea, el control, la protección y el daño del equipo. Debajo del aviso se indica cuántos de los cinco campeones reconoce el cliente. **Para tu equipo** sugiere campeones que cubren lo que falta. Al alcanzar tier S con el equipo completo, el panel muestra **Equipo equilibrado** y retira las sugerencias de cambio.
+
+El panel también muestra el tier de tu campeón y la lista de **Campeones disponibles**. La lista ordena por tier de OP.GG las cartas de tu oferta inicial y, después de elegir, los campeones del banco. La evaluación y la lista se actualizan al elegir o intercambiar un campeón. [Tier list de campeones de ARAM Caos en OP.GG](https://op.gg/es-419/lol/modes/aram-mayhem)
 
 También aparece una letra debajo de cada carta reconocida en ofertas de dos o tres cartas. En **Campeones disponibles**, los retratos reconocidos muestran su letra en la esquina inferior derecha. Las letras **S, A, B, C y D** corresponden a los tiers **1 a 5** de la tabla de OP.GG. La app guarda la tabla en la caché local y muestra su parche en el panel lateral de **Campeones disponibles**. Si usa el parche anterior, lo indica en pantalla.
 
@@ -129,7 +134,7 @@ Abre **Abrir historial de aumentos** desde el icono de la bandeja. El archivo CS
 
 Cada fila guarda la carta ofrecida, su posición, el campeón, el modo, el parche y la fecha. La columna `tier` contiene la estimación local y `opgg` contiene la valoración o popularidad mostrada. Las columnas `arammayhem_popularidad_global_pct` y `arammayhem_parche` guardan el porcentaje de ARAMMayhem.com y el parche de sus datos. Las columnas `ggez_*` guardan el porcentaje de elección, cuántas veces se eligió el aumento, el tamaño de la muestra y el parche de GGEZ.GG. Las filas previas a cada integración llevan sus columnas nuevas vacías. Una carta nueva o una valoración que cambie en pantalla se registra en la misma selección. Las filas marcadas como **Captura** contienen los valores recalculados con los datos vigentes al importarla.
 
-Desde la raíz del proyecto, comprueba una imagen de Arena con `.\dist\win-x64-auto\Iniciar.cmd --verificar Arena .\evidencias\image4.png Elise`. Para agregar sus cartas al historial, cierra primero el overlay desde **Salir** en la bandeja y ejecuta `.\dist\win-x64-auto\Iniciar.cmd --registrar-capturas Arena Elise .\evidencias\image4.png`. Para otra captura, cambia el archivo, la clave del campeón y el modo (`Arena` o `Caos`).
+Desde la raíz del proyecto, comprueba una imagen de Arena con `.\dist\win-x64\Iniciar.cmd --verificar Arena .\evidencias\image4.png Elise`. Para agregar sus cartas al historial, cierra primero el overlay desde **Salir** en la bandeja y ejecuta `.\dist\win-x64\Iniciar.cmd --registrar-capturas Arena Elise .\evidencias\image4.png`. Para otra captura, cambia el archivo, la clave del campeón y el modo (`Arena` o `Caos`).
 
 En Arena, `arena_nivel_aumento` conserva el nivel leído, `arena_fuente_mecanica` identifica la Wiki cuando intervino y `arena_motivo` guarda la explicación mostrada. Al importar una captura se pueden recuperar el campeón indicado y los niveles visibles. La sinergia por objetos se calcula durante la partida con el inventario del cliente local.
 
@@ -139,9 +144,28 @@ Con la app abierta en la bandeja, el catálogo se actualiza al detectar un parch
 
 La app precarga las estadísticas generales y las de hasta seis combinaciones recientes de modo y campeón a partir del día 2 desde que detecta el parche instalado. Si falta respaldo en alguna fuente, vuelve a revisar alrededor del día 7. Hace esas revisiones fuera de partida y reutiliza las copias por parche. La consulta en segundo plano por campeón sigue disponible cuando juegas uno nuevo. El diagnóstico guarda cuántas cartas de Caos tienen datos tanto en OP.GG como en AramHex y qué objetos de la build de Arena también son frecuentes en GGEZ.GG cuando el campeón y el parche coinciden. `--verificar-build Arena Elise` muestra ese cotejo si hay datos compatibles. **Consultar otras fuentes** en la bandeja abre U.GG, Mobalytics y Wasfun para revisión manual.
 
-Con el SDK de .NET 10, ejecuta `powershell -File scripts/Publicar.ps1`. El script descarga el modelo español si falta y publica en `dist/win-x64`.
+### Generar el instalador para compartir
 
-Puedes elegir la carpeta del paquete con `powershell -File scripts/Publicar.ps1 -Destination dist/win-x64-auto`. Si Windows muestra `0x800711C7`, el evento 3077 de **CodeIntegrity/Operational** identifica la política. En este equipo fue **Control inteligente de aplicaciones** y el paquete inició después de desactivar esa protección. Si se mantiene activa y Windows bloquea la compilación sin firma, la solución para el paquete es firmarlo con un certificado que Windows acepte. [Preguntas frecuentes de Microsoft](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
+En el equipo de desarrollo necesitas el SDK de .NET 10 e Inno Setup 7. Desde la raíz del proyecto, instala el compilador de instaladores una vez y genera el archivo con PowerShell.
+
+```powershell
+winget install --id JRSoftware.InnoSetup.7 -e --scope user
+powershell -File scripts/Crear-Instalador.ps1
+```
+
+Comparte **`dist/Instalar-AumentosLoL-x64.exe`**. El script crea una publicación limpia y autocontenida e incorpora las bibliotecas x64 de Visual C++ que usa el lector de cartas. El destinatario puede completar la instalación sin conexión. Las estadísticas en línea se consultan al usar la app. [Inno Setup](https://jrsoftware.org/inno-setup/downloads) · [Bibliotecas redistribuibles de Microsoft](https://learn.microsoft.com/es-es/visualstudio/releases/2022/redistribution)
+
+El instalador generado carece de firma de editor. Si Windows exige una firma de confianza, será necesario firmar la app y el instalador para distribuirlos en ese equipo. [Control inteligente de aplicaciones de Windows](https://support.microsoft.com/es-es/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions)
+
+### Verificar la versión después de cada cambio
+
+1. Para cada cambio que afecte a la app, genera el instalador actualizado y ejecútalo en este equipo. Cierra primero el overlay desde **Salir** en la bandeja. Si hay una partida activa, coordina el reinicio para cuando termine.
+2. Abre Aumentos LoL desde el menú Inicio. Con `Get-CimInstance Win32_Process`, comprueba que la única instancia se ejecuta desde `%LOCALAPPDATA%\Programs\AumentosLoL\AumentosLoL.exe`. Busca también procesos `dotnet.exe` que ejecuten `AumentosLoL.dll` en otra carpeta. Una instancia anterior puede impedir que la recién instalada se abra.
+3. Confirma con `Get-FileHash` que el `AumentosLoL.dll` instalado coincide con el de la nueva publicación y que el proceso arrancó después de instalarlo. Comprueba que el acceso de inicio automático apunta al ejecutable instalado con `--bandeja` y prueba el cambio en el panel o flujo correspondiente. Si parte de la verificación queda pendiente, indícalo en la entrega.
+
+### Publicar para desarrollo
+
+Ejecuta `powershell -File scripts/Publicar.ps1` para crear el paquete de desarrollo en `dist/win-x64`, con el lanzador `Iniciar.cmd` que usan los ejemplos. Puedes elegir otra carpeta con `-Destination`.
 
 Para actualizar el catálogo incluido en una compilación, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar.
 

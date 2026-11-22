@@ -172,13 +172,14 @@ internal abstract class ChampionRankingOverlay : Window
         if (!mayhem)
             panel.Padding = compact ? new Thickness(10, 7, 10, 8) : new Thickness(13, 10, 13, 11);
         bool narrowMayhem = mayhem && panel.Width < 235;
+        bool balancedMayhem = mayhem && view.Grade is { Tier: "S" } grade && grade.Members == grade.TeamSize;
         if (view.Selection is not null || mayhem && view.Grade is not null)
         {
-            rows.Children.Add(SelectionSummary(view.Selection, view.HasRatings, view.Grade, compact, narrowMayhem));
+            rows.Children.Add(SelectionSummary(view.Selection, view.HasRatings, view.Grade, compact, narrowMayhem, balancedMayhem));
             AddDivider(compact);
         }
 
-        if (view.Composition.Length > 0)
+        if (!balancedMayhem && view.Composition.Length > 0)
         {
             AddHeading("Para tu equipo", 16, serif: mayhem);
             foreach (var pick in view.Composition)
@@ -209,9 +210,12 @@ internal abstract class ChampionRankingOverlay : Window
     }
 
     private StackPanel SelectionSummary(ChampionRankingRow? selection, bool hasSource, ChampionRankingGrade? grade,
-        bool compact, bool narrow)
+        bool compact, bool narrow, bool balancedMayhem)
     {
         var summary = new StackPanel();
+        if (mayhem)
+            summary.Children.Add(MayhemCompositionSummary(grade, narrow, balancedMayhem));
+
         if (selection is not null)
         {
             string championDetail = selection switch
@@ -221,8 +225,14 @@ internal abstract class ChampionRankingOverlay : Window
                 { Tier: not null } => "Tier de OP.GG",
                 _ => hasSource ? "Sin tier publicado" : "Tier pendiente"
             };
-            summary.Children.Add(SummaryBadge(selection.Champion, championDetail, selection.Tier, compact));
+            var champion = SummaryBadge(selection.Champion, championDetail, selection.Tier, compact);
+            if (mayhem)
+                champion.Margin = new Thickness(0, 8, 0, 0);
+            summary.Children.Add(champion);
         }
+
+        if (mayhem)
+            return summary;
 
         var composition = new StackPanel { Margin = new Thickness(0, selection is null ? 0 : compact ? 4 : 6, 0, 0) };
         var detail = grade switch
@@ -231,9 +241,9 @@ internal abstract class ChampionRankingOverlay : Window
             { Source: { } source } => source,
             _ => $"Tier local · {grade.Members}/{grade.TeamSize}"
         };
-        if ((mayhem && !narrow || !compact) && grade is { Source: null })
+        if (!compact && grade is { Source: null })
             detail += " campeones";
-        string compositionName = mayhem && !narrow ? "Composición ARAM Caos" : compact ? "Composición" : "Composición Arena";
+        string compositionName = compact ? "Composición" : "Composición Arena";
         composition.Children.Add(SummaryBadge(compositionName, detail, grade?.Tier, compact));
         if (grade is not null)
         {
@@ -246,7 +256,22 @@ internal abstract class ChampionRankingOverlay : Window
         return summary;
     }
 
-    private DockPanel SummaryBadge(string name, string detail, string? tier, bool compact)
+    private DockPanel MayhemCompositionSummary(ChampionRankingGrade? grade, bool narrow, bool balanced)
+    {
+        var name = narrow ? "Composición" : "Composición ARAM Caos";
+        if (grade is null)
+            return SummaryBadge(name, "Esperando un aliado", null, compact: true);
+
+        var detail = $"Tier local · {grade.Members}/{grade.TeamSize}" + (narrow ? "" : " campeones");
+        var status = Label(balanced ? "Equipo equilibrado" : grade.Reason, 16,
+            balanced ? MayhemTierStyle.Gold : primaryText, bold: true);
+        status.TextWrapping = TextWrapping.Wrap;
+        status.TextTrimming = TextTrimming.None;
+        status.Margin = new Thickness(0, 2, 0, 2);
+        return SummaryBadge(name, detail, grade.Tier, compact: true, status: status);
+    }
+
+    private DockPanel SummaryBadge(string name, string detail, string? tier, bool compact, TextBlock? status = null)
     {
         var group = new DockPanel { VerticalAlignment = VerticalAlignment.Top };
         if (tier is not null)
@@ -267,6 +292,8 @@ internal abstract class ChampionRankingOverlay : Window
             title.TextWrapping = TextWrapping.Wrap;
         }
         text.Children.Add(title);
+        if (status is not null)
+            text.Children.Add(status);
         text.Children.Add(Label(detail, compact ? 12 : 13, secondaryText));
         group.Children.Add(text);
         return group;
