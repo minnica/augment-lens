@@ -46,14 +46,11 @@ internal static class ArenaCompositionAdvice
         if (profiles.Length < 2)
             return null;
 
-        if (team.Size == 3 && profiles.Length == 3 && observed is { Games: >= ArenaTeamSource.MinimumGames } &&
-            observed.Patch == ratings.Catalog.Patch)
-            return new(observed.Tier, $"{observed.Games} partidas · Puesto medio {observed.AveragePlace:0.00}", 3, 3, observed);
-
         // Arena teams need a way to convert control into a takedown or keep their damage alive as the ring closes.
         bool protectedDamage = HasPair(Coverage.SustainedDamage, Coverage.HoldGround | Coverage.Protection);
         bool damageAfterControl = HasPair(Coverage.Control, Coverage.FollowUpDamage);
-        bool chainControl = damageAfterControl && profiles.Count(profile => profile.HasFlag(Coverage.Control)) >= 2;
+        int controlCount = profiles.Count(profile => profile.HasFlag(Coverage.Control));
+        bool chainControl = damageAfterControl && controlCount >= 2;
         bool holdsSpace = HasPair(Coverage.HoldGround, Coverage.Control | Coverage.Protection);
         bool sustainedDamage = profiles.Any(profile => profile.HasFlag(Coverage.SustainedDamage));
         bool mixedDamage = HasPair(Coverage.PhysicalDamage, Coverage.MagicDamage);
@@ -61,17 +58,19 @@ internal static class ArenaCompositionAdvice
         int score = (protectedDamage ? 3 : 0) + (damageAfterControl ? 2 : 0) + (chainControl ? 2 : 0) +
             (holdsSpace ? 2 : 0) + (sustainedDamage ? 1 : 0) + (mixedDamage ? 1 : 0);
         string tier = score switch { >= 8 => "S", >= 6 => "A", >= 3 => "B", >= 1 => "C", _ => "D" };
-        string reason = (protectedDamage, chainControl, damageAfterControl, holdsSpace, sustainedDamage, mixedDamage) switch
+        int teamSize = Math.Max(team.Size, profiles.Length);
+        string reason = (sustainedDamage, protectedDamage, controlCount, damageAfterControl) switch
         {
-            (true, _, _, _, _, _) => "Protege el daño sostenido",
-            (_, true, _, _, _, _) => "Encadena control y daño",
-            (_, _, true, _, _, _) => "Control para enfocar al rival",
-            (_, _, _, true, _, _) => "Aguante y control de espacio",
-            (_, _, _, _, true, _) => "Daño sostenido expuesto",
-            (_, _, _, _, _, true) => "Daño mixto, poca cobertura",
-            _ => "Poca sinergia de combate"
+            (false, _, _, _) => "Falta daño sostenido",
+            (_, false, _, _) => "Falta protección",
+            (_, _, 0, _) => "Falta control",
+            (_, _, _, false) => "Falta daño de seguimiento",
+            _ when tier != "S" && !profiles.Any(profile => profile.HasFlag(Coverage.HoldGround)) => "Falta aguante",
+            _ => profiles.Length == teamSize ? "Equipo equilibrado" : "Sin carencias claras"
         };
-        return new(tier, reason, profiles.Length, Math.Max(team.Size, profiles.Length));
+        var result = team.Size == 3 && profiles.Length == 3 && observed is { Games: >= ArenaTeamSource.MinimumGames } &&
+            observed.Patch == ratings.Catalog.Patch ? observed : null;
+        return new(result?.Tier ?? tier, reason, profiles.Length, teamSize, result);
 
         bool HasPair(Coverage first, Coverage second)
         {
@@ -100,18 +99,33 @@ internal static class ArenaCompositionAdvice
             {
                 var contribution = Profile(ratings, champion);
                 var matching = needs.Where(need => (need.Coverage & contribution) != 0).ToArray();
-                return (champion.Name, Rating: statistics?.GetValueOrDefault(champion.Key), Matching: matching,
+                return (Champion: champion, Profile: contribution, Rating: statistics?.GetValueOrDefault(champion.Key), Matching: matching,
                     Score: matching.Sum(need => need.Weight));
             })
             .Where(option => option.Score > 0)
             .OrderByDescending(option => option.Score)
             .ThenBy(option => TierRank(option.Rating?.Tier))
             .ThenByDescending(option => option.Rating?.TopThreePercent)
-            .ThenBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(option => option.Champion.Name, StringComparer.OrdinalIgnoreCase)
             .Take(PickLimit)
-            .Select(option => new ArenaCompositionPick(option.Name, option.Rating?.Tier,
-                $"Aporta {string.Join(" y ", option.Matching.Select(need => need.Reason).Distinct().Take(2))}"))
+            .Select(option => new ArenaCompositionPick(option.Champion.Name, option.Rating?.Tier,
+                Contribution(option.Champion, option.Profile, option.Matching)))
             .ToArray();
+    }
+
+    private static string Contribution(Champion champion, Coverage profile, Need[] matching)
+    {
+        if ((matching[0].Coverage is Coverage.MagicDamage or Coverage.SustainedDamage) &&
+            matching.Any(need => need.Coverage == Coverage.SustainedDamage))
+        {
+            if (champion.Key == "Diana")
+                return "Daño mágico en área de cerca";
+            if (champion.Roles[0] == "Marksman")
+                return profile.HasFlag(Coverage.MagicDamage) ? "Básicos con daño mágico" : "Básicos a distancia";
+        }
+
+        var reason = string.Join(" · ", matching.Select(need => need.Reason).Distinct().Take(2));
+        return char.ToUpperInvariant(reason[0]) + reason[1..];
     }
 
     private static IEnumerable<Need> Priorities(Coverage covered)
@@ -132,7 +146,7 @@ internal static class ArenaCompositionAdvice
         if (!control)
             yield return new(Coverage.Control, 3, "control");
         if (!protection)
-            yield return new(Coverage.Protection, sustained ? 4 : 2, "protección para el equipo");
+            yield return new(Coverage.Protection, sustained ? 4 : 2, "protección");
 
         if (damage == Coverage.PhysicalDamage)
             yield return new(Coverage.MagicDamage, 5, "daño mágico");

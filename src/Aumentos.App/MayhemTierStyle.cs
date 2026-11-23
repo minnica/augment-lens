@@ -64,10 +64,11 @@ internal static class MayhemTierStyle
         };
     }
 
-    internal static Border ChampionBadge(string? tier, string champion, double width, double height, double fontSize)
+    internal static Border ChampionBadge(string? tier, string champion, double width, double height, double fontSize,
+        string source = "OP.GG")
     {
         var badge = Badge(tier, width, height, fontSize);
-        AutomationProperties.SetName(badge, $"{champion} · {(tier is null ? "Sin tier" : $"Tier {tier}")} de OP.GG");
+        AutomationProperties.SetName(badge, $"{champion} · {(tier is null ? "Sin tier" : $"Tier {tier}")} de {source}");
         return badge;
     }
 }

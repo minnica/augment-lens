@@ -15,7 +15,8 @@ using System.Threading.Tasks;
 namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
-internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, int Size = 0);
+internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, int Size = 0,
+    bool? OwnConfirmed = null, string[]? ConfirmedTeammates = null);
 internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown);
 internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
     string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null,
@@ -61,14 +62,16 @@ internal sealed class ChampionSelectClient : IDisposable
             if (selection is null)
                 return default;
             bool picksClosed = ArenaPicksClosed(selection.RootElement);
-            var (champion, teammates, unavailable, teamSize) = ArenaDraftIds(selection.RootElement, confirmedOnly: picksClosed);
+            var (champion, teammates, unavailable, teamSize, confirmed, confirmedTeammates) =
+                ArenaDraftIds(selection.RootElement, confirmedOnly: picksClosed);
             if (champion is null && teammates.Length == 0 && unavailable.Length == 0)
                 return default;
             if (await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
                 return default;
 
             return (champion is { } id ? names.GetValueOrDefault(id) : null,
-                new ArenaDraftTeam(Keys(teammates), Keys(unavailable), teamSize), picksClosed);
+                new ArenaDraftTeam(Keys(teammates), Keys(unavailable), teamSize, champion is null ? null : confirmed,
+                    Keys(confirmedTeammates)), picksClosed);
 
             string[] Keys(int[] ids) => ids.Select(id => names.GetValueOrDefault(id)).OfType<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -192,11 +195,11 @@ internal sealed class ChampionSelectClient : IDisposable
         timer.ValueKind == JsonValueKind.Object &&
         (TextIs(timer, "phase", "FINALIZATION") || TextIs(timer, "phase", "GAME_STARTING"));
 
-    internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize) ArenaDraftIds(JsonElement root,
-        bool confirmedOnly = false)
+    internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize, bool ChampionConfirmed,
+        int[] ConfirmedTeammates) ArenaDraftIds(JsonElement root, bool confirmedOnly = false)
     {
         if (root.ValueKind != JsonValueKind.Object)
-            return (null, [], [], 0);
+            return (null, [], [], 0, false, []);
 
         var own = OwnPlayer(root);
         int localCell = Number(root, "localPlayerCellId");
@@ -204,14 +207,23 @@ internal sealed class ChampionSelectClient : IDisposable
         int teamSize = own is null ? 0 : 1;
         var actions = DraftActions(root).ToArray();
         var inProgressPicks = new Dictionary<int, int>();
-        foreach (var action in actions)
+        var completedPicks = new Dictionary<int, int>();
+        if (!confirmedOnly)
         {
-            if (!confirmedOnly && TextIs(action, "type", "pick") && FlagIs(action, "isInProgress", JsonValueKind.True) &&
-                FlagIs(action, "completed", JsonValueKind.False) && Number(action, "actorCellId") is >= 0 and var cell)
-                inProgressPicks[cell] = Number(action, "championId");
+            foreach (var action in actions)
+            {
+                int cell = Number(action, "actorCellId");
+                if (cell < 0 || !TextIs(action, "type", "pick"))
+                    continue;
+                if (FlagIs(action, "completed", JsonValueKind.True))
+                    completedPicks[cell] = Number(action, "championId");
+                else if (FlagIs(action, "completed", JsonValueKind.False) && FlagIs(action, "isInProgress", JsonValueKind.True))
+                    inProgressPicks[cell] = Number(action, "championId");
+            }
         }
 
         var teammates = new HashSet<int>();
+        var confirmedTeammates = new HashSet<int>();
         var unavailable = new HashSet<int>();
         var enemyCells = new HashSet<int>();
         foreach (var ally in Elements(root, "myTeam"))
@@ -224,7 +236,11 @@ internal sealed class ChampionSelectClient : IDisposable
             {
                 teamSize++;
                 if (Pick(ally) is { } teammate)
-                    teammates.Add(teammate);
+                {
+                    teammates.Add(teammate.Champion);
+                    if (teammate.Confirmed)
+                        confirmedTeammates.Add(teammate.Champion);
+                }
             }
         }
         foreach (var enemy in Elements(root, "theirTeam"))
@@ -238,11 +254,13 @@ internal sealed class ChampionSelectClient : IDisposable
                 (TextIs(action, "type", "pick") && enemyCells.Contains(Number(action, "actorCellId")))))
                 unavailable.Add(Number(action, "championId"));
         }
-        return (own is { } local ? Pick(local) : null, [.. teammates], [.. unavailable], teamSize);
+        var ownPick = own is { } local ? Pick(local) : null;
+        return (ownPick?.Champion, [.. teammates], [.. unavailable], teamSize, ownPick?.Confirmed == true,
+            [.. confirmedTeammates]);
 
-        int? Pick(JsonElement member) => confirmedOnly
-            ? Number(member, "championId") is > 0 and var id ? id : null
-            : ArenaPick(member, inProgressPicks);
+        (int Champion, bool Confirmed)? Pick(JsonElement member) => confirmedOnly
+            ? Number(member, "championId") is > 0 and var id ? (id, true) : null
+            : ArenaPick(member, inProgressPicks, completedPicks);
 
         void AddEnemy(JsonElement enemy)
         {
@@ -276,13 +294,17 @@ internal sealed class ChampionSelectClient : IDisposable
     private static int ArenaTeamId(JsonElement player) => Number(player, "teamId") is >= 0 and var team
         ? team : Number(player, "team");
 
-    private static int? ArenaPick(JsonElement player, Dictionary<int, int> inProgressPicks)
+    private static (int Champion, bool Confirmed)? ArenaPick(JsonElement player, Dictionary<int, int> inProgressPicks,
+        Dictionary<int, int> completedPicks)
     {
+        int cell = Number(player, "cellId");
+        if (inProgressPicks.TryGetValue(cell, out var hovered))
+            return (hovered, false);
         if (Number(player, "championId") is > 0 and var picked)
-            return picked;
-        if (inProgressPicks.TryGetValue(Number(player, "cellId"), out var hovered))
-            return hovered;
-        return Number(player, "championPickIntent") is > 0 and var intended ? intended : null;
+            return (picked, true);
+        if (completedPicks.TryGetValue(cell, out var completed))
+            return (completed, true);
+        return Number(player, "championPickIntent") is > 0 and var intended ? (intended, false) : null;
     }
 
     private static bool FlagIs(JsonElement root, string key, JsonValueKind value) =>

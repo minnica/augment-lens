@@ -119,7 +119,7 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                             var observed = teams?.Find(session.ArenaChampion, session.ArenaTeam, cancellation);
                             var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam, observed);
                             arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source,
-                                session.ArenaChampion, composition, grade);
+                                session.ArenaChampion, composition, grade, session.ArenaTeam);
                         }
                     }
                 }
