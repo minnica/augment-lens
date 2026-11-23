@@ -141,11 +141,13 @@ internal static class ChampionSelectTests
 
     internal static void Smoke()
     {
-        var overlay = new SpellOverlay();
+        var overlay = new SpellOverlay { Left = -30000, Top = -30000 };
         try
         {
-            var bounds = new Int32Rect(10, 10, 1040, 720);
-            overlay.Render(new SpellDisplay(bounds, 0, "Kennen", new("Kennen", "Marca", "Destello"), new(ReadSpells(), "Prueba")));
+            var bounds = new Int32Rect(-30000, -30000, 1040, 720);
+            var prior = ReadSpells();
+            var view = new SpellDisplay(bounds, 0, "Kennen", new("Kennen", "Marca", "Destello"), new(prior, "Prueba"));
+            overlay.Render(view);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
@@ -154,23 +156,44 @@ internal static class ChampionSelectTests
                 placement.X + placement.Width <= bounds.X + bounds.Width && placement.Y >= bounds.Y &&
                 placement.Y + placement.Height <= bounds.Y + bounds.Height &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                panel.Children.OfType<TextBlock>().Select(row => row.Text).SequenceEqual(
-                    ["Kennen · Hechizos de OP.GG", "Destello + Marca", "Ya tienes estos hechizos",
-                     "Alternativa · Destello + Fantasma", "Parche anterior 26.22"]),
+                TextBlocks(panel).Select(row => row.Text).SequenceEqual(
+                    ["Kennen", "Principal", "Destello + Marca", "Ya tienes estos hechizos",
+                     "Alternativa", "Destello + Fantasma", "Hechizos del parche anterior"]),
                 "panel dentro del cliente, sin interceptar clics y con las dos combinaciones de OP.GG");
-            overlay.Render(new SpellDisplay(bounds, 0, "Aurelion Sol", new("AurelionSol", "Marca", "Destello"),
-                new(ReadSpells() with { Champion = "AurelionSol" }, "Prueba"), "A", "OP.GG · Parche 26.23"));
-            var header = (DockPanel)panel.Children[0];
-            Check(((TextBlock)((Border)header.Children[0]).Child).Text == "A" &&
-                ((StackPanel)header.Children[1]).Children.OfType<TextBlock>().Select(line => line.Text)
-                    .SequenceEqual(["Aurelion Sol", "OP.GG · Parche 26.23"]) &&
-                panel.Children.OfType<TextBlock>().Any(line => line.Text == "Hechizos · Parche anterior 26.22"),
-                "el campeón elegido conserva su tier junto a los hechizos con parches independientes");
+            var current = view with { Tier = "A", Source = new(prior with { SourcePatch = prior.ClientPatch }, "OP.GG · Parche 26.23") };
+            overlay.Render(current);
+            var labels = TextBlocks(panel).ToDictionary(label => label.Text);
+            var badge = ((DockPanel)((Border)panel.Children[0]).Child).Children.OfType<Border>().Single();
+            Check(DockPanel.GetDock(badge) == Dock.Right && labels.ContainsKey("A") && labels.ContainsKey("Kennen") &&
+                !labels.Keys.Any(text => text.Contains("Parche", StringComparison.OrdinalIgnoreCase) || text.Contains("OP.GG")) &&
+                !labels.ContainsKey("Hechizos") && labels["Kennen"].FontSize > labels["Principal"].FontSize &&
+                labels["Principal"].FontSize == labels["Alternativa"].FontSize &&
+                labels["Principal"].FontSize > labels["Destello + Marca"].FontSize &&
+                labels["Destello + Marca"].FontSize == labels["Destello + Fantasma"].FontSize &&
+                labels["Destello + Marca"].FontSize > labels["Ya tienes estos hechizos"].FontSize,
+                "los datos vigentes omiten el parche y mantienen el tier y la jerarquía tipográfica");
+            overlay.Render(current with { TierIsPrevious = true });
+            Check(TextBlocks(panel).Any(text => text.Text == "Tier del parche anterior"),
+                "el tier anterior se identifica aunque los hechizos estén vigentes");
+            overlay.Render(view with { Tier = "A", TierIsPrevious = true });
+            Check(TextBlocks(panel).Where(text => text.Text.Contains("parche")).Select(text => text.Text)
+                .SequenceEqual(["Datos del parche anterior"]), "una misma advertencia identifica el tier y los hechizos anteriores");
+            overlay.Render(current with { Source = new(null, "Consultando OP.GG…") });
+            Check(TextBlocks(panel).Select(text => text.Text).SequenceEqual(["A", "Kennen", "Consultando OP.GG…"]),
+                "la carga conserva el campeón y retira las combinaciones anteriores");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el panel se retira al salir de selección");
             Console.WriteLine("Panel de hechizos en WPF verificado.");
         }
         finally { overlay.Close(); }
+
+        static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => element switch
+        {
+            TextBlock label => [label],
+            Panel panel => panel.Children.OfType<FrameworkElement>().SelectMany(TextBlocks),
+            Decorator { Child: FrameworkElement child } => TextBlocks(child),
+            _ => []
+        };
     }
 
     internal static void ArenaSmoke(Catalog catalog)

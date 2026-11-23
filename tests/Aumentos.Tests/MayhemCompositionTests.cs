@@ -15,11 +15,11 @@ internal static class MayhemCompositionTests
         var choices = new[] { "milio", "Sejuani", "Rell", "Thresh", "Vayne", "Jinx", "Rell" };
         var frontline = advisor.Recommend(tiers, "Milio", backline, choices, ["rEll"]);
         Check(frontline.Select(pick => (pick.Champion, pick.Tier)).SequenceEqual([("Sejuani", "A"), ("Thresh", "B")]) &&
-            frontline.All(pick => pick.Reason == "Aporta primera línea"),
+            frontline.All(pick => pick.Reason.Contains("primera línea", StringComparison.OrdinalIgnoreCase)),
             "solo se sugieren campeones disponibles y se excluyen el propio, los aliados y los bloqueos");
         var allowed = advisor.Recommend(tiers, "Milio", backline, choices);
         Check(allowed.Select(pick => pick.Champion).SequenceEqual(["Rell", "Sejuani", "Thresh"]),
-            "OP.GG desempata campeones con el mismo aporte a la composición");
+            "los campeones que aportan al equipo se ordenan por su tier de OP.GG");
         var ranked = tiers with
         {
             Tiers = new(tiers.Tiers) { ["sejuani"] = 1 },
@@ -29,10 +29,28 @@ internal static class MayhemCompositionTests
             "a igual afinidad y tier se usa el puesto de OP.GG cuando está publicado");
 
         var tanks = new[] { "Alistar", "Rell", "Nautilus" };
-        var damage = advisor.Recommend(tiers, null, tanks, ["Braum", "Jinx", "Brand", "Caitlyn"]);
-        Check(damage.Select(pick => pick.Champion).SequenceEqual(["Caitlyn", "Brand", "Jinx"]) &&
-            damage.Take(2).All(pick => pick.Reason == "Aporta daño sostenido y presión a distancia"),
-            "el daño sostenido y la presión a distancia pesan más que el tier general para una línea de tanques");
+        var damage = advisor.Recommend(tiers, null, tanks, ["Braum", "Ashe", "Jinx", "Brand", "Caitlyn"]);
+        Check(damage.Select(pick => (pick.Champion, pick.Tier)).SequenceEqual([("Jinx", "S"), ("Caitlyn", "A"), ("Brand", "B")]) &&
+            damage.Select(pick => pick.Reason).SequenceEqual(["Básicos a distancia", "Básicos a distancia", "Daño mágico a distancia"]),
+            "cada sugerencia muestra su aporte principal y el límite de tres prioriza los tiers publicados");
+        var previewTiers = tiers with { Tiers = new() { ["tryndamere"] = 3, ["diana"] = 3, ["aurelionsol"] = 4 },
+            Ranks = new() { ["tryndamere"] = 34, ["diana"] = 54 } };
+        var preview = advisor.Recommend(previewTiers, "Alistar", ["Leona", "Nautilus", "Lux", "Jayce"],
+            ["AurelionSol", "Diana", "Tryndamere"]);
+        Check(preview.SequenceEqual([
+            new("Tryndamere", "B", "Daño físico con básicos"),
+            new("Diana", "B", "Daño mágico en área de cerca"),
+            new("Aurelion Sol", "C", "Daño mágico a distancia")
+        ]), "la misma necesidad se explica según la forma de aportar de cada campeón");
+        string[] squishyAllies = ["Lux", "Talon", "Katarina", "Fizz"];
+        Check(advisor.Recommend(previewTiers, "Alistar", squishyAllies, ["AurelionSol", "Diana"]) is
+            [{ Tradeoff: null }, { Tradeoff: "El equipo pierde primera línea" }] &&
+            advisor.Recommend(previewTiers, "Alistar", squishyAllies.Take(3), ["AurelionSol"]).Single().Tradeoff is null,
+            "la pérdida se muestra solo si el cambio deja la función sin cubrir en un equipo confirmado");
+        var sameTier = tiers with { Tiers = new(tiers.Tiers) { ["jinx"] = 2 }, Ranks = new() { ["jinx"] = 1, ["caitlyn"] = 2 } };
+        Check(advisor.Recommend(sameTier, null, tanks, ["Jinx", "Caitlyn", "Ashe"])
+            .Select(pick => (pick.Champion, pick.Tier)).SequenceEqual([("Caitlyn", "A"), ("Jinx", "A"), ("Ashe", null)]),
+            "la afinidad desempata el tier y las opciones sin tier aparecen al final");
         Check(advisor.Recommend(tiers with { SourcePatch = "12.1" }, null, tanks, ["Jinx"]).Single().Tier is null &&
             advisor.Recommend(null, null, tanks, ["Caitlyn"]).Single() is { Champion: "Caitlyn", Tier: null } &&
             advisor.Recommend(tiers, null, ["Desconocido"], choices).Length == 0 &&

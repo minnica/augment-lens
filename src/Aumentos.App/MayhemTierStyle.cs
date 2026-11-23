@@ -8,8 +8,14 @@ namespace Aumentos;
 
 internal static class MayhemTierStyle
 {
+    internal const double PanelTitleSize = 20;
+    internal const double PanelSectionSize = 16;
+    internal const double PanelBodySize = 14;
+    internal const double PanelDetailSize = 12;
+
     // Sampled from the native es-MX summoner spell picker.
     internal static readonly Brush Surface = Overlay.Paint("#010A13");
+    internal static readonly Brush HeaderSurface = Overlay.Paint("#0C1922");
     internal static readonly Brush Divider = Overlay.Paint("#463714");
     internal static readonly Brush Frame = OverlayPanelStyle.VerticalGradient("#463714", "#785A28");
     internal static readonly Brush AccentFrame = OverlayPanelStyle.VerticalGradient("#F0E6D2", "#C89B3C");

@@ -15,8 +15,9 @@ internal static class MayhemTeamOverlayTests
         var tiers = new Dictionary<string, int> { ["twistedfate"] = 1, ["sivir"] = 3, ["anivia"] = 1, ["leona"] = 2,
             ["amumu"] = 2, ["sona"] = 3 };
         var data = new MayhemChampionTierList(catalog.Patch, DateTimeOffset.UtcNow, tiers, ranks);
-        var picks = new MayhemCompositionPick[] { new("Amumu", "A", "Aporta primera línea y control"),
-            new("Anivia", "S", "Aporta daño mágico y limpieza de oleadas"), new("Sona", "B", "Aporta protección al equipo") };
+        const string tradeoff = "El equipo pierde primera línea";
+        MayhemCompositionPick[] picks =
+            [new("Anivia", "S", "Daño mágico a distancia", tradeoff), new("Amumu", "A", "Primera línea"), new("Sona", "B", "Protección")];
         var grade = new MayhemCompositionGrade("B", "Falta daño sostenido", 3, 5);
         var view = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, "Datos de prueba"), "Sivir",
             available, "El banco está vacío.", picks, grade);
@@ -33,58 +34,80 @@ internal static class MayhemTeamOverlayTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
+            var labels = Labels(panel).ToArray();
             Check(Native.IsWindowVisible(handle) && (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                Labels(panel).Contains("Campeones disponibles") && Labels(panel).Contains("Composición ARAM Caos") &&
-                Labels(panel).Contains("Puesto 34 en OP.GG") && Labels(panel).Contains("Tier local · 3/5 campeones") &&
-                Labels(panel).Contains(grade.Reason) &&
-                picks.All(pick => Labels(panel).Contains(pick.Champion) && Labels(panel).Contains(pick.Reason)),
+                labels.Contains("Campeones disponibles") && labels.Contains("Tu campeón") && labels.Contains("Sivir") &&
+                labels.Contains("3/5 campeones") && !labels.Any(IsMetadata),
                 "tier, evaluación y sugerencias se muestran juntos sin interceptar clics");
-            var summary = (StackPanel)panel.Children[0];
-            var composition = ((DockPanel)summary.Children[0]).Children.OfType<StackPanel>().Single();
-            var status = (TextBlock)composition.Children[1];
-            var detail = (TextBlock)composition.Children[2];
-            Check(status.Text == grade.Reason && status.FontWeight == FontWeights.SemiBold &&
+            var evaluation = (Grid)((Border)panel.Children[0]).Child;
+            var composition = evaluation.Children.OfType<StackPanel>().Single();
+            var status = (TextBlock)composition.Children[0];
+            var detail = (TextBlock)composition.Children[1];
+            Check(status.Text == grade.Reason && status.FontWeight == FontWeights.Bold &&
                 status.FontSize > detail.FontSize && status.TextWrapping == TextWrapping.Wrap,
-                "la necesidad se muestra antes que el tier local y el campeón elegido, con mayor jerarquía");
+                "la necesidad abre el panel y la cobertura parcial queda en segundo plano");
             CheckPlacement(bounds, .73);
-            var ranking = panel.Children.OfType<Grid>().Single();
-            Check(ranking.ColumnDefinitions.Count == 2 && ranking.RowDefinitions.Count == 11 &&
-                ranking.Children.OfType<TextBlock>().Where(text => Grid.GetColumn(text) == 1 && Grid.GetRow(text) > 0)
-                    .Select(text => text.Text).SequenceEqual(["S", "A", "A", "B", "—", "—", "—", "—", "—", "—"]) &&
-                !Labels(panel).Contains("Twisted Fate"), "la tabla muestra los candidatos y sus tiers disponibles");
+            var recommendations = panel.Children.OfType<StackPanel>().Single().Children.OfType<Grid>()
+                .Where(row => row.RowDefinitions.Count == 2).ToArray();
+            Check(recommendations.Select(row => Labels(row).ToArray()).Zip(picks)
+                .All(pair => pair.First.SequenceEqual(new[] { pair.Second.Champion, pair.Second.Tier, pair.Second.Reason, pair.Second.Tradeoff }
+                    .OfType<string>())) && recommendations.Length == picks.Length,
+                "las sugerencias muestran nombre, letra, aporte y el costo solo donde aplica");
+            CheckTypeHierarchy(panel);
+            foreach (var row in recommendations)
+            {
+                var name = (TextBlock)row.Children[0];
+                var badge = (Border)row.Children[1];
+                var nameCenter = name.TranslatePoint(new Point(0, name.ActualHeight / 2), panel);
+                var badgeCenter = badge.TranslatePoint(new Point(badge.ActualWidth / 2, badge.ActualHeight / 2), panel);
+                var teamTier = (Border)evaluation.Children[1];
+                var teamCenter = teamTier.TranslatePoint(new Point(teamTier.ActualWidth / 2, 0), panel);
+                Check(Grid.GetColumn(badge) == 1 && Math.Abs(nameCenter.Y - badgeCenter.Y) <= 1 &&
+                    Math.Abs(teamCenter.X - badgeCenter.X) <= 1, "cada letra se alinea con el nombre y con la columna del equipo");
+            }
+            Check(BankRows(panel).SelectMany(Labels).Where((_, index) => index % 2 == 1)
+                .SequenceEqual(["S", "A", "A", "B", "—", "—", "—", "—", "—", "—"]) &&
+                !labels.Contains("Twisted Fate"), "la lista conserva los candidatos y sus tiers disponibles");
 
+            overlay.Render(view with { Composition = picks.Select(pick => pick with { Tradeoff = tradeoff }).ToArray() });
+            Check(Labels(panel).Count(text => text == tradeoff) == 1, "un costo común aparece una sola vez");
             var compact = new Int32Rect(bounds.X, bounds.Y, 1280, 720);
+            overlay.Render(view with { Bounds = compact, Grade = grade with { Members = 5 } });
+            CheckPlacement(compact, .64);
+            CheckTypeHierarchy(panel);
+            Check(Labels(panel).Contains("Para tu equipo") && !Labels(panel).Contains("5/5 campeones"),
+                "la composición completa omite el recuento y conserva las sugerencias cuando hay carencias");
             overlay.Render(view with { Bounds = compact, Grade = grade with { Members = 5, Tier = "S" } });
             CheckPlacement(compact, .64);
             var balanced = Labels(panel).ToArray();
-            Check(balanced.Contains("Equipo equilibrado") && balanced.Contains("Tier local · 5/5 campeones") &&
+            Check(balanced.Contains("Equipo equilibrado") && !balanced.Contains("5/5 campeones") &&
                 !balanced.Contains("Para tu equipo") && !balanced.Contains(grade.Reason) &&
-                panel.Children.OfType<Grid>().Single().RowDefinitions.Count == 11,
+                BankRows(panel).Count() == available.Length,
                 "un equipo completo de tier S conserva el banco y confirma que la composición está equilibrada");
 
             overlay.Render(view with { Selection = null });
-            Check(Labels(panel).Contains("Composición ARAM Caos") && Labels(panel).Contains("Tier local · 3/5 campeones") &&
+            Check(Labels(panel).Contains("3/5 campeones") &&
                 Labels(panel).Contains("Para tu equipo") && Labels(panel).Contains(grade.Reason) &&
-                !Labels(panel).Contains("Equipo equilibrado") && !Labels(panel).Contains("Puesto 34 en OP.GG"),
+                !Labels(panel).Contains("Equipo equilibrado") && !Labels(panel).Contains("Tu campeón"),
                 "la composición provisional recupera el aviso y las sugerencias al cambiar el equipo");
 
             var previousPatch = LeaguePatch.Previous(catalog.Patch) ?? catalog.Patch;
             var legacy = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data with { SourcePatch = previousPatch, Ranks = null }, ""),
                 "Sivir", available, "El banco está vacío.", picks, grade);
             overlay.Render(legacy);
-            Check(legacy.Selection?.Tier == "B" && panel.Children.OfType<Grid>().Single().RowDefinitions.Count == 11 &&
+            Check(legacy.Selection?.Tier == "B" && BankRows(panel).Count() == available.Length &&
                 legacy.Rows[0] is { Champion: "Anivia", Position: null, Tier: "S" } &&
-                Labels(panel).Any(line => line.Contains($"Parche anterior {LeaguePatch.Public(previousPatch)}")),
+                Labels(panel).Contains("Parche anterior") && !Labels(panel).Any(IsMetadata),
                 "una copia anterior conserva el tier de las opciones aunque no traiga puestos");
 
             overlay.Render(view with { Rows = [], EmptyMessage = "El banco está vacío." });
-            Check(!panel.Children.OfType<Grid>().Any() && Labels(panel).Contains("El banco está vacío."),
+            Check(!BankRows(panel).Any() && Labels(panel).Contains("El banco está vacío."),
                 "un banco vacío no muestra campeones ni deja filas del banco anterior");
             var loading = MayhemTeamDisplay.Create(bounds, 0, catalog, new(null, "Consultando tiers de OP.GG…"),
                 null, ["Shyvana", "Renekton"], "Esperando tus cartas…", [], null);
             overlay.Render(loading);
             Check(Labels(panel).Contains("Consultando tiers de OP.GG…") && Labels(panel).Contains("Shyvana") &&
-                Labels(panel).Contains("Renekton") && panel.Children.OfType<Grid>().Single().RowDefinitions.Count == 3,
+                Labels(panel).Contains("Renekton") && BankRows(panel).Count() == 2,
                 "las opciones identificadas aparecen mientras llegan sus tiers");
 
             overlay.Render(null);
@@ -92,7 +115,7 @@ internal static class MayhemTeamOverlayTests
             Check(!Native.IsWindowVisible(handle), "el panel de Caos se retira al salir de selección");
             overlay.Render(view);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            Check(Native.IsWindowVisible(handle) && Labels(panel).Contains("Puesto 34 en OP.GG") &&
+            Check(Native.IsWindowVisible(handle) && Labels(panel).Contains(grade.Reason) && !Labels(panel).Any(IsMetadata) &&
                 !Labels(panel).Contains("Consultando tiers de OP.GG…"), "la siguiente selección vuelve a mostrar sus propios datos");
             Console.WriteLine("Panel de composición de ARAM Caos en WPF verificado.");
 
@@ -107,6 +130,12 @@ internal static class MayhemTeamOverlayTests
         }
         finally { overlay.Close(); }
     }
+
+    private static bool IsMetadata(string text) => text.Contains("Composición") || text.Contains("Tier local") ||
+        text.Contains("Puesto") || text.StartsWith("OP.GG");
+
+    private static IEnumerable<Grid> BankRows(StackPanel panel) => panel.Children.OfType<StackPanel>().Single()
+        .Children.OfType<Grid>().SkipWhile(row => !Labels(row).Contains("Campeones disponibles")).Skip(1);
 
     private static void CheckAvailability(Catalog catalog)
     {
@@ -126,11 +155,27 @@ internal static class MayhemTeamOverlayTests
         Champion Champion(string key) => catalog.Champions.Single(champion => champion.Key == key);
     }
 
-    private static IEnumerable<string> Labels(FrameworkElement element) => element switch
+    private static void CheckTypeHierarchy(StackPanel panel)
     {
-        TextBlock label => [label.Text],
-        Panel panel => panel.Children.OfType<FrameworkElement>().SelectMany(Labels),
-        Decorator { Child: FrameworkElement child } => Labels(child),
+        var text = TextBlocks(panel).ToLookup(block => block.Text);
+        var title = text["Falta daño sostenido"].Single();
+        var headings = new[] { "Tu campeón", "Para tu equipo", "Campeones disponibles" }
+            .Select(heading => text[heading].Single()).ToArray();
+        var names = text["Sivir"].Concat(text["Anivia"]).ToArray();
+        Check(headings.All(heading => heading.FontSize == headings[0].FontSize && heading.FontFamily.Equals(headings[0].FontFamily)) &&
+            names.All(name => name.FontSize == names[0].FontSize) &&
+            title.FontSize > headings[0].FontSize && headings[0].FontSize > names[0].FontSize &&
+            names[0].FontSize > text["Daño mágico a distancia"].Single().FontSize,
+            "la jerarquía mantiene tamaños consistentes para el título, las secciones, los nombres y los detalles");
+    }
+
+    private static IEnumerable<string> Labels(FrameworkElement element) => TextBlocks(element).Select(label => label.Text);
+
+    private static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => element switch
+    {
+        TextBlock label => [label],
+        Panel panel => panel.Children.OfType<FrameworkElement>().SelectMany(TextBlocks),
+        Decorator { Child: FrameworkElement child } => TextBlocks(child),
         _ => []
     };
 

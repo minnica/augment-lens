@@ -8,6 +8,7 @@ namespace Aumentos;
 
 internal sealed class SpellOverlay : Window
 {
+    private const double Inset = 12;
     private readonly StackPanel rows = new();
     private readonly Border panel;
     private SpellDisplay? displayed;
@@ -16,7 +17,7 @@ internal sealed class SpellOverlay : Window
 
     internal SpellOverlay()
     {
-        Title = "Aumentos LoL · Hechizos de OP.GG";
+        Title = "Aumentos LoL · Hechizos";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         ShowActivated = false;
@@ -26,7 +27,7 @@ internal sealed class SpellOverlay : Window
         Background = Brushes.Transparent;
         Focusable = false;
         IsHitTestVisible = false;
-        panel = MayhemTierStyle.Panel(rows, new Thickness(12, 8, 12, 10));
+        panel = MayhemTierStyle.Panel(rows, new Thickness(0));
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
         SourceInitialized += (_, _) =>
         {
@@ -45,7 +46,7 @@ internal sealed class SpellOverlay : Window
             return;
         }
         if (displayed is null || displayed.Champion != view.Champion || displayed.Selection != view.Selection ||
-            displayed.Source != view.Source || displayed.Tier != view.Tier || displayed.TierCaption != view.TierCaption)
+            displayed.Source != view.Source || displayed.Tier != view.Tier || displayed.TierIsPrevious != view.TierIsPrevious)
             RenderRows(view);
         displayed = view;
 
@@ -73,47 +74,65 @@ internal sealed class SpellOverlay : Window
     private void RenderRows(SpellDisplay view)
     {
         rows.Children.Clear();
-        if (view.Tier is { } tier && view.TierCaption is { } caption)
+        var data = view.Source.Data;
+        var pairs = data?.Spells;
+        bool previousTier = view.Tier is not null && view.TierIsPrevious;
+        bool previousSpells = data?.IsPrevious == true && pairs is { Length: > 0 };
+        rows.Children.Add(Header(view, previousTier && !previousSpells));
+
+        var spells = new StackPanel { Margin = new Thickness(Inset, 8, Inset, 10) };
+        rows.Children.Add(spells);
+        if (pairs is not { Length: > 0 })
         {
-            var header = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 32, 32, 22);
-            badge.Margin = new Thickness(0, 0, 9, 0);
-            DockPanel.SetDock(badge, Dock.Left);
-            header.Children.Add(badge);
-            var champion = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            var name = Line(view.Champion, 16, MayhemTierStyle.Ink, bold: true);
-            name.FontFamily = MayhemTierStyle.Heading;
-            champion.Children.Add(name);
-            champion.Children.Add(Line(caption, 11, MayhemTierStyle.Muted));
-            header.Children.Add(champion);
-            rows.Children.Add(header);
-            rows.Children.Add(new Border { Height = 1, Background = MayhemTierStyle.Divider });
-            AddHeading("Hechizos");
-        }
-        else
-            AddHeading($"{view.Champion} · Hechizos de OP.GG");
-        if (view.Source.Data is not { } data)
-        {
-            AddLine(view.Source.Status, 12, MayhemTierStyle.Ink);
+            string status = data is null ? view.Source.Status :
+                pairs is null ? "Hechizos sin datos guardados" : "Sin combinación publicada";
+            spells.Children.Add(Line(status, MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Muted));
             return;
         }
-        if (data.Spells is null)
-            AddLine("Hechizos sin datos guardados", 12, MayhemTierStyle.Ink);
-        else if (data.Spells is not { Length: > 0 } pairs)
-            AddLine("Sin combinación publicada", 12, MayhemTierStyle.Ink);
-        else
+
+        var primary = SpellPair("Principal", pairs[0], primary: true);
+        spells.Children.Add(primary);
+        if (Matches(pairs[0], view.Selection))
+            primary.Children.Add(Note("Ya tienes estos hechizos"));
+        if (pairs.Length > 1)
+            spells.Children.Add(SpellPair("Alternativa", pairs[1], primary: false));
+        if (previousSpells)
         {
-            var main = pairs[0];
-            AddLine($"{main.First} + {main.Second}", 16, MayhemTierStyle.Ink, bold: true);
-            if (Matches(main, view.Selection))
-                AddLine("Ya tienes estos hechizos", 11, MayhemTierStyle.Gold);
-            if (pairs.Length > 1)
-                AddLine($"Alternativa · {pairs[1].First} + {pairs[1].Second}", 12, MayhemTierStyle.Muted);
+            var patch = Note(previousTier ? "Datos del parche anterior" : "Hechizos del parche anterior");
+            patch.Margin = new Thickness(0, 7, 0, 0);
+            spells.Children.Add(patch);
         }
-        var patch = $"{(data.IsPrevious ? "Parche anterior" : "Parche")} {LeaguePatch.Public(data.SourcePatch)}";
-        if (view.TierCaption != $"OP.GG · {patch}")
-            AddLine(view.Tier is null ? patch : $"Hechizos · {patch}", 11,
-                data.IsPrevious ? MayhemTierStyle.Gold : MayhemTierStyle.Muted);
+    }
+
+    private static Border Header(SpellDisplay view, bool previousTier)
+    {
+        var header = new DockPanel();
+        if (view.Tier is { } tier)
+        {
+            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 32, 32, 22);
+            badge.Margin = new Thickness(6, 0, 0, 0);
+            badge.VerticalAlignment = VerticalAlignment.Center;
+            DockPanel.SetDock(badge, Dock.Right);
+            header.Children.Add(badge);
+        }
+        var identity = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        identity.Children.Add(Heading(view.Champion, MayhemTierStyle.PanelTitleSize, MayhemTierStyle.Ink));
+        if (previousTier)
+            identity.Children.Add(Note("Tier del parche anterior"));
+        header.Children.Add(identity);
+        return new Border
+        {
+            Background = MayhemTierStyle.HeaderSurface, BorderBrush = MayhemTierStyle.Divider,
+            BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(Inset, 8, Inset, 8), Child = header
+        };
+    }
+
+    private static StackPanel SpellPair(string heading, OpGgSpellPair pair, bool primary)
+    {
+        var group = new StackPanel { Margin = new Thickness(0, primary ? 0 : 8, 0, 0) };
+        group.Children.Add(Heading(heading, MayhemTierStyle.PanelSectionSize, MayhemTierStyle.Gold));
+        group.Children.Add(Line($"{pair.First} + {pair.Second}", MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, bold: primary));
+        return group;
     }
 
     internal static bool Matches(OpGgSpellPair pair, ChampionSelection selection)
@@ -126,20 +145,24 @@ internal sealed class SpellOverlay : Window
         return (a == one && b == two) || (a == two && b == one);
     }
 
-    private void AddLine(string text, double fontSize, Brush color, bool bold = false) =>
-        rows.Children.Add(Line(text, fontSize, color, bold));
-
-    private void AddHeading(string text)
+    private static TextBlock Heading(string text, double size, Brush color)
     {
-        var heading = Line(text, 16, MayhemTierStyle.Ink, bold: true);
+        var heading = Line(text, size, color);
         heading.FontFamily = MayhemTierStyle.Heading;
-        heading.Margin = new Thickness(0, 6, 0, 0);
-        rows.Children.Add(heading);
+        heading.FontWeight = FontWeights.Bold;
+        return heading;
+    }
+
+    private static TextBlock Note(string text)
+    {
+        var note = Line(text, MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Gold);
+        note.Margin = new Thickness(0, 2, 0, 0);
+        return note;
     }
 
     private static TextBlock Line(string text, double fontSize, Brush color, bool bold = false) => new()
     {
         Text = text, FontSize = fontSize, Foreground = color, TextWrapping = TextWrapping.Wrap,
-        FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, Margin = new Thickness(0, 2, 0, 0)
+        FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal
     };
 }

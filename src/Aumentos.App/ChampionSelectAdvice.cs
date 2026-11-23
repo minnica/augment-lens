@@ -14,7 +14,7 @@ using System.Windows.Threading;
 namespace Aumentos;
 
 internal sealed record SpellDisplay(Int32Rect Bounds, nint Target, string Champion, ChampionSelection Selection,
-    OpGgBuildView Source, string? Tier = null, string? TierCaption = null);
+    OpGgBuildView Source, string? Tier = null, bool TierIsPrevious = false);
 
 internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgBuilds builds,
     ArenaChampionTierSource tiers, MayhemChampionTiers mayhemTiers, MayhemBenchPortraits mayhemBench,
@@ -104,7 +104,8 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                                 if (champion is not null)
                                     display = new SpellDisplay(window.Bounds, window.Handle, champion.Name, selected,
                                         builds.Current(new GameContext(Mode.Caos, champion.Key), cancellation),
-                                        source.Data?.Letter(champion.Key), source.Status);
+                                        source.Data?.Letter(champion.Key),
+                                        source.Data is { } tierData && tierData.SourcePatch != catalog.Patch);
                             }
                         }
                         else if (session.Mode == Mode.Arena)

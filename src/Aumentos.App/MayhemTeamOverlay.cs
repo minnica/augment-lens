@@ -32,8 +32,9 @@ internal sealed record MayhemTeamDisplay(Int32Rect Bounds, nint Target, string C
                 string.Equals(champion.Key, championKey, StringComparison.OrdinalIgnoreCase));
             selection = champion is null ? new ChampionRankingRow(championKey, data?.Letter(championKey)) : Row(champion);
         }
-        return new(bounds, target, data is null ? source.Status : MayhemChampionTiers.Caption(data, catalog.Patch),
-            data is not null, data is not null && data.SourcePatch != catalog.Patch, rows, selection, composition, grade, emptyMessage);
+        bool previousPatch = data is not null && data.SourcePatch != catalog.Patch;
+        string caption = data is null ? source.Status : previousPatch ? "Parche anterior" : "";
+        return new(bounds, target, caption, data is not null, previousPatch, rows, selection, composition, grade, emptyMessage);
 
         ChampionRankingRow Row(Champion champion) => new(champion.Name, data?.Letter(champion.Key), data?.Rank(champion.Key));
     }
@@ -43,6 +44,6 @@ internal sealed class MayhemTeamOverlay() : ChampionRankingOverlay(Mode.Caos)
 {
     internal void Render(MayhemTeamDisplay? view) => RenderRanking(view is null ? null : new(
         view.Bounds, view.Target, view.Caption, view.HasRatings, view.PreviousPatch, view.Rows, view.Selection,
-        view.Composition.Select(pick => new ChampionRankingPick(pick.Champion, pick.Tier, pick.Reason)).ToArray(),
+        view.Composition.Select(pick => new ChampionRankingPick(pick.Champion, pick.Tier, pick.Reason, pick.Tradeoff)).ToArray(),
         view.Grade is { } grade ? new(grade.Tier, grade.Reason, grade.Members, grade.TeamSize) : null, view.EmptyMessage));
 }

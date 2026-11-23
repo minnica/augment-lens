@@ -5,7 +5,7 @@ using System.Linq;
 namespace Aumentos;
 
 internal sealed record MayhemCompositionGrade(string Tier, string Reason, int Members, int TeamSize = 5);
-internal sealed record MayhemCompositionPick(string Champion, string? Tier, string Reason);
+internal sealed record MayhemCompositionPick(string Champion, string? Tier, string Reason, string? Tradeoff = null);
 
 internal sealed class MayhemCompositionAdvice
 {
@@ -21,14 +21,17 @@ internal sealed class MayhemCompositionAdvice
         Physical = 32, Magic = 64, Poke = 128
     }
 
-    private sealed record DraftChampion(string Name, Coverage Profile);
+    private sealed record DraftChampion(string Name, Coverage Profile, string SustainedReason);
     private sealed record Need(Coverage Coverage, int Weight, string Reason);
 
     internal MayhemCompositionAdvice(Ratings ratings)
     {
         patch = ratings.Catalog.Patch;
-        champions = ratings.Catalog.Champions.ToDictionary(champion => champion.Key,
-            champion => new DraftChampion(champion.Name, Profile(ratings, champion)), StringComparer.OrdinalIgnoreCase);
+        champions = ratings.Catalog.Champions.ToDictionary(champion => champion.Key, champion =>
+        {
+            var profile = Profile(ratings, champion);
+            return new DraftChampion(champion.Name, profile, SustainedReason(champion, profile));
+        }, StringComparer.OrdinalIgnoreCase);
     }
 
     internal MayhemCompositionGrade? Evaluate(string? selected, IEnumerable<string> teammates)
@@ -59,7 +62,7 @@ internal sealed class MayhemCompositionAdvice
         {
             (false, _, _, _, _) => "Falta primera línea",
             (_, false, _, _, _) => "Falta daño sostenido",
-            (_, _, false, _, _) => "Falta equilibrar el daño físico y mágico",
+            (_, _, false, _, _) => "Falta daño mixto",
             (_, _, _, false, _) => "Falta control",
             (_, _, _, _, true) => "Primera línea protege el daño sostenido",
             _ => "Primera línea y daño mixto"
@@ -86,26 +89,59 @@ internal sealed class MayhemCompositionAdvice
         if (selected is not null)
             excluded.Add(selected);
 
-        var priorities = Priorities(Combine(confirmedAllies)).OrderByDescending(need => need.Weight).ToArray();
+        var allyCoverage = Combine(confirmedAllies);
+        var current = confirmedAllies.Length == TeamSize - 1 && selected is not null
+            ? champions.GetValueOrDefault(selected)?.Profile ?? Coverage.None : Coverage.None;
+        var uniqueCoverage = current & ~allyCoverage;
+        var priorities = Priorities(allyCoverage).OrderByDescending(need => need.Weight).ToArray();
         return candidates.Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(key => !excluded.Contains(key) && champions.ContainsKey(key))
             .Select(key =>
             {
                 var champion = champions[key];
                 var matches = priorities.Where(need => (need.Coverage & champion.Profile) != 0).ToArray();
-                return (champion.Name, Tier: tiers?.Letter(key), Rank: tiers?.Rank(key),
-                    Score: matches.Sum(need => need.Weight), Matches: matches);
+                return (Champion: champion, Tier: tiers?.Letter(key), Rank: tiers?.Rank(key),
+                    Matches: matches);
             })
-            .Where(candidate => candidate.Score > 0)
-            .OrderByDescending(candidate => candidate.Score)
-            .ThenBy(candidate => candidate.Tier is { } tier ? "SABCD".IndexOf(tier, StringComparison.Ordinal) : 5)
+            .Where(candidate => candidate.Matches.Length > 0)
+            .OrderBy(candidate => candidate.Tier is { } tier ? "SABCD".IndexOf(tier, StringComparison.Ordinal) : 5)
+            .ThenByDescending(candidate => candidate.Matches.Sum(need => need.Weight))
             .ThenBy(candidate => candidate.Rank ?? int.MaxValue)
-            .ThenBy(candidate => candidate.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(candidate => candidate.Champion.Name, StringComparer.OrdinalIgnoreCase)
             .Take(PickLimit)
-            .Select(candidate => new MayhemCompositionPick(candidate.Name, candidate.Tier,
-                $"Aporta {string.Join(" y ", candidate.Matches.Select(need => need.Reason).Distinct().Take(2))}"))
+            .Select(candidate => new MayhemCompositionPick(candidate.Champion.Name, candidate.Tier,
+                Contribution(candidate.Champion, candidate.Matches[0]),
+                LostRole(uniqueCoverage & ~candidate.Champion.Profile)))
             .ToArray();
     }
+
+    private static string Contribution(DraftChampion champion, Need need) => need.Coverage switch
+    {
+        Coverage.Sustained => champion.SustainedReason,
+        Coverage.Frontline when champion.Profile.HasFlag(Coverage.Tank) => "Tanque de primera línea",
+        Coverage.Frontline when champion.Profile.HasFlag(Coverage.Control) => "Primera línea con control",
+        Coverage.Control when champion.Profile.HasFlag(Coverage.Frontline) => "Control desde primera línea",
+        _ => need.Reason
+    };
+
+    private static string SustainedReason(Champion champion, Coverage profile) => champion.Roles[0] switch
+    {
+        "Marksman" => "Básicos a distancia",
+        "Fighter" when champion.Key == "Diana" => "Daño mágico en área de cerca",
+        "Fighter" when profile.HasFlag(Coverage.Physical) => "Daño físico con básicos",
+        _ when profile.HasFlag(Coverage.Magic | Coverage.Poke) => "Daño mágico a distancia",
+        _ when profile.HasFlag(Coverage.Magic) => "Daño mágico sostenido",
+        _ => "Daño sostenido"
+    };
+
+    private static string? LostRole(Coverage lost) => lost switch
+    {
+        _ when lost.HasFlag(Coverage.Frontline) => "El equipo pierde primera línea",
+        _ when lost.HasFlag(Coverage.Sustained) => "El equipo pierde daño sostenido",
+        _ when lost.HasFlag(Coverage.Control) => "El equipo pierde control",
+        _ when lost.HasFlag(Coverage.Protection) => "El equipo pierde apoyo defensivo",
+        _ => null
+    };
 
     private IEnumerable<DraftChampion> Resolve(IEnumerable<string> keys) => keys.Distinct(StringComparer.OrdinalIgnoreCase)
         .Select(key => champions.GetValueOrDefault(key)).OfType<DraftChampion>();
@@ -124,24 +160,24 @@ internal sealed class MayhemCompositionAdvice
         bool poke = covered.HasFlag(Coverage.Poke);
         if (!frontline)
         {
-            yield return new(Coverage.Frontline, 6, "primera línea");
-            yield return new(Coverage.Tank, 1, "primera línea");
+            yield return new(Coverage.Frontline, 6, "Primera línea");
+            yield return new(Coverage.Tank, 1, "Primera línea");
         }
         if (!sustained)
-            yield return new(Coverage.Sustained, 6, "daño sostenido");
+            yield return new(Coverage.Sustained, 6, "Daño sostenido");
         if (!control)
-            yield return new(Coverage.Control, 3, "control");
+            yield return new(Coverage.Control, 3, "Control");
         if (physical != magic)
-            yield return physical ? new(Coverage.Magic, 4, "daño mágico") : new(Coverage.Physical, 4, "daño físico");
+            yield return physical ? new(Coverage.Magic, 4, "Daño mágico") : new(Coverage.Physical, 4, "Daño físico");
         if (!poke)
-            yield return new(Coverage.Poke, 2, "presión a distancia");
+            yield return new(Coverage.Poke, 2, "Hostigamiento");
         if (!protection && sustained)
-            yield return new(Coverage.Protection, 2, "protección para el equipo");
+            yield return new(Coverage.Protection, 2, "Protección");
         if (frontline && sustained && control && physical && magic && (poke || protection))
         {
-            yield return new(Coverage.Control, 2, "más control");
-            yield return new(Coverage.Sustained, 1, "más daño sostenido");
-            yield return new(Coverage.Protection, 1, "más protección");
+            yield return new(Coverage.Control, 2, "Control");
+            yield return new(Coverage.Sustained, 1, "Daño sostenido");
+            yield return new(Coverage.Protection, 1, "Protección");
         }
     }
 
