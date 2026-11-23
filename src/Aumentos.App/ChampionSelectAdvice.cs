@@ -115,9 +115,10 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                                     team.Size is 2 or 3 && team.Teammates.Length == team.Size - 1
                                     ? new ArenaVoteDraft(key, team, Environment.TickCount64) : null);
                             var source = tiers.Current(cancellation);
-                            var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam);
                             var observed = teams?.Find(session.ArenaChampion, session.ArenaTeam, cancellation);
                             var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam, observed);
+                            var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam,
+                                session.ArenaChampion, grade);
                             arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source,
                                 session.ArenaChampion, composition, grade, session.ArenaTeam);
                         }
