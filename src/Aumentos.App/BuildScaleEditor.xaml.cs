@@ -14,9 +14,7 @@ internal sealed partial class BuildScaleEditor : UserControl
     internal BuildScaleEditor(int percent, Func<int, bool> apply, Action close, int maximum)
     {
         InitializeComponent();
-        Frame.Background = OverlayPanelStyle.Surface;
-        Frame.BorderBrush = OverlayPanelStyle.Frame;
-        PercentText.Foreground = OverlayPanelStyle.Ink;
+        OverlayPanelStyle.ApplyFrame(Frame);
         SaveStatus.Foreground = OverlayPanelStyle.Gold;
         SizeSlider.Minimum = BuildSizePreference.Minimum;
         SizeSlider.Maximum = maximum;

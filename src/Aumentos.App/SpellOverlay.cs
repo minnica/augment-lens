@@ -29,7 +29,8 @@ internal sealed class SpellOverlay : Window
         Background = Brushes.Transparent;
         Focusable = false;
         IsHitTestVisible = false;
-        panel = MayhemTierStyle.Panel(rows, new Thickness(0));
+        panel = new Border { Child = rows };
+        OverlayPanelStyle.ApplyFrame(panel);
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
         SourceInitialized += (_, _) =>
         {
@@ -88,7 +89,7 @@ internal sealed class SpellOverlay : Window
         {
             string status = data is null ? view.Source.Status :
                 pairs is null ? "Hechizos sin datos guardados" : "Sin combinación publicada";
-            spells.Children.Add(Line(status, MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Muted));
+            spells.Children.Add(Line(status, OverlayPanelStyle.DetailSize, OverlayPanelStyle.Muted));
             return;
         }
 
@@ -119,13 +120,13 @@ internal sealed class SpellOverlay : Window
         DockPanel.SetDock(portrait, Dock.Left);
         header.Children.Add(portrait);
         var identity = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        identity.Children.Add(Heading(view.Champion, MayhemTierStyle.PanelTitleSize, MayhemTierStyle.Ink));
+        identity.Children.Add(Heading(view.Champion, OverlayPanelStyle.TitleSize, OverlayPanelStyle.Ink));
         if (previousTier)
             identity.Children.Add(Note("Tier del parche anterior"));
         header.Children.Add(identity);
         return new Border
         {
-            Background = MayhemTierStyle.HeaderSurface, BorderBrush = MayhemTierStyle.Divider,
+            Background = OverlayPanelStyle.HeaderSurface, BorderBrush = OverlayPanelStyle.Divider,
             BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(Inset, 8, Inset, 8), Child = header
         };
     }
@@ -133,22 +134,22 @@ internal sealed class SpellOverlay : Window
     private static StackPanel SpellPair(string heading, OpGgSpellPair pair, bool primary)
     {
         var group = new StackPanel { Margin = new Thickness(0, primary ? 0 : 8, 0, 0) };
-        group.Children.Add(Heading(heading, MayhemTierStyle.PanelSectionSize, MayhemTierStyle.Gold));
-        group.Children.Add(Line($"{pair.First} + {pair.Second}", MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, bold: primary));
+        group.Children.Add(Heading(heading, OverlayPanelStyle.SectionSize, OverlayPanelStyle.Gold));
+        group.Children.Add(Line($"{pair.First} + {pair.Second}", OverlayPanelStyle.BodySize, OverlayPanelStyle.Ink, bold: primary));
         return group;
     }
 
     private static TextBlock Heading(string text, double size, Brush color)
     {
         var heading = Line(text, size, color);
-        heading.FontFamily = MayhemTierStyle.Heading;
+        heading.FontFamily = OverlayPanelStyle.Heading;
         heading.FontWeight = FontWeights.Bold;
         return heading;
     }
 
     private static TextBlock Note(string text)
     {
-        var note = Line(text, MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Gold);
+        var note = Line(text, OverlayPanelStyle.DetailSize, OverlayPanelStyle.Gold);
         note.Margin = new Thickness(0, 2, 0, 0);
         return note;
     }

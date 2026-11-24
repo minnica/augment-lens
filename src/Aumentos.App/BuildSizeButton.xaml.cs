@@ -29,8 +29,6 @@ internal sealed partial class BuildSizeButton : Window
         }
         if (label is not null)
             OpenButton.Content = label;
-        OpenButton.Background = OverlayPanelStyle.Surface;
-        OpenButton.BorderBrush = OverlayPanelStyle.Frame;
         OpenButton.Click += (_, _) => open();
         SourceInitialized += (_, _) =>
         {

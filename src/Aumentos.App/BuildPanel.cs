@@ -19,20 +19,20 @@ internal sealed class BuildPanel : Border
     internal const double PrismaticWidth = 320;
 
     private static readonly Brush Muted = OverlayPanelStyle.Muted;
-    private static readonly Brush Accent = Overlay.Paint("#AAD1FF");
-    private static readonly Brush PreviousPatch = Overlay.Paint("#FFD76D");
+    private static readonly Brush Accent = OverlayPanelStyle.Accent;
+    private static readonly Brush PreviousPatch = OverlayPanelStyle.BrightGold;
     private static readonly Brush PurchaseAccent = OverlayPanelStyle.Gold;
-    private static readonly Brush PurchaseSurface = Overlay.Paint("#192E30");
-    private static readonly Brush PurchaseBorder = Overlay.Paint("#927951");
+    private static readonly Brush PurchaseSurface = OverlayPanelStyle.HighlightSurface;
+    private static readonly Brush PurchaseBorder = OverlayPanelStyle.Frame;
     private static readonly Brush Divider = OverlayPanelStyle.Divider;
-    private static readonly Brush ItemSurface = Overlay.Paint("#172E39");
+    private static readonly Brush ItemSurface = OverlayPanelStyle.Inset;
     private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
     private static readonly Brush MagicDamage = Overlay.Paint("#B9A7FA");
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-MX");
 
     private readonly StackPanel content = new();
-    private readonly TextBlock shopTitle = new() { FontSize = 15, FontFamily = OverlayPanelStyle.Heading,
-        FontWeight = FontWeights.Bold, Foreground = OverlayPanelStyle.Gold, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock shopTitle = new() { FontSize = OverlayPanelStyle.TitleSize, FontFamily = OverlayPanelStyle.Heading,
+        FontWeight = FontWeights.Bold, Foreground = OverlayPanelStyle.Ink, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Path shopGrip = new()
     {
         Data = Geometry.Parse("M 0,0 L 10,0 M 0,3 L 10,3 M 0,6 L 10,6"),
@@ -49,10 +49,7 @@ internal sealed class BuildPanel : Border
         this.itemIcons = itemIcons;
         Width = ShopWidth;
         Padding = new Thickness(16, 12, 16, 14);
-        CornerRadius = new CornerRadius(5);
-        BorderBrush = OverlayPanelStyle.Frame;
-        BorderThickness = new Thickness(3, 4, 3, 3);
-        Background = OverlayPanelStyle.Surface;
+        OverlayPanelStyle.ApplyFrame(this);
         Child = content;
         DragHandle = CreateShopHeader();
     }
@@ -61,7 +58,7 @@ internal sealed class BuildPanel : Border
     {
         content.Children.Clear();
         AddShopHeader(null);
-        AddLine("Primer objeto", 13, Accent, bold: true);
+        AddLine("Primer objeto", OverlayPanelStyle.SectionSize, PurchaseAccent, bold: true);
         AddPurchase(new(new(6653, "El Tormento de Liandry")), patch, null, best: true);
     }
 
@@ -144,7 +141,7 @@ internal sealed class BuildPanel : Border
         {
             var status = build is null ? view.Source?.Status ?? "No hay una build disponible."
                 : "OP.GG no tiene recomendaciones de objetos disponibles.";
-            AddLine(status, 14, Brushes.WhiteSmoke);
+            AddLine(status, 14, OverlayPanelStyle.Ink);
         }
         if (build?.IsPrevious == true)
             AddLine($"Build de OP.GG · Parche anterior {LeaguePatch.Public(build.SourcePatch)}", 11, PreviousPatch, top: 6);
@@ -156,7 +153,7 @@ internal sealed class BuildPanel : Border
         bool Owned(OpGgBuildItem item) => owned.Any(step => ItemFamily(step.Item.Id) == ItemFamily(item.Id));
         void AddSection(string title, IEnumerable<BuildStep> choices, bool highlight = false)
         {
-            AddLine(title, 13, Accent, bold: true, top: content.Children.Count == 1 ? 0 : 8);
+            AddLine(title, OverlayPanelStyle.SectionSize, PurchaseAccent, bold: true, top: content.Children.Count == 1 ? 0 : 8);
             foreach (var (step, index) in choices.Select((step, index) => (step, index)))
                 AddPurchase(step, patch, view.ItemRates, best: highlight && index == 0);
         }
@@ -180,7 +177,7 @@ internal sealed class BuildPanel : Border
 
     private Grid CreateShopHeader()
     {
-        var header = new Grid { Background = Brushes.Transparent, MinHeight = 28, Margin = new Thickness(0, 0, 0, 7) };
+        var header = new Grid { Background = OverlayPanelStyle.HeaderSurface, MinHeight = 28, Margin = new Thickness(0, 0, 0, 7) };
         header.Children.Add(shopGrip);
         shopTitle.Margin = new Thickness(2, 0, 19, 0);
         shopTitle.VerticalAlignment = VerticalAlignment.Center;
@@ -205,7 +202,7 @@ internal sealed class BuildPanel : Border
     private void AddEnemyDamage(BuildDisplay view)
     {
         AddDivider();
-        AddLine("Daño rival estimado", 14, Brushes.WhiteSmoke, bold: true);
+        AddLine("Daño rival estimado", 14, OverlayPanelStyle.Ink, bold: true);
         if (view.EnemyDamage is not { } mix)
         {
             var status = view.Mode == Mode.Arena && !view.ArenaRivalsDetected
@@ -221,7 +218,7 @@ internal sealed class BuildPanel : Border
 
     private void AddLobbyDamage(EnemyDamageMix? mix)
     {
-        AddLine("Daño del lobby", 14, Brushes.WhiteSmoke, bold: true, top: 10);
+        AddLine("Daño del lobby", 14, OverlayPanelStyle.Ink, bold: true, top: 10);
         if (mix is not { } damage)
         {
             AddLine("Esperando identificar rivales.", 12, Muted, top: 2);
@@ -237,9 +234,9 @@ internal sealed class BuildPanel : Border
         var distribution = new StackPanel { Margin = new Thickness(0, 4, 0, 0) };
         var labels = new Grid();
         labels.Children.Add(new TextBlock { Text = $"{mix.PhysicalPercent}% físico", Foreground = PhysicalDamage,
-            FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Left });
+            FontSize = OverlayPanelStyle.BodySize, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Left });
         labels.Children.Add(new TextBlock { Text = $"{mix.MagicPercent}% mágico", Foreground = MagicDamage,
-            FontSize = 13, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right });
+            FontSize = OverlayPanelStyle.BodySize, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Right });
         distribution.Children.Add(labels);
 
         var bar = new Grid { Height = 6, Margin = new Thickness(0, 4, 0, 0) };
@@ -275,11 +272,11 @@ internal sealed class BuildPanel : Border
     private void AddSwap(BuildSwap swap, string patch, ShopItemRates? rates)
     {
         var card = new StackPanel();
-        card.Children.Add(new TextBlock { Text = "Cambio sugerido", FontSize = 13,
+        card.Children.Add(new TextBlock { Text = "Cambio sugerido", FontSize = OverlayPanelStyle.BodySize,
             Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
         card.Children.Add(SwapItem("Sale", swap.Outgoing));
         card.Children.Add(SwapItem("Entra", swap.Incoming, rates?.Items.GetValueOrDefault(swap.Incoming.Id)));
-        card.Children.Add(new TextBlock { Text = swap.Reason, FontSize = 12.5, Foreground = Muted,
+        card.Children.Add(new TextBlock { Text = swap.Reason, FontSize = OverlayPanelStyle.BodySize, Foreground = Muted,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
         AddPurchaseCard(card);
 
@@ -290,9 +287,9 @@ internal sealed class BuildPanel : Border
             icon.Margin = new Thickness(0, 0, 8, 0);
             row.Children.Add(icon);
             var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-            text.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = Muted });
-            text.Children.Add(new TextBlock { Text = item.Name, FontSize = Compact ? 14 : 15,
-                Foreground = Brushes.WhiteSmoke, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            text.Children.Add(new TextBlock { Text = label, FontSize = OverlayPanelStyle.DetailSize, Foreground = Muted });
+            text.Children.Add(new TextBlock { Text = item.Name, FontSize = OverlayPanelStyle.BodySize,
+                Foreground = OverlayPanelStyle.Ink, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
             if (rate is not null)
                 text.Children.Add(RateLine(rate));
             row.Children.Add(text);
@@ -318,12 +315,12 @@ internal sealed class BuildPanel : Border
             row.Children.Add(mark);
         }
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = item.Name, FontSize = 13, Foreground = Brushes.WhiteSmoke,
+        text.Children.Add(new TextBlock { Text = item.Name, FontSize = OverlayPanelStyle.BodySize, Foreground = OverlayPanelStyle.Ink,
             FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (rates?.Items.GetValueOrDefault(item.Id) is { } rate)
             text.Children.Add(RateLine(rate));
         if (step.Detail is { } reason && reason is not (ArenaBuilds.ChampionFit or ArenaBuilds.PublishedPick or MayhemBuilds.PublishedCore or "Botas de OP.GG"))
-            text.Children.Add(new TextBlock { Text = reason, FontSize = 11, Foreground = Muted,
+            text.Children.Add(new TextBlock { Text = reason, FontSize = OverlayPanelStyle.DetailSize, Foreground = Muted,
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         row.Children.Add(text);
         AddItemRow(row, best);
@@ -333,23 +330,27 @@ internal sealed class BuildPanel : Border
     {
         var line = new WrapPanel { Margin = new Thickness(0, 1, 0, 0) };
         line.Children.Add(new TextBlock { Text = $"{rates.PickPercent.ToString("0.##", Spanish)} % elección",
-            Foreground = PurchaseAccent, FontSize = 11, Margin = new Thickness(0, 0, 8, 0) });
+            Foreground = PurchaseAccent, FontSize = OverlayPanelStyle.DetailSize, Margin = new Thickness(0, 0, 8, 0) });
         line.Children.Add(new TextBlock { Text = $"{rates.WinPercent.ToString("0.##", Spanish)} % victorias",
-            Foreground = Muted, FontSize = 11 });
+            Foreground = Muted, FontSize = OverlayPanelStyle.DetailSize });
         return line;
     }
 
     private void AddPurchaseCard(UIElement child) =>
         content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(Compact ? 6 : 8) });
+            BorderThickness = new Thickness(1), Padding = new Thickness(Compact ? 6 : 8) });
 
     private void AddItemRow(UIElement child, bool featured) =>
         content.Children.Add(new Border { Child = child, Background = featured ? PurchaseSurface : null,
-            CornerRadius = new CornerRadius(3), Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 4, 0, 0) });
+            Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 4, 0, 0) });
 
     internal void RenderPrismatics(string champion, ArenaPrismaticTop top, string patch)
     {
-        AddLine("Top 5 prismáticos", 17, Brushes.WhiteSmoke, bold: true);
+        content.Children.Add(new TextBlock
+        {
+            Text = "Top 5 prismáticos", FontFamily = OverlayPanelStyle.Heading, FontSize = OverlayPanelStyle.TitleSize,
+            FontWeight = FontWeights.Bold, Foreground = OverlayPanelStyle.Ink
+        });
         AddLine($"Afinidad con {champion}", 12, Muted);
         foreach (var (entry, index) in top.Entries.Select((entry, index) => (entry, index)))
         {
@@ -357,7 +358,7 @@ internal sealed class BuildPanel : Border
             var row = new DockPanel { Margin = new Thickness(0, 9, 0, 0) };
             row.Children.Add(new TextBlock
             {
-                Text = (index + 1).ToString(), Width = 20, FontSize = 13,
+                Text = (index + 1).ToString(), Width = 20, FontSize = OverlayPanelStyle.BodySize,
                 FontWeight = FontWeights.SemiBold, Foreground = Accent
             });
             var icon = new Image { Width = 26, Height = 26, Margin = new Thickness(0, 1, 8, 0),
@@ -370,15 +371,15 @@ internal sealed class BuildPanel : Border
             text.Children.Add(new TextBlock
             {
                 Text = $"{entry.Rating.Name} · {entry.Rating.TierText}",
-                FontSize = 13, FontWeight = FontWeights.SemiBold, Foreground = Brushes.WhiteSmoke,
+                FontSize = OverlayPanelStyle.BodySize, FontWeight = FontWeights.SemiBold, Foreground = OverlayPanelStyle.Ink,
                 TextWrapping = TextWrapping.Wrap
             });
             text.Children.Add(new TextBlock
             {
-                Text = entry.Rating.Reason, FontSize = 11, Foreground = Muted, TextWrapping = TextWrapping.Wrap
+                Text = entry.Rating.Reason, FontSize = OverlayPanelStyle.DetailSize, Foreground = Muted, TextWrapping = TextWrapping.Wrap
             });
             if (offered)
-                text.Children.Add(new TextBlock { Text = "En oferta", FontSize = 11, Foreground = Accent });
+                text.Children.Add(new TextBlock { Text = "En oferta", FontSize = OverlayPanelStyle.DetailSize, Foreground = Accent });
             row.Children.Add(text);
             content.Children.Add(row);
         }

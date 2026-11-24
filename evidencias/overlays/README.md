@@ -1,6 +1,6 @@
 # Capturas de los overlays
 
-**Parche 26.23 · 24 de noviembre de 2026.** Las capturas muestran la versión instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con imágenes de referencia de League, las tablas del parche y equipos e inventarios de ejemplo. Las insignias de cartas están al **255 %**, las builds al **150 %** y el panel de prismáticos al **150 %**.
+**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Las insignias de cartas están al **255 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
 
 | Selección de campeón en ARAM Caos | Top 5 prismáticos en Arena |
 | --- | --- |
@@ -43,4 +43,4 @@ Cuando el cliente aún no identifica al campeón, ambos modos muestran el mismo 
 | Builds | [Deslizador sobre la build](ajuste-build.png) | [Tamaño de las builds](bandeja-tamano-build.png) |
 | Top 5 prismáticos | [Deslizador sobre el Top 5](ajuste-prismaticos.png) | [Tamaño del panel de prismáticos](bandeja-tamano-prismaticos.png) |
 
-Las seis capturas originales que se usan para calibrar y probar la lectura de cartas están en la [carpeta de evidencias](../).
+La ventana de diagnóstico comparte el marco y la paleta de los ajustes. [Ver el diagnóstico](diagnostico.png)

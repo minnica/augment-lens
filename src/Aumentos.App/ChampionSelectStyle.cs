@@ -24,7 +24,7 @@ internal static class ChampionSelectStyle
         if (await portraits.Read(champion) is { } source)
         {
             image.Source = source;
-            frame.BorderBrush = MayhemTierStyle.Divider;
+            frame.BorderBrush = OverlayPanelStyle.Divider;
         }
     }
 }

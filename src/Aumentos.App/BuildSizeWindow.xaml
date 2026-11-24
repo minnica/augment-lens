@@ -1,47 +1,15 @@
 <Window x:Class="Aumentos.BuildSizeWindow" x:ClassModifier="internal"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Aumentos"
         Title="Tamaño de las builds · Aumentos LoL"
         Width="660" Height="540" MinWidth="370" MinHeight="430" WindowStartupLocation="CenterScreen"
-        Background="#0E1726" Foreground="#E7EDF7"
-        FontFamily="Segoe UI" FontSize="14" UseLayoutRounding="True">
+        UseLayoutRounding="True">
     <Window.Resources>
-        <SolidColorBrush x:Key="Muted" Color="#A8BAD2"/>
-        <Style TargetType="Button">
-            <Setter Property="Foreground" Value="#E7EDF7"/>
-            <Setter Property="Background" Value="#202E43"/>
-            <Setter Property="BorderBrush" Value="#556C8E"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="13,7"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Frame" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Frame" Property="Background" Value="#2B405A"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Frame" Property="Background" Value="#162337"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Frame" Property="BorderBrush" Value="#AAD1FF"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Frame" Property="Opacity" Value="0.55"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ResourceDictionary Source="OverlayControls.xaml"/>
     </Window.Resources>
 
-    <Grid Margin="22,18">
+    <Grid Margin="22,14,22,18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -50,25 +18,27 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="Heading" Text="Tamaño de las builds" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap"/>
+        <TextBlock x:Name="Heading" Text="Tamaño de las builds" FontFamily="{x:Static local:OverlayPanelStyle.Heading}"
+                   FontSize="20" FontWeight="Bold" TextWrapping="Wrap"/>
 
         <StackPanel Grid.Row="1" Margin="0,12,0,16">
             <DockPanel LastChildFill="False">
                 <TextBlock x:Name="ScaleLabel" Text="Escala del panel" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                <TextBlock x:Name="PercentText" DockPanel.Dock="Right" Foreground="#AAD1FF"
-                           FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="PercentText" DockPanel.Dock="Right" Foreground="{x:Static local:OverlayPanelStyle.Accent}"
+                           FontSize="{x:Static local:OverlayPanelStyle.TitleSize}" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </DockPanel>
             <Slider x:Name="SizeSlider" Height="30" IsMoveToPointEnabled="True" IsSnapToTickEnabled="True"
-                    TickFrequency="5" SmallChange="5" LargeChange="10" AutomationProperties.Name="Escala del panel en porcentaje"/>
-            <DockPanel LastChildFill="False" TextElement.Foreground="{StaticResource Muted}">
-                <TextBlock FontSize="12" Text="{Binding Minimum, ElementName=SizeSlider, StringFormat={}{0:0} %}"/>
-                <TextBlock DockPanel.Dock="Right" FontSize="12"
+                    TickFrequency="5" SmallChange="5" LargeChange="10" AutomationProperties.Name="Escala del panel en porcentaje" Template="{StaticResource OverlaySlider}"/>
+            <DockPanel LastChildFill="False" TextElement.Foreground="{x:Static local:OverlayPanelStyle.Muted}">
+                <TextBlock FontSize="{x:Static local:OverlayPanelStyle.DetailSize}" Text="{Binding Minimum, ElementName=SizeSlider, StringFormat={}{0:0} %}"/>
+                <TextBlock DockPanel.Dock="Right" FontSize="{x:Static local:OverlayPanelStyle.DetailSize}"
                            Text="{Binding Maximum, ElementName=SizeSlider, StringFormat={}{0:0} %}"/>
             </DockPanel>
         </StackPanel>
 
         <TextBlock Grid.Row="2" Text="Vista previa" FontWeight="SemiBold" Margin="0,0,0,6"/>
-        <Border Grid.Row="3" Padding="12" Background="#101C2D" BorderBrush="#304761" BorderThickness="1" CornerRadius="8">
+        <Border Grid.Row="3" Padding="12" Background="{x:Static local:OverlayPanelStyle.Inset}"
+                BorderBrush="{x:Static local:OverlayPanelStyle.Divider}" BorderThickness="1">
             <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
                 <Grid x:Name="PreviewStage">
                     <ContentPresenter x:Name="PreviewHost" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -77,8 +47,8 @@
         </Border>
 
         <DockPanel Grid.Row="4" Margin="0,14,0,0" LastChildFill="True">
-            <Button x:Name="ResetButton" DockPanel.Dock="Right" Content="Restablecer 100 %" Margin="14,0,0,0"/>
-            <TextBlock x:Name="SaveStatus" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+            <Button x:Name="ResetButton" DockPanel.Dock="Right" Content="Restablecer 100 %" Style="{StaticResource OverlayButton}" Margin="14,0,0,0"/>
+            <TextBlock x:Name="SaveStatus" Foreground="{x:Static local:OverlayPanelStyle.Muted}" FontSize="{x:Static local:OverlayPanelStyle.DetailSize}" TextWrapping="Wrap"
                        VerticalAlignment="Center" Text="Se guarda automáticamente." AutomationProperties.LiveSetting="Polite"/>
         </DockPanel>
     </Grid>

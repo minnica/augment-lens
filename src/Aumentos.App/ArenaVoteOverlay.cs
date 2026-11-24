@@ -12,12 +12,6 @@ internal sealed record ArenaVoteDisplay(Int32Rect Bounds, nint Target, ArenaVote
 
 internal sealed class ArenaVoteOverlay : Window
 {
-    private static readonly Brush Surface = Overlay.Paint("#FA0B141A");
-    private static readonly Brush Outline = Overlay.Paint("#806B46");
-    private static readonly Brush Highlight = Overlay.Paint("#D8BE85");
-    private static readonly Brush HighlightSurface = Overlay.Paint("#FA22251E");
-    private static readonly Brush Ink = Overlay.Paint("#EEE6D3");
-    private static readonly Brush Muted = Overlay.Paint("#BBAF94");
     private static readonly Brush S = Overlay.Paint("#EDC675");
     private static readonly Brush A = Overlay.Paint("#9ED5BF");
     private static readonly Brush B = Overlay.Paint("#B7CCE3");
@@ -134,9 +128,9 @@ internal sealed class ArenaVoteOverlay : Window
         var tier = new TextBlock
         {
             Text = label.Tier ?? "—",
-            FontSize = compact ? 18 : 23,
+            FontSize = compact ? 17 : 20,
             FontWeight = FontWeights.SemiBold,
-            Foreground = label.Tier switch { "S" or "S+" => S, "A" => A, "B" => B, null => Muted, _ => Ink },
+            Foreground = label.Tier switch { "S" or "S+" => S, "A" => A, "B" => B, null => OverlayPanelStyle.Muted, _ => OverlayPanelStyle.Ink },
             TextAlignment = TextAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -149,22 +143,26 @@ internal sealed class ArenaVoteOverlay : Window
             row.Children.Add(tier);
             var detail = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 5, 0) };
             if (recommended)
-                detail.Children.Add(Detail("Recomendado", Highlight, 11, lines: 1, semibold: true));
+                detail.Children.Add(Detail("Recomendado", OverlayPanelStyle.BrightGold, OverlayPanelStyle.DetailSize, lines: 1, semibold: true));
             if (!string.IsNullOrWhiteSpace(label.Reason))
-                detail.Children.Add(Detail(label.Reason, Ink, compact ? 11 : 12, lines: compact && recommended ? 1 : 2));
+                detail.Children.Add(Detail(label.Reason, OverlayPanelStyle.Ink, compact ? OverlayPanelStyle.DetailSize : 12, lines: compact && recommended ? 1 : 2));
             row.Children.Add(detail);
             content = row;
         }
 
-        return new Border
+        var badge = new Border
         {
             Width = width,
             Height = height,
-            Background = recommended ? HighlightSurface : Surface,
-            BorderBrush = recommended ? Highlight : Outline,
-            BorderThickness = new Thickness(1),
             Child = content
         };
+        OverlayPanelStyle.ApplyFrame(badge);
+        if (recommended)
+        {
+            badge.Background = OverlayPanelStyle.SelectedSurface;
+            badge.BorderBrush = OverlayPanelStyle.Gold;
+        }
+        return badge;
     }
 
     private static TextBlock Detail(string text, Brush foreground, double size, int lines, bool semibold = false) => new()

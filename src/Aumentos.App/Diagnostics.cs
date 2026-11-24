@@ -20,7 +20,7 @@ internal sealed class Diagnostics : Window
     private readonly Ratings ratings;
     private readonly LayoutStore layouts;
     private readonly string assets;
-    private readonly Grid stage = new() { Width = 1000, Height = 520, Background = Overlay.Paint("#18273A") };
+    private readonly Grid stage = new() { Width = 1000, Height = 520, Background = OverlayPanelStyle.Inset };
     private readonly Image preview = new() { Stretch = Stretch.Fill, IsHitTestVisible = false };
     private readonly Canvas selection = new() { Background = Brushes.Transparent };
     private readonly ComboBox modes = new() { Width = 112, ItemsSource = new[] { "ARAM Caos", "Arena" }, SelectedIndex = 0 };
@@ -43,18 +43,18 @@ internal sealed class Diagnostics : Window
         Height = 790;
         MinWidth = 720;
         MinHeight = 550;
-        Background = Overlay.Paint("#0E1726");
-        Foreground = Overlay.Paint("#E7EDF7");
-        FontFamily = new FontFamily("Segoe UI");
-        FontSize = 14;
+        Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/AumentosLoL;component/OverlayControls.xaml", UriKind.Relative) });
+        var comboStyle = (Style)FindResource("OverlayComboBox");
+        modes.Style = slots.Style = comboStyle;
+        slots.Margin = new Thickness(6, 0, 0, 0);
 
         var root = new Grid { Margin = new Thickness(22) };
         foreach (var height in new[] { GridLength.Auto, GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto })
             root.RowDefinitions.Add(new RowDefinition { Height = height });
 
         var header = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
-        header.Children.Add(new TextBlock { Text = "Aumentos LoL", FontSize = 26, FontWeight = FontWeights.SemiBold });
-        status.Foreground = Overlay.Paint("#9DB4D2");
+        header.Children.Add(new TextBlock { Text = "Aumentos LoL", FontSize = 20, FontFamily = OverlayPanelStyle.Heading, FontWeight = FontWeights.Bold });
+        status.Foreground = OverlayPanelStyle.Muted;
         header.Children.Add(status);
         root.Children.Add(header);
         var toolbar = new WrapPanel();
@@ -75,7 +75,7 @@ internal sealed class Diagnostics : Window
         stage.Children.Add(selection);
         var viewport = new Border
         {
-            Background = Overlay.Paint("#111D2D"), CornerRadius = new CornerRadius(8),
+            Background = OverlayPanelStyle.Inset, BorderBrush = OverlayPanelStyle.Divider, BorderThickness = new Thickness(1),
             Child = new Viewbox { Child = stage, Stretch = Stretch.Uniform }
         };
         Grid.SetRow(viewport, 3);
@@ -83,10 +83,10 @@ internal sealed class Diagnostics : Window
         root.Children.Add(new TextBlock
         {
             Text = "Captura la ventana completa del juego. Conserva una calibración por modo, tamaño y número de cartas.",
-            Foreground = Overlay.Paint("#9DB4D2"), Margin = new Thickness(0, 12, 0, 0)
+            Foreground = OverlayPanelStyle.Muted, Margin = new Thickness(0, 12, 0, 0), TextWrapping = TextWrapping.Wrap
         });
         Grid.SetRow(root.Children[^1], 4);
-        Content = root;
+        OverlayWindowFrame.Apply(this, root);
         SetStatus($"Datos es_MX · Parche {ratings.Catalog.Patch}");
         Guide();
 
@@ -132,7 +132,11 @@ internal sealed class Diagnostics : Window
 
         void AddButton(string name, Action action)
         {
-            var button = new Button { Content = name, Padding = new Thickness(9, 4, 9, 4), Margin = new Thickness(6, 0, 0, 0) };
+            var button = new Button
+            {
+                Content = name, Style = (Style)FindResource("OverlayButton"), Padding = new Thickness(9, 4, 9, 4),
+                Margin = new Thickness(6, 0, 0, 0)
+            };
             button.Click += (_, _) => action();
             toolbar.Children.Add(button);
         }

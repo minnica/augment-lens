@@ -249,8 +249,8 @@ internal static class ChampionSelectTests
                     new[] { pair.Second.Category }.Concat(pair.Second.Options.SelectMany(option => new[] { option.Champion, option.Tier })))),
                 "la sección agrupa varias opciones con sus tiers en cada categoría");
             var headers = TextBlocks(panel).Where(text => text.Text is "Para tu equipo" or "Top 30 general").ToArray();
-            Check(headers.Length == 2 && headers.All(text => text.FontSize == MayhemTierStyle.PanelSectionSize) &&
-                TextBlocks(evaluation).First().FontSize == MayhemTierStyle.PanelTitleSize &&
+            Check(headers.Length == 2 && headers.All(text => text.FontSize == OverlayPanelStyle.SectionSize) &&
+                TextBlocks(evaluation).First().FontSize == OverlayPanelStyle.TitleSize &&
                 categories.SelectMany(category => category.Children.OfType<Grid>()).All(row => Grid.GetColumn(row.Children[1]) == 1),
                 "la evaluación encabeza el panel, las secciones comparten jerarquía y el tier se alinea con el nombre");
             overlay.Render(selected with { Grade = grade with { Tier = "S", Members = 3, Reason = "Equipo equilibrado" } });
@@ -328,7 +328,7 @@ internal static class ChampionSelectTests
                     Math.Abs(placement.Width - placement.Height * frame.ActualWidth / frame.ActualHeight) < 2 &&
                     ranking.RowDefinitions.Count == 31 &&
                     Math.Abs(ranking.ActualHeight - ranking.RowDefinitions.Sum(row => row.Height.Value)) < 1 &&
-                    names.Length == 30 && names.All(cell => TextBlocks(cell).First().FontSize == MayhemTierStyle.PanelBodySize &&
+                    names.Length == 30 && names.All(cell => TextBlocks(cell).First().FontSize == OverlayPanelStyle.BodySize &&
                         Elements(cell).OfType<Image>().Count() == 1) &&
                     names.Select(cell => Grid.GetRow(cell)).SequenceEqual(Enumerable.Range(1, 30)) &&
                     cells.OfType<Border>().Count(IsTierBadge) == 30 &&

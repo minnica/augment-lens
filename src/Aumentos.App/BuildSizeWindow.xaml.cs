@@ -25,6 +25,9 @@ internal sealed partial class BuildSizeWindow : Window
         InitializeComponent();
         Heading.Text = heading;
         Title = $"{heading} · Aumentos LoL";
+        var content = (UIElement)Content;
+        Content = null;
+        OverlayWindowFrame.Apply(this, content);
         if (tierBadges)
         {
             ScaleLabel.Text = "Escala del distintivo";
