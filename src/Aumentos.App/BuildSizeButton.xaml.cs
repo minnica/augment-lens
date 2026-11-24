@@ -55,10 +55,10 @@ internal sealed partial class BuildSizeButton : Window
         OpenButton.Content = content;
     }
 
-    internal void OpenScaleEditor(int percent, Func<int, bool> apply, Action close)
+    internal void OpenScaleEditor(int percent, Func<int, bool> apply, Action close, int maximum = BuildSizePreference.Maximum)
     {
         if (Content is not BuildScaleEditor)
-            Content = new BuildScaleEditor(percent, apply, close);
+            Content = new BuildScaleEditor(percent, apply, close, maximum);
     }
 
     internal void CloseScaleEditor()
@@ -83,6 +83,8 @@ internal sealed partial class BuildSizeButton : Window
         handled = true;
         return noActivate;
     }
+
+    internal void InvalidatePlacement() => placement = default;
 
     internal void Display(Int32Rect target, double dpi)
     {

@@ -10,18 +10,7 @@ internal static class OverlayPanelStyle
     internal static readonly Brush Ink = Overlay.Paint("#EEE6D3");
     internal static readonly Brush Muted = Overlay.Paint("#B1C1D8");
     internal static readonly Brush Gold = Overlay.Paint("#F6D28C");
-    private static readonly Brush Green = Overlay.Paint("#A0EACD");
-    private static readonly Brush Blue = Overlay.Paint("#BFD1FF");
     internal static readonly FontFamily Heading = new("Georgia");
-
-    internal static Brush Tier(string? grade) => grade switch
-    {
-        "S" => Gold,
-        "A" => Green,
-        "B" => Blue,
-        null or "D" or "E" => Muted,
-        _ => Ink
-    };
 
     internal static Brush VerticalGradient(string top, string bottom)
     {

@@ -260,6 +260,15 @@ internal static class Native
     private struct Point { public int X, Y; }
 
     [DllImport("user32.dll")] internal static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+
+    internal static bool PrimaryMousePressed()
+    {
+        const int swappedButtons = 23;
+        const int leftButton = 1, rightButton = 2;
+        return GetAsyncKeyState(GetSystemMetrics(swappedButtons) == 0 ? leftButton : rightButton) < 0;
+    }
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsWindowVisible(nint handle);
     [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(nint handle);

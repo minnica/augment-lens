@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -27,7 +28,7 @@ internal sealed record ArenaMatch(int[] Items, ArenaParticipant[] Opponents, boo
     ArenaParticipant[]? LobbyOpponents = null, ArenaParticipant[]? Allies = null, ArenaParticipant[]? Participants = null);
 internal sealed record LiveMatchState(Mode Mode, LiveMatch? Match = null);
 internal sealed record LiveMatch(GameContext Game, MayhemMatch? Mayhem = null, ArenaMatch? Arena = null,
-    double? GameTime = null)
+    double? GameTime = null, string[]? OwnedAugments = null)
 {
     internal bool IsNewSession(LiveMatch previous) =>
         Game != previous.Game || (GameTime is { } time && previous.GameTime is { } earlier && time + 5 < earlier);
@@ -97,12 +98,12 @@ internal sealed class LiveGame : IDisposable
 
         try
         {
-            var (active, penetration, combatStats) = await ReadActivePlayer().ConfigureAwait(false);
+            var (active, penetration, combatStats, augments) = await ReadActivePlayer().ConfigureAwait(false);
             using var players = await ReadJson("playerlist").ConfigureAwait(false);
             var match = ParseMatch(mode.Value, players.RootElement, active);
             if (match?.Mayhem is { } mayhem)
                 match = match with { Mayhem = mayhem with { MagicPenetration = penetration, CombatStats = combatStats } };
-            return new(mode.Value, match is null ? null : match with { GameTime = gameTime });
+            return new(mode.Value, match is null ? null : match with { GameTime = gameTime, OwnedAugments = augments ?? match.OwnedAugments });
         }
         catch (Exception error) when (!cancellation.IsCancellationRequested &&
             error is HttpRequestException or JsonException or TaskCanceledException)
@@ -110,7 +111,7 @@ internal sealed class LiveGame : IDisposable
             return new(mode.Value);
         }
 
-        async Task<(string? Name, MayhemMagicPenetration? Penetration, MayhemCombatStats? CombatStats)> ReadActivePlayer()
+        async Task<(string? Name, MayhemMagicPenetration? Penetration, MayhemCombatStats? CombatStats, string[]? Augments)> ReadActivePlayer()
         {
             if (mode == Mode.Caos)
             {
@@ -119,15 +120,16 @@ internal sealed class LiveGame : IDisposable
                     using var player = await ReadJson("activeplayer").ConfigureAwait(false);
                     if (ArenaIdentity(player.RootElement) is { Length: > 0 } identity)
                     {
+                        var augments = ReadOwnedAugments(player.RootElement);
                         if (!player.RootElement.TryGetProperty("championStats", out var stats) ||
                             stats.ValueKind != JsonValueKind.Object)
-                            return (identity, null, null);
+                            return (identity, null, null, augments);
                         double? crit = ReadStat(stats, "critChance") is >= 0 and <= 1 and var chance ? chance : null;
                         double? lifeSteal = ReadStat(stats, "lifeSteal") is >= 0 and var steal ? steal : null;
                         double? range = ReadStat(stats, "attackRange") is > 0 and var attackRange ? attackRange : null;
                         var combat = crit.HasValue || lifeSteal.HasValue || range.HasValue
                             ? new MayhemCombatStats(crit, lifeSteal, range) : null;
-                        return (identity, ReadMagicPenetration(stats), combat);
+                        return (identity, ReadMagicPenetration(stats), combat, augments);
                     }
                 }
                 catch (Exception error) when (!cancellation.IsCancellationRequested &&
@@ -135,7 +137,7 @@ internal sealed class LiveGame : IDisposable
             }
 
             using var name = await ReadJson("activeplayername").ConfigureAwait(false);
-            return (name.RootElement.ValueKind == JsonValueKind.String ? name.RootElement.GetString() : null, null, null);
+            return (name.RootElement.ValueKind == JsonValueKind.String ? name.RootElement.GetString() : null, null, null, null);
         }
 
         async Task<JsonDocument> ReadJson(string path)
@@ -165,7 +167,7 @@ internal sealed class LiveGame : IDisposable
             if (!aliases.TryGetValue(active, out int current) || ChampionKey(roster[current]) is not { } champion)
                 return null;
             var items = ReadItems(roster[current]);
-            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null));
+            return new(new(mode, champion), Arena: new(items ?? [], [], items is not null), OwnedAugments: ReadOwnedAugments(roster[current]));
         }
 
         foreach (var player in roster)
@@ -185,7 +187,8 @@ internal sealed class LiveGame : IDisposable
                 .OfType<MayhemOpponent>().ToArray();
             var allies = roster.Where(ally => !ally.Equals(player) && Identity(ally, "team") == team)
                 .Select(ally => new MayhemAlly(ReadItems(ally) ?? [], ReadMayhemScore(ally))).ToArray();
-            return new(game, new MayhemMatch(owned, opponents, Score: ReadMayhemScore(player), Allies: allies));
+            return new(game, new MayhemMatch(owned, opponents, Score: ReadMayhemScore(player), Allies: allies),
+                OwnedAugments: ReadOwnedAugments(player));
         }
         return null;
     }
@@ -255,7 +258,7 @@ internal sealed class LiveGame : IDisposable
 
         LiveMatch CreateMatch(ArenaParticipant[] rivals, ArenaParticipant[] lobbyRivals, ArenaParticipant[]? allies = null) => new(context,
             Arena: new(items ?? [], rivals, items is not null, lobbyRivals, allies, participants.OfType<ArenaParticipant>().ToArray()),
-            GameTime: ReadGameTime(game));
+            GameTime: ReadGameTime(game), OwnedAugments: ReadOwnedAugments(active) ?? ReadOwnedAugments(roster[current]));
 
         int TeamOf(int index)
         {
@@ -263,6 +266,22 @@ internal sealed class LiveGame : IDisposable
                 index = teams[index];
             return index;
         }
+    }
+
+    private static string[]? ReadOwnedAugments(JsonElement player)
+    {
+        if (player.ValueKind != JsonValueKind.Object || !player.TryGetProperty("augments", out var list) ||
+            list.ValueKind != JsonValueKind.Array)
+            return null;
+        return list.EnumerateArray().Select(augment => augment.ValueKind switch
+        {
+            JsonValueKind.String => augment.GetString(),
+            JsonValueKind.Number when augment.TryGetInt32(out int id) && id > 0 => id.ToString(CultureInfo.InvariantCulture),
+            JsonValueKind.Object when augment.TryGetProperty("id", out var number) && number.ValueKind == JsonValueKind.Number &&
+                number.TryGetInt32(out int id) && id > 0 => id.ToString(CultureInfo.InvariantCulture),
+            JsonValueKind.Object => Identity(augment, "key") ?? Identity(augment, "name"),
+            _ => null
+        }).OfType<string>().Where(value => value.Length is > 0 and <= 120).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static ArenaParticipant? ReadArenaParticipant(JsonElement player) => ChampionKey(player) is { } champion

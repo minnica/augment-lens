@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Aumentos;
@@ -20,26 +19,28 @@ internal static class ArenaBuildOverlayTests
         var clientPatch = ratings.Catalog.Patch;
         var build = new OpGgBuildSnapshot(Mode.Arena, "Jax", clientPatch, clientPatch, DateTimeOffset.UtcNow,
             [new(OpGgBuildSection.Prismatic, [[new(443090, "Cuota del Segador")]])]);
+        var rates = new ShopItemRates(clientPatch, DateTimeOffset.UtcNow, new() { [226609] = new(31.4m, 51.2m) });
         var view = new BuildDisplay(new Int32Rect(0, 0, 1600, 900), 0, "Jax", Mode.Arena, new(build, "Prueba"),
-            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67), LobbyDamage: new(45));
+            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67), LobbyDamage: new(45), ItemRates: rates);
         var renderer = new BuildPanel(null);
         var panel = (StackPanel)renderer.Child;
         renderer.Render(view);
         var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-        Check(blocks.SequenceEqual(["Después", "Equipados · 4 de 6", "Objetos prismáticos",
+        Check(blocks.SequenceEqual(["Cuarto objeto", "Objetos prismáticos", $"OP.GG · Arena · {LeaguePatch.Public(clientPatch)}",
             "Daño rival estimado", "Según rivales de rondas jugadas", "Daño del lobby", "Solo rivales identificados"]) &&
             ReadText(panel.Children[^4]).SequenceEqual(["67% físico", "33% mágico"]) &&
             ReadText(panel.Children[^1]).SequenceEqual(["45% físico", "55% mágico"]),
             "Arena distingue los rivales recientes de los que identifica en todo el lobby");
-        var next = (Border)panel.Children[1];
+        var next = (Border)panel.Children[2];
         var pending = (Border)panel.Children[3];
-        Check(panel.Children[0] == renderer.DragHandle && next.BorderThickness.Left > 0 && next.Background is not null &&
-            ReadText(next).SequenceEqual(["Siguiente compra", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
-            ReadText(pending).SequenceEqual(["2.", "Presagio de Randuin"]),
-            "la siguiente compra se destaca y las filas conservan posición y objeto");
-        var owned = panel.Children.OfType<UniformGrid>().Take(2).SelectMany(ReadText);
-        Check(owned.SequenceEqual(jaxRoute.Steps.Take(4).Select(step => step.Item.Name)),
-            "los objetos comprados se agrupan aparte y conservan sus iconos y nombres");
+        Check(panel.Children[0] == renderer.DragHandle && next.Background is not null &&
+            panel.Children.OfType<Border>().All(row => row.BorderThickness == new Thickness(0) &&
+                (row == next || row.Background is null)) &&
+            ((DockPanel)next.Child).Children.OfType<TextBlock>().Single().Text == "El mejor" &&
+            ReadText(next).SequenceEqual(["El mejor", "Sierraespada Quimpunk", "31.4 % elección", "51.2 % victorias", "Para reducir la curación de Karma y Zed"]) &&
+            ReadText(pending).SequenceEqual(["Presagio de Randuin", "Contra los golpes críticos de Zed"]) &&
+            !ReadText(panel).Contains("Cuchilla Oscura") && !ReadText(panel).Contains("Botas"),
+            "el mejor candidato muestra las tasas de Arena y las compras confirmadas se quitan de las opciones");
 
         var empty = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with
             { Detail = "Encaja con tu campeón", Owned = false }).ToArray());
@@ -47,15 +48,15 @@ internal static class ArenaBuildOverlayTests
         var emptyLabels = ReadText(panel).ToArray();
         Check(emptyLabels.Contains("Esperando confirmar rivales.") &&
             emptyLabels.Contains("Esperando identificar rivales.") && !emptyLabels.Any(label => label.EndsWith("% físico")) &&
-            emptyLabels.Contains("Equipados · 0 de 6") &&
-            emptyLabels.Count(label => label == "Siguiente compra") == 1 && panel.Children.OfType<Border>().Count() == 6 &&
-            !panel.Children.OfType<UniformGrid>().Any(), "ruta inicial con seis compras y sin cuadrícula de inventario vacía");
+            emptyLabels.Contains("Primer objeto") && emptyLabels.Contains("Botas") &&
+            emptyLabels.Count(label => label == "El mejor") == 1 && panel.Children.OfType<Border>().Count() == 4,
+            "la etapa inicial ofrece tres objetos y las botas por separado");
         renderer.Render(view with { Plan = empty, Source = null, ArenaRivalsDetected = false, EnemyDamage = null }, 215);
         renderer.Measure(new Size(215, double.PositiveInfinity));
         var narrowLabels = ReadText(panel).ToArray();
         Check(!narrowLabels.Contains("Encaja con tu campeón") && narrowLabels.Contains("Esperando confirmar rivales.") &&
             narrowLabels.Contains("45% físico") && narrowLabels.Contains("55% mágico") &&
-            renderer.DesiredSize.Width <= 215 && panel.Children.OfType<Border>().Count() == 6,
+            renderer.DesiredSize.Width <= 215 && panel.Children.OfType<Border>().Count() == 4,
             "la vista estrecha permite ver el daño del lobby mientras se confirman los rivales");
 
         renderer.Render(view with { Mode = Mode.Caos, Source = null });
@@ -67,14 +68,14 @@ internal static class ArenaBuildOverlayTests
         renderer.Render(view with { Plan = full, Source = null }, 215);
         renderer.Measure(new Size(215, double.PositiveInfinity));
         var fullLabels = ReadText(panel).ToArray();
-        Check(fullLabels.Skip(1).Take(3).SequenceEqual(["Build completa", "Conserva tus objetos por ahora.", "Equipados · 6 de 6"]) &&
-            !fullLabels.Contains("Siguiente compra") && renderer.DesiredSize.Width == 215,
+        Check(fullLabels.Skip(1).First() == "Build completa" && fullLabels.Contains("Daño rival estimado") &&
+            !fullLabels.Contains("El mejor") && renderer.DesiredSize.Width == 215,
             "Arena aconseja conservar el inventario lleno cuando no hay un cambio, también en el panel estrecho");
         var swap = new BuildSwap(full.Steps[^1].Item, new(223156, "Fauces de Malmortius"), "Contra el daño mágico de Brand");
         renderer.Render(view with { Plan = full with { Swap = swap }, Source = null }, 215);
         Check(ReadText(panel.Children[1]).SequenceEqual(
             ["Cambio sugerido", "Sale", "Presagio de Randuin", "Entra", "Fauces de Malmortius", "Contra el daño mágico de Brand"]) &&
-            ReadText(panel).Contains("Equipados · 6 de 6"),
+            !ReadText(panel).Contains("Build completa") && ReadText(panel).Contains("Daño rival estimado"),
             "el cambio muestra los dos objetos y el motivo sin alterar el inventario equipado");
         renderer.Render(view with { Champion = null });
         Check(ReadText(panel).SequenceEqual(["Recomendaciones de objetos", "No se reconoció tu campeón."]),
@@ -83,7 +84,7 @@ internal static class ArenaBuildOverlayTests
         if (previous is not null)
         {
             renderer.Render(view with { Source = new(build with { SourcePatch = previous }, "Prueba") });
-            Check(ReadText(panel).Contains($"OP.GG · Parche anterior {LeaguePatch.Public(previous)}"),
+            Check(ReadText(panel).Contains($"Build de OP.GG · Parche anterior {LeaguePatch.Public(previous)}"),
                 "se conserva el aviso solo para recomendaciones de un parche anterior");
         }
         CheckResizeAndRefresh(view);
@@ -92,7 +93,7 @@ internal static class ArenaBuildOverlayTests
 
     private static void CheckResizeAndRefresh(BuildDisplay view)
     {
-        var overlay = new BuildOverlay { Left = -30000, Top = -30000 };
+        var overlay = new BuildOverlay(saveSize: _ => true) { Left = -30000, Top = -30000 };
         try
         {
             view = view with { Bounds = new Int32Rect(-30000, -30000, 2560, 1440), Shop = new Int32Rect(420, 220, 1100, 810) };
@@ -108,14 +109,12 @@ internal static class ArenaBuildOverlayTests
                 !labels.Contains("45% físico"), "los cambios del lobby refrescan la barra sin modificar la de rivales");
 
             var foreground = Native.GetForegroundWindow();
-            var targetDpi = foreground == 0 ? 0 : Native.GetDpiForWindow(foreground);
-            var dpi = targetDpi == 0 ? VisualTreeHelper.GetDpi(overlay).DpiScaleX : targetDpi / 96.0;
+            var dpi = VisualTreeHelper.GetDpi(overlay).DpiScaleX;
             int Pixels(int dips) => (int)Math.Round(dips * dpi);
             var compactView = view with
             {
                 Bounds = new Int32Rect(-30000, -30000, Pixels(1280), Pixels(1080)),
-                Shop = new Int32Rect(Pixels(100), Pixels(150), Pixels(1080), Pixels(760)),
-                Target = foreground
+                Shop = new Int32Rect(Pixels(100), Pixels(150), Pixels(1080), Pixels(760))
             };
             overlay.SetSize(100);
             overlay.Render(compactView);
@@ -124,6 +123,9 @@ internal static class ArenaBuildOverlayTests
             var gripWindow = new WindowInteropHelper(grip).Handle;
             var initial = Native.Bounds(window);
             var input = Native.Bounds(gripWindow);
+            var sizeControl = overlay.OwnedWindows.OfType<BuildSizeButton>().Single();
+            var sizeWindow = new WindowInteropHelper(sizeControl).Handle;
+            var sizeStart = Native.Bounds(sizeWindow);
             Check(grip.IsVisible && (Native.GetWindowLongW(gripWindow, -20) & 0x08000020) == 0x08000000 &&
                 (Native.GetWindowLongW(window, -20) & 0x08000020) == 0x08000020 &&
                 input.X >= initial.X && input.X + input.Width <= initial.X + initial.Width &&
@@ -133,13 +135,25 @@ internal static class ArenaBuildOverlayTests
             var start = new Point(input.X + input.Width / 2, input.Y + input.Height / 2);
             var destination = new Point(compactView.Bounds.X + Pixels(175), compactView.Bounds.Y + Pixels(68));
             overlay.StartDrag(start);
-            overlay.MoveDrag(start + (destination - new Point(initial.X, initial.Y)));
+            var offset = destination - new Point(initial.X, initial.Y);
+            for (int step = 1; step <= 120; step++)
+                overlay.MoveDrag(start + offset * (step / 120.0));
             var moved = Native.Bounds(window);
+            var movedInput = Native.Bounds(gripWindow);
+            var movedSize = Native.Bounds(sizeWindow);
             Check(moved.X == destination.X && moved.Y == destination.Y && moved.Width == initial.Width && moved.Height == initial.Height,
                 $"se arrastra el panel de Arena a {destination} conservando su tamaño · antes {initial} · después {moved}");
-            overlay.Render(compactView with { LobbyDamage = new(58) });
+            Check(movedInput == input with { X = input.X + (int)offset.X, Y = input.Y + (int)offset.Y } &&
+                movedSize == sizeStart with { X = sizeStart.X + (int)offset.X, Y = sizeStart.Y + (int)offset.Y },
+                "la cabecera y el control de tamaño se trasladan junto al panel");
+            overlay.Render(compactView with { LobbyDamage = new(54) });
+            var shiftedShop = compactView.Shop!.Value with { X = compactView.Shop.Value.X + 1 };
+            overlay.Render(compactView with { Shop = shiftedShop, LobbyDamage = new(58) });
+            Check(Native.Bounds(window) == moved && ReadText(panel).Contains("45% físico"),
+                "el movimiento usa la superficie que ya está dibujada hasta soltar");
+            overlay.StopDrag(refresh: true);
             Check(Native.Bounds(window).X == moved.X && Native.Bounds(window).Y == moved.Y && ReadText(panel).Contains("58% físico"),
-                "las recomendaciones se actualizan en el mismo punto tras arrastrar");
+                "se aplica la actualización más reciente en el mismo punto al soltar");
             overlay.Render(null);
             Check(!grip.IsVisible, "cerrar la tienda oculta también la zona de arrastre");
             overlay.Render(compactView);
@@ -147,12 +161,17 @@ internal static class ArenaBuildOverlayTests
 
             overlay.Render(compactView with { Mode = Mode.Caos });
             var mayhem = Native.Bounds(window);
+            var disclosureWindow = new WindowInteropHelper(overlay.MayhemDisclosure!).Handle;
+            var disclosure = Native.Bounds(disclosureWindow);
             overlay.StartDrag(new Point(mayhem.X + 20, mayhem.Y + 20));
             overlay.MoveDrag(new Point(compactView.Bounds.X - 200, compactView.Bounds.Y - 200));
             var clamped = Native.Bounds(window);
             Check(clamped.X >= compactView.Bounds.X && clamped.X < mayhem.X &&
                 clamped.Y >= compactView.Bounds.Y && clamped.Y <= mayhem.Y && clamped.Width == mayhem.Width,
                 "en ARAM Caos también se puede mover el panel y se queda dentro del cliente");
+            Check(Native.Bounds(disclosureWindow) == disclosure with
+                { X = disclosure.X + clamped.X - mayhem.X, Y = disclosure.Y + clamped.Y - mayhem.Y },
+                "el control de minimizar sigue el panel de ARAM Caos durante el arrastre");
             overlay.Render(compactView with { Mode = Mode.Caos, Shop = null });
             Check(!grip.IsVisible && overlay.IsVisible, "el atajo sin tienda muestra la build sin la zona de arrastre");
         }

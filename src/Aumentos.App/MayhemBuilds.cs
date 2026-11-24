@@ -39,7 +39,7 @@ internal sealed class MayhemBuilds
 
     private const Style Attackers = Style.Crit | Style.OnHit;
     private const Style Physical = Style.Fighter | Style.Lethality | Attackers;
-    private const string PublishedCore = "Núcleo de OP.GG";
+    internal const string PublishedCore = "Núcleo de OP.GG";
     private const int LeadingRivalPriority = int.MaxValue;
     private const double MinimumMagicDamageGain = 0.15;
     private const double VoidStaffResistanceMultiplier = 0.60;

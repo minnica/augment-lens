@@ -286,7 +286,7 @@ internal abstract class ChampionRankingOverlay : Window
             text.Children.Add(Note($"{partial.Members}/{partial.TeamSize} campeones", MayhemTierStyle.Muted));
         if (grade?.Detail is { } detail)
             text.Children.Add(Note(detail, MayhemTierStyle.Muted));
-        var summary = TierRow(text, grade is null ? null : TierHexagon.Create(grade.Tier, 28, 31, 18));
+        var summary = TierRow(text, grade is null ? null : MayhemTierStyle.SelectionBadge(grade.Tier, 28, 31));
         FrameworkElement content = summary;
         if (view.Roster is { Length: > 0 } roster)
         {
@@ -410,8 +410,8 @@ internal abstract class ChampionRankingOverlay : Window
     }
 
     private Border ChampionTier(string champion, string? tier, bool compact = false) =>
-        MayhemTierStyle.ChampionBadge(tier, champion, compact ? 15 : 19, compact ? 16 : 21,
-            compact ? 10 : 12, mayhem ? "OP.GG" : "GGEZ.GG");
+        MayhemTierStyle.ChampionBadge(tier, champion, compact ? 17 : 21, compact ? 18 : 22,
+            mayhem ? "OP.GG" : "GGEZ.GG");
 
     private static void AddRowBackground(Grid grid, int row, bool selected)
     {

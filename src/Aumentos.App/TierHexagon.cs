@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 
 namespace Aumentos;
@@ -14,7 +16,8 @@ internal static class TierHexagon
     private static readonly (Brush Ink, Brush Plate) Coral = Palette("#F4A096", "#291419");
     private static readonly (Brush Ink, Brush Plate) Muted = Palette("#AFA69B", "#131B23");
 
-    internal static Border Create(string? tier, double width, double height, double fontSize)
+    internal static Border Create(string? tier, double width, double height, double fontSize, int? position = null,
+        bool centerGlyph = false)
     {
         var (ink, plate) = Colors(tier);
         var badge = new Border { Width = width, Height = height };
@@ -26,13 +29,35 @@ internal static class TierHexagon
             brush.Freeze();
             badge.Background = brush;
         }
-        badge.Child = new TextBlock
+        var letter = new TextBlock
         {
             Text = tier ?? "—", Foreground = ink, FontFamily = MayhemTierStyle.Body, FontSize = fontSize,
             FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center
         };
+        if (position is { } rank)
+        {
+            letter.Inlines.Add(new Run($"#{rank}") { FontSize = fontSize * .58, BaselineAlignment = BaselineAlignment.Superscript });
+        }
+        else if (centerGlyph)
+        {
+            CenterGlyph(letter, ink);
+        }
+        badge.Child = letter;
         return badge;
+    }
+
+    private static void CenterGlyph(TextBlock letter, Brush ink)
+    {
+        // Center the visible letter instead of the line box, which includes room for descenders.
+        TextOptions.SetTextFormattingMode(letter, TextFormattingMode.Ideal);
+        var typeface = new Typeface(letter.FontFamily, letter.FontStyle, letter.FontWeight, letter.FontStretch);
+        var text = new FormattedText(letter.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            typeface, letter.FontSize, ink, VisualTreeHelper.GetDpi(letter).PixelsPerDip);
+        var bounds = text.BuildGeometry(new Point()).Bounds;
+        if (!bounds.IsEmpty)
+            letter.RenderTransform = new TranslateTransform((text.Width - bounds.Width) / 2 - bounds.X,
+                (text.Height - bounds.Height) / 2 - bounds.Y);
     }
 
     private static (Brush Ink, Brush Plate) Colors(string? tier) => tier switch

@@ -16,7 +16,7 @@ internal static class ArenaItemTierSizeTests
     {
         var folder = Directory.CreateTempSubdirectory("aumentos-item-size");
         var path = Path.Combine(folder.FullName, "item-tier-size.json");
-        var preference = new BuildSizePreference(path);
+        var preference = new BuildSizePreference(path, Overlay.TierSizeMaximum);
         var overlay = new Overlay(preference.Save);
         foreach (var window in overlay.Windows)
         {
@@ -29,20 +29,42 @@ internal static class ArenaItemTierSizeTests
             var bounds = new Int32Rect(-30000, -30000, 2560, 1440);
             var layout = new Calibration(bounds.Width, bounds.Height, new Region(.45, .76, .1, .04),
                 [new Region(.21, .386, .19, .04), new Region(.405, .386, .19, .04), new Region(.60, .386, .19, .04)], new byte[720]);
-            CardComparison?[] labels =
-            [
-                new("C", ArenaChoice: new("Compañero de Hexproyectil", Tier.C, "Velocidad de ataque")),
-                new("B", ArenaChoice: new("Jitte Kinkou", Tier.B, "Control y daño")),
-                new("A", ArenaChoice: new("Reverberación", Tier.A, "Inmovilizar activa impactos", Recommended: true, TopPosition: 4))
-            ];
             const int edge = 241;
-            var offer = new OverlayUpdate("Arena", bounds, layout, labels, Mode: Mode.Arena, ArenaCardTop: edge);
-            overlay.Render(offer);
-            var unchanged = Position(overlay.Windows[1]);
+            var arenaAugments = new OverlayUpdate("Aumentos de Arena", bounds, layout,
+                [new("A", IsArenaAugment: true), new("C", IsArenaAugment: true), new("B", IsArenaAugment: true)],
+                Mode: Mode.Arena, ArenaCardTop: edge);
+            overlay.Render(arenaAugments);
+            var augmentDefault = Position(overlay.Windows[1]);
+            var arenaFragments = arenaAugments with
+            {
+                Status = "Fragmentos de Arena",
+                Labels =
+                [
+                    new("A", ArenaChoice: new("Penetración de magia", Tier.A, "Mejora el daño mágico", Recommended: true)),
+                    new("B", ArenaChoice: new("Paquete de cuidados", Tier.B, "Recursos adicionales")),
+                    new("B", ArenaChoice: new("Curación", Tier.B, "Refuerza la supervivencia"))
+                ]
+            };
+            overlay.Render(arenaFragments);
+            var fragmentDefault = Position(overlay.Windows[1]);
             var prismatics = new PrismaticDisplay(new([], 0), layout, "26.23");
-            overlay.Render(offer with { ArenaItemOffer = true, Prismatics = prismatics });
+            var itemOffer = arenaAugments with
+            {
+                Status = "Objetos de Arena", ArenaItemOffer = true, Prismatics = prismatics,
+                Labels =
+                [
+                    new("C", ArenaChoice: new("Compañero de Hexproyectil", Tier.C, "Velocidad de ataque")),
+                    new("B", ArenaChoice: new("Jitte Kinkou", Tier.B, "Control y daño")),
+                    new("A", ArenaChoice: new("Reverberación", Tier.A, "Inmovilizar activa impactos", Recommended: true, TopPosition: 4))
+                ]
+            };
+            overlay.Render(itemOffer);
             var initial = Position(overlay.Windows[1]);
-            Check(initial.Width > unchanged.Width && initial.Height > unchanged.Height, "los tiers de objetos tienen un tamaño inicial mayor");
+            int lowerEdge = bounds.Y + edge + (int)Math.Round(bounds.Height * .465);
+            int rerollTop = lowerEdge + (int)(bounds.Height * .037);
+            Check(initial == fragmentDefault && initial == augmentDefault &&
+                Math.Abs(initial.Y + initial.Height / 2.0 - lowerEdge) <= 1,
+                "objetos, fragmentos y aumentos comparten tamaño y posición en el marco inferior de Arena");
 
             var sizeButton = overlay.Windows.SelectMany(window => window.OwnedWindows.OfType<BuildSizeButton>()).Single();
             var titles = layout.Titles.Select(title => title.Pixels(bounds.Width, bounds.Height)).ToArray();
@@ -63,15 +85,15 @@ internal static class ArenaItemTierSizeTests
                 "el arrastre redimensiona en partida y guarda el valor sin mover el control");
             slider.Value = BuildSizePreference.Minimum;
             var smallest = Position(overlay.Windows[1]);
-            slider.Value = BuildSizePreference.Maximum;
+            slider.Value = Overlay.TierSizeMaximum;
             var largest = Position(overlay.Windows[1]);
-            var center = bounds.Y + edge;
-            Check(smallest.Width < initial.Width && largest.Width > initial.Width &&
-                Math.Abs(largest.Y + largest.Height / 2.0 - center) <= 1 &&
-                largest.Y >= bounds.Y + (int)(bounds.Height * .09),
-                "el deslizamiento cambia los distintivos en pantalla y mantiene su centro y el reloj");
-            Check(preference.Load() == BuildSizePreference.Maximum && overlay.TierSizePercent == BuildSizePreference.Maximum &&
-                ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "150 %" &&
+            Check(smallest.Width < initial.Width && largest.Width > initial.Width * 2 &&
+                largest.Y < initial.Y && largest.Y >= bounds.Y + titles[1].Y + titles[1].Height &&
+                largest.Y + largest.Height <= rerollTop &&
+                Math.Abs(largest.X + largest.Width / 2.0 - (bounds.X + titles[1].X + titles[1].Width / 2)) <= 1,
+                "el tamaño máximo de los tiers de objetos crece hacia arriba y deja libre el botón de cambio");
+            Check(preference.Load() == Overlay.TierSizeMaximum && overlay.TierSizePercent == Overlay.TierSizeMaximum &&
+                ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "300 %" &&
                 Position(sizeButton) == editorPosition, "el ajuste visible y la preferencia reflejan el porcentaje");
             slider.Value = BuildSizePreference.Default;
             Check(preference.Load() == BuildSizePreference.Default && Position(overlay.Windows[1]) == initial,
@@ -84,11 +106,11 @@ internal static class ArenaItemTierSizeTests
 
             slider = OpenEditor(sizeButton, 100);
             slider.Value = BuildSizePreference.Maximum;
-            overlay.Render(offer);
-            Check(Position(overlay.Windows[1]).Width > unchanged.Width && sizeButton.IsVisible && sizeButton.Content is Button,
+            overlay.Render(arenaAugments);
+            Check(Position(overlay.Windows[1]).Width > augmentDefault.Width && sizeButton.IsVisible && sizeButton.Content is Button,
                 "el mismo ajuste escala aumentos de Arena y cierra el editor de una oferta anterior");
             OpenEditor(sizeButton, BuildSizePreference.Maximum).Value = BuildSizePreference.Default;
-            overlay.Render(offer with { ArenaUpgradeHeading = true });
+            overlay.Render(arenaAugments with { ArenaUpgradeHeading = true });
             Check(sizeButton.IsVisible && sizeButton.Content is Button, "el control aparece al presentar mejoras de Arena");
 
             var mayhem = new OverlayUpdate("Aumentos de ARAM Caos", bounds, layout,
@@ -133,8 +155,7 @@ internal static class ArenaItemTierSizeTests
 
             var shiftedLayout = layout with { Titles = layout.Titles.Select(title => title with { X = title.X - .09 }).ToArray() };
             var rightPrismatics = prismatics with { Layout = shiftedLayout };
-            overlay.Render(offer with { Bounds = compact, Layout = shiftedLayout, ArenaCardTop = 120,
-                ArenaItemOffer = true, Prismatics = rightPrismatics });
+            overlay.Render(itemOffer with { Bounds = compact, Layout = shiftedLayout, ArenaCardTop = 120, Prismatics = rightPrismatics });
             var topPanel = new BuildOverlay(savePrismaticSize: _ => true) { Left = -30000, Top = -30000 };
             try
             {
@@ -149,9 +170,36 @@ internal static class ArenaItemTierSizeTests
             }
             finally { topPanel.Close(); }
 
+            var normal = new Int32Rect(bounds.X, bounds.Y, 1600, 900);
+            var mayhemFragments = mayhem with { Status = "Fragmentos de ARAM Caos", Labels = arenaFragments.Labels };
+            foreach (var viewport in new[] { compact, normal, bounds })
+            foreach (var offer in new[] { mayhem, mayhemFragments, arenaAugments, arenaFragments, itemOffer })
+            {
+                var fixture = layout with { Width = viewport.Width, Height = viewport.Height };
+                int cardTop = (int)Math.Round(viewport.Height * .167);
+                var scaledOffer = offer with { Bounds = viewport, Layout = fixture, ArenaCardTop = cardTop };
+                overlay.Hide();
+                overlay.SetTierSize(BuildSizePreference.Maximum);
+                overlay.Render(scaledOffer);
+                var formerMaximum = Position(overlay.Windows[1]);
+                slider = OpenEditor(sizeButton, BuildSizePreference.Maximum);
+                slider.Value = Overlay.TierSizeMaximum;
+                var newMaximum = Position(overlay.Windows[1]);
+                var title = fixture.Titles[1].Pixels(viewport.Width, viewport.Height);
+                int theoreticalTop = offer.Mode == Mode.Arena ? cardTop : title.Y - (int)Math.Round(viewport.Height * .213);
+                int viewportRerollTop = viewport.Y + theoreticalTop + (int)Math.Round(viewport.Height * .465) + (int)(viewport.Height * .037);
+                Check(newMaximum.Width > formerMaximum.Width * 1.6 && newMaximum.Height > formerMaximum.Height * 1.6 &&
+                    Math.Abs(newMaximum.X + newMaximum.Width / 2.0 - (viewport.X + title.X + title.Width / 2)) <= 1 &&
+                    newMaximum.Y >= viewport.Y + title.Y + title.Height && newMaximum.Y + newMaximum.Height <= viewportRerollTop,
+                    $"el nuevo máximo agranda los hexágonos de {offer.Status} a {viewport.Width}×{viewport.Height} y libera los botones");
+                Check(preference.Load() == Overlay.TierSizeMaximum &&
+                    ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "300 %",
+                    "el nuevo máximo se muestra y se guarda");
+            }
+
             overlay.Hide();
             Check(!overlay.IsVisible && !sizeButton.IsVisible && sizeButton.Content is Button &&
-                preference.Load() == BuildSizePreference.Maximum, "al cerrar la oferta desaparece el control y se conserva la escala");
+                preference.Load() == Overlay.TierSizeMaximum, "al cerrar la oferta desaparece el control y se conserva la escala");
 
             bool RightAligned(Int32Rect area, Int32Rect control) => control.X + control.Width == area.X + area.Width -
                 (int)Math.Round(14 * VisualTreeHelper.GetDpi(overlay.Windows[0]).DpiScaleX);
@@ -173,7 +221,7 @@ internal static class ArenaItemTierSizeTests
         ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)).Invoke();
         Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
         var slider = ((BuildScaleEditor)sizeButton.Content).FindName("SizeSlider") as Slider;
-        Check(slider is { Minimum: 75, Maximum: 150 } && slider.Value == percent,
+        Check(slider is { Minimum: BuildSizePreference.Minimum, Maximum: Overlay.TierSizeMaximum } && slider.Value == percent,
             "Tiers abre el ajuste en partida y recupera la escala guardada");
         return slider!;
     }

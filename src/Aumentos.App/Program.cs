@@ -166,7 +166,7 @@ internal static class Program
                     diagnostics.Hide();
                 }
             };
-            var tierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"));
+            var tierSizePreference = new BuildSizePreference(Path.Combine(settings, "item-tier-size.json"), Overlay.TierSizeMaximum);
             var overlay = new Overlay(tierSizePreference.Save);
             overlay.SetTierSize(tierSizePreference.Load());
             BuildSizeWindow? tierSizeWindow = null;
@@ -196,7 +196,7 @@ internal static class Program
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, ggezGlobal, aramHex,
-                builds, assets, app.Dispatcher, state =>
+                builds, new ShopItemStats(ratings.Catalog.Patch, settings, http), assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 arenaVoteOverlay.Render(state.ArenaVote);
@@ -255,9 +255,6 @@ internal static class Program
             references.DropDownItems.Add("Wasfun · ARAM Caos", null, (_, _) =>
                 OpenProviderPage("https://wasfun.lol/es", "Wasfun"));
             menu.Items.Add(references);
-            var cardDetails = new Forms.ToolStripMenuItem("Detalles de las cartas") { CheckOnClick = true };
-            cardDetails.CheckedChanged += (_, _) => overlay.ShowDetails = cardDetails.Checked;
-            menu.Items.Add(cardDetails);
             menu.Items.Add($"{Overlay.TierSizeTitle}…", null, (_, _) => OpenTierSize());
             menu.Items.Add($"{BuildOverlay.PrismaticSizeTitle}…", null, (_, _) => OpenPrismaticSize());
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());

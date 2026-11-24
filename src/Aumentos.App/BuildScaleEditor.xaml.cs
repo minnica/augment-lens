@@ -9,10 +9,9 @@ namespace Aumentos;
 internal sealed partial class BuildScaleEditor : UserControl
 {
     private const string SaveError = "Se aplicó el tamaño. Cambia el valor para intentar guardarlo de nuevo.";
-    private const string ScaleHint = "Escala del panel · 75 % a 150 %";
     internal static readonly TimeSpan PointerExitDelay = TimeSpan.FromMilliseconds(350);
 
-    internal BuildScaleEditor(int percent, Func<int, bool> apply, Action close)
+    internal BuildScaleEditor(int percent, Func<int, bool> apply, Action close, int maximum)
     {
         InitializeComponent();
         Frame.Background = OverlayPanelStyle.Surface;
@@ -20,9 +19,10 @@ internal sealed partial class BuildScaleEditor : UserControl
         PercentText.Foreground = OverlayPanelStyle.Ink;
         SaveStatus.Foreground = OverlayPanelStyle.Gold;
         SizeSlider.Minimum = BuildSizePreference.Minimum;
-        SizeSlider.Maximum = BuildSizePreference.Maximum;
+        SizeSlider.Maximum = maximum;
         SizeSlider.Value = percent;
-        SizeSlider.ToolTip = ScaleHint;
+        string scaleHint = $"Escala del panel · {BuildSizePreference.Minimum} % a {maximum} %";
+        SizeSlider.ToolTip = scaleHint;
         PercentText.Text = $"{SizeSlider.Value:0} %";
 
         SizeSlider.ValueChanged += (_, args) =>
@@ -31,7 +31,7 @@ internal sealed partial class BuildScaleEditor : UserControl
             PercentText.Text = $"{current} %";
             bool saved = apply(current);
             SaveStatus.Visibility = saved ? Visibility.Collapsed : Visibility.Visible;
-            SizeSlider.ToolTip = saved ? ScaleHint : SaveError;
+            SizeSlider.ToolTip = saved ? scaleHint : SaveError;
             AutomationProperties.SetHelpText(SizeSlider, saved ? string.Empty : SaveError);
         };
         var dismiss = new DispatcherTimer { Interval = PointerExitDelay };

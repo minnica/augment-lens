@@ -111,7 +111,7 @@ internal sealed class SpellOverlay : Window
         var header = new DockPanel();
         if (view.Tier is { } tier)
         {
-            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 27, 30, 17);
+            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 27, 30);
             badge.Margin = new Thickness(6, 0, 0, 0);
             badge.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(badge, Dock.Right);

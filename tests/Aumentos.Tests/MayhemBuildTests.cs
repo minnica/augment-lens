@@ -201,7 +201,7 @@ internal static class MayhemBuildTests
             EnemyDamage: new(50)));
         var content = (StackPanel)panel.Child;
         var labels = content.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-        Check(labels.Contains("Ruta local · Según tu partida") && labels.Contains("Equipados · 3 de 6") &&
+        Check(labels.Contains("Ruta local · Según tu partida") && labels.Contains("Tercer objeto") &&
             labels.Contains("Daño rival estimado") && !labels.Any(text => text.Contains("(500)")) &&
             content.Children.OfType<Border>().Any(),
             "la tienda muestra una compra destacada, los objetos equipados y el daño ante el error 500");

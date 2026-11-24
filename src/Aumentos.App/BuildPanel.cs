@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -25,9 +26,9 @@ internal sealed class BuildPanel : Border
     private static readonly Brush PurchaseBorder = Overlay.Paint("#927951");
     private static readonly Brush Divider = OverlayPanelStyle.Divider;
     private static readonly Brush ItemSurface = Overlay.Paint("#172E39");
-    private static readonly Brush RowSurface = Overlay.Paint("#192F3A");
     private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
     private static readonly Brush MagicDamage = Overlay.Paint("#B9A7FA");
+    private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-MX");
 
     private readonly StackPanel content = new();
     private readonly TextBlock shopTitle = new() { FontSize = 15, FontFamily = OverlayPanelStyle.Heading,
@@ -60,7 +61,8 @@ internal sealed class BuildPanel : Border
     {
         content.Children.Clear();
         AddShopHeader(null);
-        AddPurchase(new(6653, "El Tormento de Liandry"), patch, 1);
+        AddLine("Primer objeto", 13, Accent, bold: true);
+        AddPurchase(new(new(6653, "El Tormento de Liandry")), patch, null, best: true);
     }
 
     internal void Render(BuildDisplay view, double layoutWidth = ShopWidth)
@@ -85,21 +87,7 @@ internal sealed class BuildPanel : Border
         }
 
         var build = view.Source?.Data;
-        if (view.Plan is { } plan)
-        {
-            if (plan.IsLocalRoute)
-                AddLine("Ruta local · Según tu partida", 12, Accent, bold: true);
-            AddPurchaseRoute(plan, view.ClientPatch ?? build?.ClientPatch ?? "");
-        }
-
-        if (build is { Groups.Length: > 0 })
-            AddSourceBuild(view, build);
-        else if (view.Plan is null)
-        {
-            var status = build is null ? view.Source?.Status ?? "No hay una build disponible."
-                : "OP.GG no tiene recomendaciones de objetos disponibles.";
-            AddLine(status, 14, Brushes.WhiteSmoke);
-        }
+        AddShopRecommendations(view, view.ClientPatch ?? build?.ClientPatch ?? "");
 
         if (view.Plan is not null || view.EnemyDamage is not null || build is { Groups.Length: > 0 })
             AddEnemyDamage(view);
@@ -107,64 +95,87 @@ internal sealed class BuildPanel : Border
             AddLobbyDamage(view.LobbyDamage);
     }
 
-    private void AddSourceBuild(BuildDisplay view, OpGgBuildSnapshot build)
+    private void AddShopRecommendations(BuildDisplay view, string patch)
     {
-        bool localArena = view.Plan is not null && view.Mode == Mode.Arena;
-        var owned = view.Plan?.Steps.Where(step => step.Owned).Select(step => MayhemBuilds.BaseId(step.Item.Id)).ToArray();
-        var groups = build.Groups.Where(group => localArena ? group.Section == OpGgBuildSection.Prismatic :
-            group.Section switch
-            {
-                OpGgBuildSection.Start => !view.HideStartingItems,
-                OpGgBuildSection.Core => owned is null || (owned.Length < 6 &&
-                    group.Choices.ElementAtOrDefault(1)?.Any(item => !owned.Contains(MayhemBuilds.BaseId(item.Id))) == true),
-                _ => true
-            }).ToArray();
-        if (groups.Length == 0 && !build.IsPrevious)
-            return;
-
-        AddDivider();
-        if (build.IsPrevious)
-            AddLine($"OP.GG · Parche anterior {LeaguePatch.Public(build.SourcePatch)}", 12, PreviousPatch);
-
-        if (localArena)
+        var build = view.Source?.Data;
+        var steps = view.Plan?.Steps ?? [];
+        var owned = steps.Where(step => step.Owned).ToArray();
+        if (owned.Length >= 6)
         {
-            if (groups.FirstOrDefault() is { } prismatics)
+            if (view.Plan?.Swap is { } swap)
             {
-                AddSourceLabel("Objetos prismáticos");
-                AddItems(prismatics.Choices.SelectMany(choice => choice).DistinctBy(item => item.Id).Take(3).ToArray(),
-                    build.SourcePatch, ordered: false);
+                AddSwap(swap, patch, view.ItemRates);
+                if (view.ItemRates?.Items.ContainsKey(swap.Incoming.Id) == true)
+                    AddStatsSource(view, patch);
             }
+            else
+                AddBuildComplete();
             return;
         }
 
-        foreach (var group in groups)
-        {
-            if (group.Section == OpGgBuildSection.Core && view.Plan is not null)
-            {
-                if (group.Choices.ElementAtOrDefault(1) is { } alternative)
-                {
-                    AddSourceLabel("Ruta alternativa · OP.GG");
-                    AddItems(alternative, build.SourcePatch, ordered: true);
-                }
-                continue;
-            }
-            AddSourceLabel(group.Section == OpGgBuildSection.Core ? "Orden de compra" : SectionLabel(group.Section));
-            if ((group.Section is OpGgBuildSection.Boots or OpGgBuildSection.Prismatic) &&
-                group.Choices.All(choice => choice.Length == 1))
-            {
-                AddItems(group.Choices.Select(choice => choice[0]).ToArray(), build.SourcePatch, ordered: false);
-                continue;
-            }
-            foreach (var (choice, index) in group.Choices.Take(2).Select((items, index) => (items, index)))
-            {
-                if (index == 1)
-                    AddLine("Alternativa", 13, Muted, top: 6);
-                AddItems(choice, build.SourcePatch, ordered: group.Section == OpGgBuildSection.Core);
-            }
-        }
+        if (view.Plan?.IsLocalRoute == true)
+            AddLine("Ruta local · Según tu partida", 12, Accent, bold: true);
 
-        void AddSourceLabel(string label) =>
-            AddLine(label, 13, Accent, bold: true, top: content.Children.Count == 0 || content.Children[^1] is Rectangle ? 0 : 8);
+        var pending = steps.Where(step => !step.Owned).ToArray();
+        var core = Choices(OpGgBuildSection.Core);
+        var alternatives = core.Select(choice => choice.FirstOrDefault(item => !Owned(item) && !OpGgBuildPage.IsBoot(item.Id)))
+            .OfType<OpGgBuildItem>().Select(item => new BuildStep(item));
+        var purchases = pending.Length > 0 ? pending.Where(step => !OpGgBuildPage.IsBoot(step.Item.Id))
+            : alternatives.Concat(core.SelectMany(choice => choice).Select(item => new BuildStep(item)));
+        var next = purchases.Where(step => !Owned(step.Item) && !OpGgBuildPage.IsBoot(step.Item.Id))
+            .DistinctBy(step => ItemFamily(step.Item.Id)).Take(3).ToArray();
+        var boots = owned.Any(step => OpGgBuildPage.IsBoot(step.Item.Id)) ? [] :
+            pending.Where(step => OpGgBuildPage.IsBoot(step.Item.Id))
+                .Concat(Choices(OpGgBuildSection.Boots).SelectMany(choice => choice).Select(item => new BuildStep(item)))
+                .DistinctBy(step => ItemFamily(step.Item.Id)).Take(2).ToArray();
+        var starters = view.HideStartingItems ? [] : Choices(OpGgBuildSection.Start).FirstOrDefault() ?? [];
+        var prismatics = Choices(OpGgBuildSection.Prismatic).SelectMany(choice => choice)
+            .Where(item => !Owned(item)).DistinctBy(item => item.Id).Take(2).ToArray();
+
+        if (starters.Length > 0)
+            AddSection("Objetos iniciales", starters.Select(item => new BuildStep(item)));
+        if (next.Length > 0)
+            AddSection(PurchaseStage(owned.Count(step => !OpGgBuildPage.IsBoot(step.Item.Id))), next, highlight: true);
+        if (boots.Length > 0)
+            AddSection("Botas", boots, highlight: next.Length == 0);
+        if (prismatics.Length > 0)
+            AddSection("Objetos prismáticos", prismatics.Select(item => new BuildStep(item)));
+        if (next.Length == 0 && boots.Length == 0 && starters.Length == 0 && prismatics.Length == 0)
+        {
+            var status = build is null ? view.Source?.Status ?? "No hay una build disponible."
+                : "OP.GG no tiene recomendaciones de objetos disponibles.";
+            AddLine(status, 14, Brushes.WhiteSmoke);
+        }
+        if (build?.IsPrevious == true)
+            AddLine($"Build de OP.GG · Parche anterior {LeaguePatch.Public(build.SourcePatch)}", 11, PreviousPatch, top: 6);
+        if (view.ItemRates is { } rates && next.Concat(boots).Select(step => step.Item).Concat(starters).Concat(prismatics)
+            .Any(item => rates.Items.ContainsKey(item.Id)))
+            AddStatsSource(view, patch);
+
+        OpGgBuildItem[][] Choices(OpGgBuildSection section) => build?.Groups.FirstOrDefault(group => group.Section == section)?.Choices ?? [];
+        bool Owned(OpGgBuildItem item) => owned.Any(step => ItemFamily(step.Item.Id) == ItemFamily(item.Id));
+        void AddSection(string title, IEnumerable<BuildStep> choices, bool highlight = false)
+        {
+            AddLine(title, 13, Accent, bold: true, top: content.Children.Count == 1 ? 0 : 8);
+            foreach (var (step, index) in choices.Select((step, index) => (step, index)))
+                AddPurchase(step, patch, view.ItemRates, best: highlight && index == 0);
+        }
+    }
+
+    private static int ItemFamily(int id) => id < 220000 ? MayhemBuilds.BaseId(id) : id;
+
+    private static string PurchaseStage(int count) => count switch
+    {
+        0 => "Primer objeto", 1 => "Segundo objeto", 2 => "Tercer objeto", 3 => "Cuarto objeto",
+        4 => "Quinto objeto", _ => "Sexto objeto"
+    };
+
+    private void AddStatsSource(BuildDisplay view, string patch)
+    {
+        var source = view.Mode == Mode.Caos ? "HexMayhem · Global de ARAM Caos" : "OP.GG · Arena";
+        var version = view.ItemRates!.Patch;
+        AddLine($"{source} · {(version == patch ? "" : "Parche anterior ")}{LeaguePatch.Public(version)}",
+            11, version == patch ? Muted : PreviousPatch, top: 7);
     }
 
     private Grid CreateShopHeader()
@@ -245,47 +256,34 @@ internal sealed class BuildPanel : Border
         content.Children.Add(distribution);
     }
 
-    private void AddPurchaseRoute(MayhemBuildPlan plan, string patch)
+    private void AddBuildComplete()
     {
-        var byPurchase = plan.Steps.ToLookup(step => step.Owned);
-        var purchased = byPurchase[true].ToArray();
-        var pending = byPurchase[false].ToArray();
-        if (pending.Length > 0)
+        var complete = new StackPanel { Margin = new Thickness(0, 8, 0, 8) };
+        complete.Children.Add(new Path
         {
-            var reason = pending[0].Detail;
-            AddPurchase(pending[0].Item, patch, 1, reason is ArenaBuilds.ChampionFit or ArenaBuilds.PublishedPick ? null : reason);
-            if (pending.Length > 1)
-                AddLine("Después", 14, Brushes.WhiteSmoke, bold: true, top: 10);
-            for (int index = 1; index < pending.Length; index++)
-                AddPurchase(pending[index].Item, patch, index + 1);
-        }
-        else if (purchased.Length == 6)
+            Data = Geometry.Parse("M 1,6 L 5,10 13,2"), Stroke = PurchaseAccent, StrokeThickness = 1.6,
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        complete.Children.Add(new TextBlock
         {
-            if (plan.Swap is { } swap)
-                AddSwap(swap, patch);
-            else
-            {
-                AddLine("Build completa", 17, PurchaseAccent, bold: true);
-                AddLine("Conserva tus objetos por ahora.", 13, Muted, top: 3);
-            }
-        }
-
-        AddLine($"Equipados · {purchased.Length} de 6", 14, Brushes.WhiteSmoke, bold: true, top: 10);
-        AddItems(purchased.Select(step => step.Item).ToArray(), patch, ordered: false, equipped: true);
+            Text = "Build completa", FontSize = 15, Foreground = PurchaseAccent, FontWeight = FontWeights.SemiBold,
+            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 7, 0, 0)
+        });
+        content.Children.Add(complete);
     }
 
-    private void AddSwap(BuildSwap swap, string patch)
+    private void AddSwap(BuildSwap swap, string patch, ShopItemRates? rates)
     {
         var card = new StackPanel();
         card.Children.Add(new TextBlock { Text = "Cambio sugerido", FontSize = 13,
             Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
         card.Children.Add(SwapItem("Sale", swap.Outgoing));
-        card.Children.Add(SwapItem("Entra", swap.Incoming));
+        card.Children.Add(SwapItem("Entra", swap.Incoming, rates?.Items.GetValueOrDefault(swap.Incoming.Id)));
         card.Children.Add(new TextBlock { Text = swap.Reason, FontSize = 12.5, Foreground = Muted,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
         AddPurchaseCard(card);
 
-        DockPanel SwapItem(string label, OpGgBuildItem item)
+        DockPanel SwapItem(string label, OpGgBuildItem item, ShopItemRate? rate = null)
         {
             var row = new DockPanel { Margin = new Thickness(0, 5, 0, 0) };
             var icon = ItemIcon(item, patch, Compact ? 27 : 31);
@@ -295,43 +293,59 @@ internal sealed class BuildPanel : Border
             text.Children.Add(new TextBlock { Text = label, FontSize = 11, Foreground = Muted });
             text.Children.Add(new TextBlock { Text = item.Name, FontSize = Compact ? 14 : 15,
                 Foreground = Brushes.WhiteSmoke, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+            if (rate is not null)
+                text.Children.Add(RateLine(rate));
             row.Children.Add(text);
             return row;
         }
     }
 
-    private void AddPurchase(OpGgBuildItem item, string patch, int position, string? reason = null)
+    private void AddPurchase(BuildStep step, string patch, ShopItemRates? rates, bool best)
     {
-        bool next = position == 1;
-        double iconSize = next ? (Compact ? 32 : 38) : 23;
-        var row = ItemRow(item, patch, iconSize, next ? null : position);
-
+        var item = step.Item;
+        var row = new DockPanel();
+        var icon = ItemIcon(item, patch, Compact ? 25 : 29);
+        icon.Margin = new Thickness(0, 0, 8, 0);
+        row.Children.Add(icon);
+        if (best)
+        {
+            var mark = new TextBlock
+            {
+                Text = "El mejor", Foreground = PurchaseAccent, FontSize = 10, FontWeight = FontWeights.Bold,
+                Margin = new Thickness(8, 1, 0, 0), VerticalAlignment = VerticalAlignment.Top
+            };
+            DockPanel.SetDock(mark, Dock.Right);
+            row.Children.Add(mark);
+        }
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        if (next)
-            text.Children.Add(new TextBlock { Text = "Siguiente compra", FontSize = 13,
-                Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
-        double nameSize = next ? (Compact ? 16 : 18) : 13;
-        text.Children.Add(new TextBlock { Text = item.Name, FontSize = nameSize, Foreground = Brushes.WhiteSmoke,
+        text.Children.Add(new TextBlock { Text = item.Name, FontSize = 13, Foreground = Brushes.WhiteSmoke,
             FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
-        if (reason is not null)
-            text.Children.Add(new TextBlock { Text = reason, FontSize = 12.5, Foreground = Muted,
-                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+        if (rates?.Items.GetValueOrDefault(item.Id) is { } rate)
+            text.Children.Add(RateLine(rate));
+        if (step.Detail is { } reason && reason is not (ArenaBuilds.ChampionFit or ArenaBuilds.PublishedPick or MayhemBuilds.PublishedCore or "Botas de OP.GG"))
+            text.Children.Add(new TextBlock { Text = reason, FontSize = 11, Foreground = Muted,
+                TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         row.Children.Add(text);
+        AddItemRow(row, best);
+    }
 
-        if (next)
-            AddPurchaseCard(row);
-        else
-            AddItemCard(row);
+    private static WrapPanel RateLine(ShopItemRate rates)
+    {
+        var line = new WrapPanel { Margin = new Thickness(0, 1, 0, 0) };
+        line.Children.Add(new TextBlock { Text = $"{rates.PickPercent.ToString("0.##", Spanish)} % elección",
+            Foreground = PurchaseAccent, FontSize = 11, Margin = new Thickness(0, 0, 8, 0) });
+        line.Children.Add(new TextBlock { Text = $"{rates.WinPercent.ToString("0.##", Spanish)} % victorias",
+            Foreground = Muted, FontSize = 11 });
+        return line;
     }
 
     private void AddPurchaseCard(UIElement child) =>
         content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(Compact ? 6 : 8) });
 
-    private void AddItemCard(UIElement child, bool featured = false) =>
-        content.Children.Add(new Border { Child = child, Background = featured ? PurchaseSurface : RowSurface,
-            BorderBrush = featured ? PurchaseBorder : Divider, BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3), Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(0, 3, 0, 0) });
+    private void AddItemRow(UIElement child, bool featured) =>
+        content.Children.Add(new Border { Child = child, Background = featured ? PurchaseSurface : null,
+            CornerRadius = new CornerRadius(3), Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 4, 0, 0) });
 
     internal void RenderPrismatics(string champion, ArenaPrismaticTop top, string patch)
     {
@@ -368,56 +382,6 @@ internal sealed class BuildPanel : Border
             row.Children.Add(text);
             content.Children.Add(row);
         }
-    }
-
-    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered, bool equipped = false)
-    {
-        if (!equipped || Compact)
-        {
-            for (int i = 0; i < items.Length; i++)
-            {
-                var item = items[i];
-                var row = ItemRow(item, patch, 22, ordered ? i + 1 : null);
-                row.Children.Add(new TextBlock { Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
-                    TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
-                AddItemCard(row, featured: ordered && i == 0);
-            }
-            return;
-        }
-
-        const int columns = 3;
-        foreach (var itemsInRow in items.Chunk(columns))
-        {
-            var row = new UniformGrid { Columns = columns, Margin = new Thickness(0, 4, 0, 2) };
-            foreach (var item in itemsInRow)
-            {
-                var tile = new StackPanel { Margin = new Thickness(2, 0, 2, 0) };
-                tile.Children.Add(ItemIcon(item, patch, 27));
-                tile.Children.Add(new TextBlock
-                {
-                    Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
-                    TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 3, 0, 0)
-                });
-                row.Children.Add(tile);
-            }
-            content.Children.Add(row);
-        }
-    }
-
-    private DockPanel ItemRow(OpGgBuildItem item, string patch, double iconSize, int? position)
-    {
-        var row = new DockPanel();
-        var icon = ItemIcon(item, patch, iconSize);
-        icon.Margin = new Thickness(0, 0, 7, 0);
-        row.Children.Add(icon);
-        if (position is { } number)
-        {
-            var order = new TextBlock { Text = $"{number}.", FontSize = 12, Foreground = Muted,
-                Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            DockPanel.SetDock(order, Dock.Right);
-            row.Children.Add(order);
-        }
-        return row;
     }
 
     private Border ItemIcon(OpGgBuildItem item, string patch, double size)

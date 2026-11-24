@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -18,23 +19,12 @@ internal static class MayhemTierStyle
     internal static readonly Brush HeaderSurface = Overlay.Paint("#0C1922");
     internal static readonly Brush Divider = Overlay.Paint("#463714");
     internal static readonly Brush Frame = OverlayPanelStyle.VerticalGradient("#463714", "#785A28");
-    internal static readonly Brush AccentFrame = OverlayPanelStyle.VerticalGradient("#F0E6D2", "#C89B3C");
     internal static readonly Brush Ink = Overlay.Paint("#EFE5D1");
     internal static readonly Brush Muted = Overlay.Paint("#9F9A8B");
     internal static readonly Brush Gold = Overlay.Paint("#E4C482");
-    internal static readonly Brush SPlusSurface = Overlay.Paint("#201B10");
-    private static readonly Brush Parchment = Overlay.Paint("#C8BFA9");
 
     internal static readonly FontFamily Heading = new("Beaufort for LOL, Cambria");
     internal static readonly FontFamily Body = new("Spiegel, Segoe UI");
-
-    internal static Brush Tier(string? grade) => grade switch
-    {
-        "S+" or "S" => Gold,
-        "A" => Ink,
-        "B" => Parchment,
-        _ => Muted
-    };
 
     internal static Border Panel(UIElement child, Thickness padding)
     {
@@ -48,10 +38,13 @@ internal static class MayhemTierStyle
         return panel;
     }
 
-    internal static Border ChampionBadge(string? tier, string champion, double width, double height, double fontSize,
+    internal static Border SelectionBadge(string? tier, double width, double height) =>
+        TierHexagon.Create(tier, width, height, Math.Min(width * .55, height * .49), centerGlyph: true);
+
+    internal static Border ChampionBadge(string? tier, string champion, double width, double height,
         string source = "OP.GG")
     {
-        var badge = TierHexagon.Create(tier, width, height, fontSize);
+        var badge = SelectionBadge(tier, width, height);
         AutomationProperties.SetName(badge, $"{champion} · {(tier is null ? "Sin tier publicado" : $"Tier {tier} de {source}")}");
         return badge;
     }

@@ -59,6 +59,8 @@ internal sealed class BuildDragSurface : Window
         }
     }
 
+    internal void InvalidatePlacement() => placement = default;
+
     internal void Display(Int32Rect target, double dpi)
     {
         if (IsVisible && Native.IsWindowVisible(handle) && target == placement)

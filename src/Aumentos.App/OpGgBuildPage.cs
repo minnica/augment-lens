@@ -25,6 +25,7 @@ internal static class OpGgBuildPage
     private static readonly Regex Title = HtmlPattern(@"<title\b[^>]*>[^<]*?\b(?:parche|patch)\s+(\d+\.\d+)\b[^<]*</title>");
     private static readonly Regex Table = HtmlPattern(@"<table\b[^>]*>(.*?)</table\s*>");
     private static readonly Regex Heading = HtmlPattern(@"<th\b[^>]*>(.*?)</th\s*>");
+    private static readonly Regex Head = HtmlPattern(@"<thead\b[^>]*>(.*?)</thead\s*>");
     private static readonly Regex Caption = HtmlPattern(@"<caption\b[^>]*>(.*?)</caption\s*>");
     private static readonly Regex Body = HtmlPattern(@"<tbody\b[^>]*>(.*?)</tbody\s*>");
     private static readonly Regex Row = HtmlPattern(@"<tr\b[^>]*>(.*?)</tr\s*>");
@@ -38,18 +39,18 @@ internal static class OpGgBuildPage
     private static readonly Regex ItemPath = HtmlPattern(@"^/meta/images/lol/[^/]+/item/(\d+)\.png$");
     private static readonly Regex SpellPath = HtmlPattern(@"^/meta/images/lol/[^/]+/spell/Summoner[a-z0-9]+\.png$");
 
-    internal static Uri Address(GameContext game)
+    internal static Uri Address(GameContext game, string section = "build")
     {
         var mode = game.Mode == Mode.Caos ? "aram-mayhem" : "arena";
-        return new($"https://op.gg/es-419/lol/modes/{mode}/{Uri.EscapeDataString(game.Champion.ToLowerInvariant())}/build");
+        return new($"https://op.gg/es-419/lol/modes/{mode}/{Uri.EscapeDataString(game.Champion.ToLowerInvariant())}/{section}");
     }
 
-    internal static OpGgBuildSnapshot Read(string html, GameContext game, string clientPatch)
+    private static string ReadPatch(string html, Uri address, string clientPatch)
     {
         var canonical = Link.Matches(html).Cast<Match>().FirstOrDefault(link =>
             string.Equals(Rel.Match(link.Value).Groups[2].Value, "canonical", StringComparison.OrdinalIgnoreCase));
         if (canonical is null ||
-            WebUtility.HtmlDecode(Href.Match(canonical.Value).Groups[2].Value) != Address(game).AbsoluteUri)
+            WebUtility.HtmlDecode(Href.Match(canonical.Value).Groups[2].Value) != address.AbsoluteUri)
             throw new InvalidDataException("OP.GG devolvió otra página de builds.");
 
         var title = Title.Match(html);
@@ -58,7 +59,12 @@ internal static class OpGgBuildPage
         var sourcePatch = title.Groups[1].Value;
         if (sourcePatch != clientPatch && sourcePatch != LeaguePatch.Previous(clientPatch))
             throw new InvalidDataException($"OP.GG publica la build para el parche {sourcePatch}; el cliente usa {clientPatch}.");
+        return sourcePatch;
+    }
 
+    internal static OpGgBuildSnapshot Read(string html, GameContext game, string clientPatch)
+    {
+        var sourcePatch = ReadPatch(html, Address(game), clientPatch);
         var groups = new Dictionary<OpGgBuildSection, List<OpGgBuildItem[]>>();
         var spells = new List<OpGgSpellPair>();
         foreach (Match table in Table.Matches(html))
@@ -106,6 +112,32 @@ internal static class OpGgBuildPage
         if (result.Length == 0 && spells.Count == 0)
             throw new InvalidDataException("OP.GG no publicó una tabla de builds reconocible.");
         return new(game.Mode, game.Champion, clientPatch, sourcePatch, DateTimeOffset.UtcNow, result, spells.ToArray());
+    }
+
+    internal static ShopItemRates ReadArenaItems(string html, GameContext game, string clientPatch)
+    {
+        var sourcePatch = ReadPatch(html, Address(game, "items"), clientPatch);
+        var rates = new Dictionary<int, ShopItemRate>();
+        foreach (Match table in Table.Matches(html))
+        {
+            var markup = table.Groups[1].Value;
+            var headers = Heading.Matches(Head.Match(markup).Groups[1].Value).Cast<Match>()
+                .Select(heading => Ratings.Normalize(PlainText(heading.Groups[1].Value))).ToArray();
+            int pick = Array.FindIndex(headers, heading => heading is "tasa de seleccion" or "pick rate");
+            int win = Array.FindIndex(headers, heading => heading is "victorias" or "win rate");
+            if (pick < 1 || win < 1)
+                continue;
+            foreach (Match row in Row.Matches(Body.Match(markup).Groups[1].Value))
+            {
+                var cells = Cell.Matches(row.Groups[1].Value);
+                if (cells.Count <= Math.Max(pick, win) || ReadItems(cells[0].Groups[1].Value) is not [var item] ||
+                    ShopItemStats.ReadPercent(PlainText(cells[pick].Groups[1].Value)) is not { } pickRate ||
+                    ShopItemStats.ReadPercent(PlainText(cells[win].Groups[1].Value)) is not { } winRate)
+                    continue;
+                rates.TryAdd(item.Id, new(pickRate, winRate));
+            }
+        }
+        return new(sourcePatch, DateTimeOffset.UtcNow, rates);
     }
 
     private static OpGgBuildSection? Classify(string table)
@@ -164,7 +196,7 @@ internal static class OpGgBuildPage
 
     internal static bool ValidSpell(string? name) => name is { Length: >= 1 and <= 60 };
 
-    private static bool IsBoot(int id) => (id >= 220000 ? id - 220000 : id) is
+    internal static bool IsBoot(int id) => (id >= 220000 ? id - 220000 : MayhemBuilds.BaseId(id)) is
         3005 or 3006 or 3009 or 3010 or 3013 or 3020 or 3047 or 3111 or 3117 or 3158;
 
     private static string PlainText(string markup) => WebUtility.HtmlDecode(Tags.Replace(markup, " ")).Trim();

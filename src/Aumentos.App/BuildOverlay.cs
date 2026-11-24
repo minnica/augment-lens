@@ -5,7 +5,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace Aumentos;
 
@@ -13,7 +12,7 @@ internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layou
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string? Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
     string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null,
-    bool HideStartingItems = false, EnemyDamageMix? LobbyDamage = null);
+    bool HideStartingItems = false, EnemyDamageMix? LobbyDamage = null, ShopItemRates? ItemRates = null);
 
 internal sealed class BuildVisibility
 {
@@ -77,10 +76,11 @@ internal sealed class BuildOverlay : Window
     private bool sizeShortcutRegistered;
     private BuildSizeButton? sizeButton;
     private BuildSizeButton? prismaticSizeButton;
-    private readonly DispatcherTimer dragTimer;
     private BuildDragSurface? dragSurface;
     private (nint Target, Mode Mode, Point Origin)? floatingPosition;
-    private (Point Cursor, Point Origin, bool Moving)? drag;
+    private (Point Cursor, Int32Rect Origin, (nint Handle, Int32Rect Bounds)[] Windows, bool Moving)? drag;
+    private (int Margin, int Top) floatingLimits;
+    private BuildDisplay? deferredBuild;
     private bool sizeEditorOpen;
     private bool panelOnLeft;
     private bool mayhemCollapsed;
@@ -110,8 +110,6 @@ internal sealed class BuildOverlay : Window
 
         panel = new BuildPanel(itemIcons);
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform };
-        dragTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(16) };
-        dragTimer.Tick += (_, _) => TrackDrag();
         SourceInitialized += (_, _) =>
         {
             handle = new WindowInteropHelper(this).Handle;
@@ -276,23 +274,30 @@ internal sealed class BuildOverlay : Window
 
     internal void StartDrag(Point cursor)
     {
-        if (displayed is not { } view || !CanDrag(view))
+        if (drag is not null || !CanDrag(displayed))
             return;
-        drag = (cursor, new Point(placement.X - view.Bounds.X, placement.Y - view.Bounds.Y), false);
-        dragTimer.Start();
+        Window?[] windows = [this, dragSurface, sizeButton, MayhemDisclosure];
+        var visible = windows.OfType<Window>().Where(window => window.IsVisible)
+            .Select(window => new WindowInteropHelper(window).Handle)
+            .Where(window => window != 0 && Native.IsWindowVisible(window))
+            .Select(window => (window, window == handle ? placement : Native.Bounds(window))).ToArray();
+        if (visible.Length == 0)
+            return;
+        drag = (cursor, placement, visible, false);
+        CompositionTarget.Rendering += TrackDrag;
     }
 
-    private void TrackDrag()
+    private void TrackDrag(object? sender, EventArgs args)
     {
-        const int swappedButtons = 23;
-        const int leftButton = 1, rightButton = 2;
-        int primaryButton = GetSystemMetrics(swappedButtons) == 0 ? leftButton : rightButton;
-        if (!CanDrag(displayed) || GetAsyncKeyState(primaryButton) >= 0 || !GetCursorPos(out var cursor))
+        if (!CanDrag(displayed) || !GetCursorPos(out var cursor))
         {
             StopDrag();
             return;
         }
+        bool pressed = Native.PrimaryMousePressed();
         MoveDrag(new Point(cursor.X, cursor.Y));
+        if (!pressed)
+            StopDrag(refresh: true);
     }
 
     internal void MoveDrag(Point cursor)
@@ -302,21 +307,45 @@ internal sealed class BuildOverlay : Window
         var delta = cursor - start.Cursor;
         if (!start.Moving && Math.Abs(delta.X) + Math.Abs(delta.Y) < 3)
             return;
-        drag = (start.Cursor, start.Origin, true);
-        var origin = start.Origin + delta;
-        if (floatingPosition == (view.Target, view.Mode, origin))
+        var bounds = view.Bounds;
+        var origin = new Point(start.Origin.X - bounds.X + delta.X, start.Origin.Y - bounds.Y + delta.Y);
+        var target = FloatingBounds(bounds, origin, floatingLimits.Margin, floatingLimits.Top, placement.Width, placement.Height);
+        if (target == placement)
             return;
-        floatingPosition = (view.Target, view.Mode, origin);
-        Render(view);
+        // Move the existing native surfaces together. WPF layout and data updates wait for mouse-up.
+        const uint moveOnly = 0x0001 | 0x0004 | 0x0010 | 0x0200; // NOSIZE, NOZORDER, NOACTIVATE, NOOWNERZORDER
+        var batch = BeginDeferWindowPos(start.Windows.Length);
+        foreach (var window in start.Windows)
+        {
+            if (batch == 0)
+                return;
+            batch = DeferWindowPos(batch, window.Handle, 0,
+                window.Bounds.X + target.X - start.Origin.X, window.Bounds.Y + target.Y - start.Origin.Y, 0, 0, moveOnly);
+        }
+        if (batch == 0 || !EndDeferWindowPos(batch))
+            return;
+        placement = target;
+        drag = (start.Cursor, start.Origin, start.Windows, true);
     }
 
-    private void StopDrag()
+    internal void StopDrag(bool refresh = false)
     {
-        if (drag is { Moving: true } && displayed is { } view)
+        if (drag is not { } ended)
+            return;
+        CompositionTarget.Rendering -= TrackDrag;
+        drag = null;
+        var latest = deferredBuild;
+        deferredBuild = null;
+        if (ended.Moving && displayed is { } view)
+        {
             floatingPosition = (view.Target, view.Mode,
                 new Point(placement.X - view.Bounds.X, placement.Y - view.Bounds.Y));
-        dragTimer.Stop();
-        drag = null;
+            dragSurface?.InvalidatePlacement();
+            sizeButton?.InvalidatePlacement();
+            MayhemDisclosure?.InvalidatePlacement();
+        }
+        if (refresh && (latest is not null || ended.Moving))
+            Render(latest ?? displayed);
     }
 
     private void PositionDragSurface(BuildDisplay view, double dpi)
@@ -361,6 +390,16 @@ internal sealed class BuildOverlay : Window
         }
 
         var bounds = view.Bounds;
+        if (drag is not null)
+        {
+            if (displayed is { } current && CanDrag(view) && current.Target == view.Target && current.Mode == view.Mode &&
+                current.Bounds == bounds)
+            {
+                deferredBuild = view;
+                return;
+            }
+            StopDrag();
+        }
         var targetDpi = view.Target == 0 ? 0 : Native.GetDpiForWindow(view.Target);
         double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
         bool prismatics = view.Prismatics is not null;
@@ -403,6 +442,7 @@ internal sealed class BuildOverlay : Window
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
             displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected ||
             displayed.EnemyDamage != view.EnemyDamage || displayed.LobbyDamage != view.LobbyDamage ||
+            displayed.ItemRates != view.ItemRates ||
             displayed.HideStartingItems != view.HideStartingItems ||
             panel.Compact != (layoutWidth < BuildPanel.CompactWidth))
         {
@@ -451,6 +491,7 @@ internal sealed class BuildOverlay : Window
         double scale = Math.Min(requestedScale, fittingScale);
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
         int height = Math.Clamp((int)Math.Ceiling(desired.Height * scale), 1, maxHeight);
+        floatingLimits = (margin, top);
         var target = floatingOrigin is { } origin
             ? FloatingBounds(bounds, origin, margin, top, width, height)
             : new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
@@ -565,8 +606,12 @@ internal sealed class BuildOverlay : Window
     private static extern bool GetCursorPos(out CursorPoint point);
 
     [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int key);
+    private static extern nint BeginDeferWindowPos(int windows);
 
     [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
+    private static extern nint DeferWindowPos(nint batch, nint window, nint after, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EndDeferWindowPos(nint batch);
 }

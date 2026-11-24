@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Forms = System.Windows.Forms;
 
 namespace Aumentos;
 
@@ -30,6 +31,8 @@ internal sealed class LiveOverlay
     private readonly GgezArenaGlobalRatings ggezGlobal;
     private readonly AramHexRatings aramHex;
     private readonly OpGgBuilds builds;
+    private readonly ShopItemStats itemStats;
+    private readonly ShopAugmentAffinity itemAffinity;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
     private readonly Action<OverlayUpdate> update;
@@ -40,7 +43,7 @@ internal sealed class LiveOverlay
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
         AramMayhemRatings aramMayhem, GgezArenaRatings ggez, GgezArenaGlobalRatings ggezGlobal, AramHexRatings aramHex,
-        OpGgBuilds builds, string assets,
+        OpGgBuilds builds, ShopItemStats itemStats, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild, Func<ArenaVoteDraft?> voteDraft)
     {
         this.ratings = ratings;
@@ -52,6 +55,8 @@ internal sealed class LiveOverlay
         this.ggezGlobal = ggezGlobal;
         this.aramHex = aramHex;
         this.builds = builds;
+        this.itemStats = itemStats;
+        itemAffinity = new ShopAugmentAffinity(ratings.Catalog);
         this.assets = assets;
         this.dispatcher = dispatcher;
         this.update = update;
@@ -72,13 +77,14 @@ internal sealed class LiveOverlay
         var mayhemBuilds = new MayhemBuilds(ratings, mayhemItems);
         var mayhemAdvice = new MayhemAugmentAdvice(ratings, mayhemItems);
         var arenaBuilds = new ArenaBuilds(ratings);
+        var heldAugments = new HeldAugments(ratings.Catalog);
         WindowCapture? capture = null;
         Mode? activeMode = null;
         GameContext? game = null;
         LiveMatch? match = null;
         LiveMatch? confirmedMatch = null;
         long lastMatchRead = 0;
-        (LiveMatch? Match, OpGgBuildSnapshot? Source) planInput = default;
+        (LiveMatch? Match, OpGgBuildSnapshot? Source, string[]? Augments) planInput = default;
         MayhemBuildPlan? plan = null;
         EnemyDamageMix? enemyDamage = null;
         EnemyDamageMix? lobbyDamage = null;
@@ -112,6 +118,7 @@ internal sealed class LiveOverlay
                         buildVisibility.ObserveShop(open: false);
                         history.ResetMatch();
                         arenaBuilds.ResetSwap();
+                        heldAugments.Reset();
                         activeMode = null;
                         game = null;
                         match = null;
@@ -154,6 +161,7 @@ internal sealed class LiveOverlay
                                 {
                                     history.ResetMatch();
                                     arenaBuilds.ResetSwap();
+                                    heldAugments.Reset();
                                 }
                                 if (current is not null)
                                 {
@@ -185,6 +193,11 @@ internal sealed class LiveOverlay
                         nextPoll = now + 1000;
                     }
                     var champion = game is not null ? ChampionName(game) : null;
+                    if (heldAugments.HasOffer && Native.GetForegroundWindow() == window.Handle)
+                    {
+                        var mouse = Forms.Control.MousePosition;
+                        heldAugments.ObservePointer(Native.PrimaryMousePressed(), mouse.X, mouse.Y, now);
+                    }
                     result = activeMode is { } mode
                         ? ReadOverlay(window, mode, champion is null ? null : game, champion, match)
                         : new OverlayUpdate("Esperando ARAM Caos o Arena…");
@@ -207,12 +220,14 @@ internal sealed class LiveOverlay
                             }
                             else if (showShopBuild)
                             {
-                                if (planInput != (match, suggestion.Data))
+                                var augments = match?.OwnedAugments ?? heldAugments.Keys;
+                                if (planInput != (match, suggestion.Data, augments))
                                 {
-                                    planInput = (match, suggestion.Data);
+                                    planInput = (match, suggestion.Data, augments);
                                     var updated = currentGame.Mode == Mode.Arena
                                         ? arenaBuilds.Recommend(currentGame, match?.Arena, suggestion.Data)
                                         : mayhemBuilds.Recommend(currentGame, match?.Mayhem, suggestion.Data);
+                                    updated = itemAffinity.Prioritize(currentGame.Mode, augments, updated);
                                     if (currentGame.Mode == Mode.Arena)
                                         arenaBuilds.RememberSuggestedSwap(currentGame, updated);
                                     if (updated is null || plan is null || updated.Swap != plan.Swap ||
@@ -228,7 +243,8 @@ internal sealed class LiveOverlay
                                 build = new BuildDisplay(window.Bounds, window.Handle, champion,
                                     currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
                                     ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
-                                    HideStartingItems: hideStartingItems, LobbyDamage: lobbyDamage);
+                                    HideStartingItems: hideStartingItems, LobbyDamage: lobbyDamage,
+                                    ItemRates: itemStats.Current(currentGame, cancellation));
                             }
                         }
                         else if (showShopBuild)
@@ -269,6 +285,7 @@ internal sealed class LiveOverlay
             previous = null;
             arenaUpgradeHeading = null;
             detector.Clear();
+            heldAugments.CancelOffer();
             voteReader.Clear();
             lastFrame = 0;
             lastOffer = 0;
@@ -332,6 +349,7 @@ internal sealed class LiveOverlay
 
                 if (mode == Mode.Arena && !shop.HasValue && currentMatch is not null && voteReader.Read(frame) is { } offer)
                 {
+                    heldAugments.CancelOffer();
                     previous = null;
                     arenaUpgradeHeading = null;
                     history.ObserveClosed(window.Handle, lastFrame);
@@ -362,6 +380,7 @@ internal sealed class LiveOverlay
                     var prismatics = shards is null ? ratings.Prismatics.ForOffer(current, result) : null;
                     if ((shards ?? prismatics?.Badges ?? ratings.Legendaries.ForOffer(current, result)) is { } choices)
                     {
+                        heldAugments.CancelOffer();
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         previous = candidate;
@@ -391,6 +410,7 @@ internal sealed class LiveOverlay
                         if (Native.GetForegroundWindow() != window.Handle || Paused)
                             return new OverlayUpdate("Esperando la ventana de League…");
                         lastOffer = Environment.TickCount64;
+                        heldAugments.ObserveOffer(current, window.Bounds, candidate, result.Cards);
                         history.Observe(window.Handle, current.Mode, name, result.Cards, badges, lastOffer);
                         mayhemAdvice.Apply(current, currentMatch?.Mayhem, result.Cards, badges);
                         var displayed = string.Join(" | ", badges.Select(badge => badge is null ? "—" :
@@ -408,6 +428,10 @@ internal sealed class LiveOverlay
                 if (previous is not null && Environment.TickCount64 - lastOffer < 300 &&
                     (current.Mode == Mode.Arena ? detector.PanelVisible(frame, scan, previous) : read is null))
                     return null;
+                if (!shop.HasValue && read is null && previous is { } preceding && !detector.PanelVisible(frame, scan, preceding))
+                    heldAugments.CloseOffer(lastFrame);
+                else
+                    heldAugments.CancelOffer();
                 previous = null;
                 arenaUpgradeHeading = null;
                 detector.Clear();

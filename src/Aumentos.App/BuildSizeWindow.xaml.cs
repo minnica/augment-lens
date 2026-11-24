@@ -41,13 +41,14 @@ internal sealed partial class BuildSizeWindow : Window
         Height = Math.Min(Height, workArea.Height);
 
         preview.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double maxScale = BuildSizePreference.Maximum / 100.0;
+        int maximum = tierBadges ? Overlay.TierSizeMaximum : BuildSizePreference.Maximum;
+        double maxScale = maximum / 100.0;
         PreviewStage.Width = preview.DesiredSize.Width * maxScale;
         PreviewStage.Height = preview.DesiredSize.Height * maxScale;
         preview.LayoutTransform = previewScale;
         PreviewHost.Content = preview;
         SizeSlider.Minimum = BuildSizePreference.Minimum;
-        SizeSlider.Maximum = BuildSizePreference.Maximum;
+        SizeSlider.Maximum = maximum;
         SizeSlider.Value = percent;
         UpdatePreview(percent);
 
