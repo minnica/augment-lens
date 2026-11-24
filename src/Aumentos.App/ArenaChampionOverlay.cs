@@ -182,16 +182,6 @@ internal abstract class ChampionRankingOverlay : Window
 
         var sections = new StackPanel { Margin = new Thickness(Inset, 8, Inset, 9) };
         rows.Children.Add(sections);
-        if (mayhem && view.Selection is { } selection)
-        {
-            sections.Children.Add(Heading("Tu campeón", MayhemTierStyle.Gold));
-            var own = TierRow(ChampionIdentity(selection.Champion, 22, selected: true),
-                ChampionTier(selection.Champion, selection.Tier));
-            own.MinHeight = 30;
-            own.Margin = new Thickness(0, 3, 0, 0);
-            AddRowBackground(own, 0, selected: true);
-            sections.Children.Add(own);
-        }
 
         if (view.ArenaGroups is { Length: > 0 } groups)
             AddArenaGroups(sections, groups);
@@ -241,25 +231,26 @@ internal abstract class ChampionRankingOverlay : Window
     private void RenderAvailable(StackPanel sections, ChampionRankingDisplay view)
     {
         var heading = Heading("Campeones disponibles", MayhemTierStyle.Gold);
-        var hasOptions = view.Rows.Length > 0;
-        var tierHeader = hasOptions ? Label("Tier", MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Muted) : null;
+        var hasRows = view.Rows.Length > 0;
+        var tierHeader = hasRows ? Label("Tier", MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Muted) : null;
         if (tierHeader is not null)
             tierHeader.TextAlignment = TextAlignment.Center;
         sections.Children.Add(TierRow(heading, tierHeader));
-        if (!hasOptions && view.EmptyMessage is { } message)
-            sections.Children.Add(Note(message, MayhemTierStyle.Muted));
-        else if (view.Caption.Length > 0)
+        if (view.Caption.Length > 0 && (hasRows || view.EmptyMessage is null))
             sections.Children.Add(SourceNote(view));
 
         for (int index = 0; index < view.Rows.Length; index++)
         {
             var option = view.Rows[index];
-            var row = TierRow(ChampionIdentity(option.Champion, 20), ChampionTier(option.Champion, option.Tier));
+            bool selected = option == view.Selection;
+            var row = TierRow(ChampionIdentity(option.Champion, 20, selected), ChampionTier(option.Champion, option.Tier));
             row.MinHeight = 26;
-            if (index % 2 != 0)
-                AddRowBackground(row, 0, selected: false);
+            if (selected || index % 2 != 0)
+                AddRowBackground(row, 0, selected);
             sections.Children.Add(row);
         }
+        if (view.EmptyMessage is { } message && !view.Rows.Any(row => row != view.Selection))
+            sections.Children.Add(Note(message, MayhemTierStyle.Muted));
     }
 
     private void RenderArenaRanking(StackPanel sections, ChampionRankingDisplay view, bool compact)

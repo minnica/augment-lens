@@ -44,10 +44,8 @@ internal static class ChampionSelectTests
 
         var page = ReadSpells();
         var main = new OpGgSpellPair("Destello", "Marca");
-        Check(page.Spells is { Length: 2 } spells && spells.SequenceEqual([main, new("Destello", "Fantasma")]) &&
-            SpellOverlay.Matches(main, new("Kennen", "Marca", "Destello")) &&
-            !SpellOverlay.Matches(main, new("Kennen", "Fantasma", "Destello")),
-            "combinaciones de OP.GG sin duplicados y comparación independiente de D y F");
+        Check(page.Spells is { Length: 2 } spells && spells.SequenceEqual([main, new("Destello", "Fantasma")]),
+            "combinaciones de OP.GG sin duplicados");
         Console.WriteLine("Selección de campeón y hechizos de OP.GG verificados.");
     }
 
@@ -158,8 +156,7 @@ internal static class ChampionSelectTests
                 placement.Y + placement.Height <= bounds.Y + bounds.Height &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
                 TextBlocks(panel).Select(row => row.Text).SequenceEqual(
-                    ["Kennen", "Principal", "Destello + Marca", "Ya tienes estos hechizos",
-                     "Alternativa", "Destello + Fantasma", "Hechizos del parche anterior"]),
+                    ["Kennen", "Principal", "Destello + Marca", "Alternativa", "Destello + Fantasma", "Hechizos del parche anterior"]),
                 "panel dentro del cliente, sin interceptar clics y con las dos combinaciones de OP.GG");
             var current = view with { Tier = "A", Source = new(prior with { SourcePatch = prior.ClientPatch }, "OP.GG · Parche 26.23") };
             overlay.Render(current);
@@ -173,7 +170,7 @@ internal static class ChampionSelectTests
                 labels["Principal"].FontSize == labels["Alternativa"].FontSize &&
                 labels["Principal"].FontSize > labels["Destello + Marca"].FontSize &&
                 labels["Destello + Marca"].FontSize == labels["Destello + Fantasma"].FontSize &&
-                labels["Destello + Marca"].FontSize > labels["Ya tienes estos hechizos"].FontSize,
+                !labels.ContainsKey("Ya tienes estos hechizos"),
                 "los datos vigentes omiten el parche y mantienen el tier y la jerarquía tipográfica");
             overlay.Render(current with { TierIsPrevious = true });
             Check(TextBlocks(panel).Any(text => text.Text == "Tier del parche anterior"),

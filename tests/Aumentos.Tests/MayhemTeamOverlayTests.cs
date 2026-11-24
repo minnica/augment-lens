@@ -27,9 +27,9 @@ internal static class MayhemTeamOverlayTests
         var grade = new MayhemCompositionGrade("B", "Falta daño sostenido", 3, 5);
         var view = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, "Datos de prueba"), "Sivir",
             available, "El banco está vacío.", picks, grade);
-        Check(view.Rows.Length == available.Length && view.Rows.Take(4).Select(row => row.Champion)
-            .SequenceEqual(["Anivia", "Leona", "Amumu", "Sona"]) &&
-            view.Rows.Skip(4).All(row => row.Tier is null) && view.Selection is { Champion: "Sivir", Position: 34, Tier: "B" },
+        Check(view.Rows.Length == available.Length + 1 && view.Rows.Take(5).Select(row => row.Champion)
+            .SequenceEqual(["Anivia", "Leona", "Amumu", "Sivir", "Sona"]) &&
+            view.Rows.Skip(5).All(row => row.Tier is null) && view.Selection is { Champion: "Sivir", Position: 34, Tier: "B" },
             "Caos ordena los campeones disponibles por tier, con el puesto de OP.GG como desempate");
         CheckAvailability(catalog);
 
@@ -47,7 +47,7 @@ internal static class MayhemTeamOverlayTests
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
             var labels = Labels(panel).ToArray();
             Check(Native.IsWindowVisible(handle) && (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                labels.Contains("Campeones disponibles") && labels.Contains("Tu campeón") && labels.Contains("Sivir") &&
+                labels.Contains("Campeones disponibles") && !labels.Contains("Tu campeón") && labels.Count(text => text == "Sivir") == 1 &&
                 labels.Contains("3/5 campeones") && !labels.Any(IsMetadata),
                 "tier, evaluación y sugerencias se muestran juntos sin interceptar clics");
             var evaluation = (Grid)((Border)panel.Children[0]).Child;
@@ -78,22 +78,20 @@ internal static class MayhemTeamOverlayTests
                     Grid.GetColumn(badge) == 1 && Math.Abs(nameCenter.Y - badgeCenter.Y) <= 1 &&
                     Math.Abs(teamCenter.X - badgeCenter.X) <= 1, "cada letra se alinea con el nombre y con la columna del equipo");
             }
-            var own = panel.Children.OfType<StackPanel>().Single().Children.OfType<Grid>()
-                .Single(row => Labels(row).Contains("TÚ"));
+            var own = BankRows(panel).Single(row => Labels(row).Contains("TÚ"));
             var selectedPortrait = ChampionSelectTests.Elements(own).OfType<Image>().Single();
             var wukongPortrait = ChampionSelectTests.Elements(BankRows(panel).Single(row => Labels(row).Contains("Wukong")))
                 .OfType<Image>().Single();
             WaitForPortraits(selectedPortrait, wukongPortrait);
             Check(Labels(own).Contains("Sivir") && ReadPortrait(selectedPortrait) > ReadPortrait(wukongPortrait) &&
-                ChampionSelectTests.Elements(own).OfType<Border>().Any(border => border.Background is SolidColorBrush &&
-                    border.BorderBrush is not null && border.BorderThickness.Left > 0),
-                "tu campeón se distingue del banco y los retratos corresponden al campeón aunque el alias interno sea distinto");
+                own.Children[0] is Border { Background: SolidColorBrush, BorderBrush: not null, BorderThickness.Left: > 0 },
+                "tu campeón se distingue dentro de la tabla y los retratos corresponden al campeón aunque el alias interno sea distinto");
             handler.Offline = true;
             var cached = new ChampionSelectPortraits(portraitCatalog, settings.FullName, http);
             Check(cached.Read("Wukong").GetAwaiter().GetResult() is { IsFrozen: true } && handler.Requests == 2,
                 "una sesión nueva reutiliza el retrato guardado cuando la red está desconectada");
-            Check(BankRows(panel).SelectMany(Labels).Where((_, index) => index % 2 == 1)
-                .SequenceEqual(["S", "A", "A", "B", "—", "—", "—", "—", "—", "—"]) &&
+            Check(BankRows(panel).Select(row => Labels(row).Last())
+                .SequenceEqual(["S", "A", "A", "B", "B", "—", "—", "—", "—", "—", "—"]) &&
                 BankRows(panel).All(row => ChampionSelectTests.Elements(row).OfType<Image>().Count() == 1) &&
                 !labels.Contains("Twisted Fate"), "la lista conserva los candidatos, sus retratos y sus tiers disponibles");
 
@@ -110,27 +108,36 @@ internal static class MayhemTeamOverlayTests
             var balanced = Labels(panel).ToArray();
             Check(balanced.Contains("Equipo equilibrado") && !balanced.Contains("5/5 campeones") &&
                 !balanced.Contains("Para tu equipo") && !balanced.Contains(grade.Reason) &&
-                BankRows(panel).Count() == available.Length,
+                BankRows(panel).Count() == available.Length + 1,
                 "un equipo completo de tier S conserva el banco y confirma que la composición está equilibrada");
 
-            overlay.Render(view with { Selection = null });
+            overlay.Render(MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, ""), null,
+                available, "Esperando tus cartas…", picks, grade));
             Check(Labels(panel).Contains("3/5 campeones") &&
                 Labels(panel).Contains("Para tu equipo") && Labels(panel).Contains(grade.Reason) &&
-                !Labels(panel).Contains("Equipo equilibrado") && !Labels(panel).Contains("Tu campeón"),
+                !Labels(panel).Contains("Equipo equilibrado") && !Labels(panel).Contains("TÚ"),
                 "la composición provisional recupera el aviso y las sugerencias al cambiar el equipo");
 
             var previousPatch = LeaguePatch.Previous(catalog.Patch) ?? catalog.Patch;
             var legacy = MayhemTeamDisplay.Create(bounds, 0, catalog, new(data with { SourcePatch = previousPatch, Ranks = null }, ""),
                 "Sivir", available, "El banco está vacío.", picks, grade);
             overlay.Render(legacy);
-            Check(legacy.Selection?.Tier == "B" && BankRows(panel).Count() == available.Length &&
+            Check(legacy.Selection?.Tier == "B" && BankRows(panel).Count() == available.Length + 1 &&
                 legacy.Rows[0] is { Champion: "Anivia", Position: null, Tier: "S" } &&
                 Labels(panel).Contains("Parche anterior") && !Labels(panel).Any(IsMetadata),
                 "una copia anterior conserva el tier de las opciones aunque no traiga puestos");
 
-            overlay.Render(view with { Rows = [], EmptyMessage = "El banco está vacío." });
-            Check(!BankRows(panel).Any() && Labels(panel).Contains("El banco está vacío."),
-                "un banco vacío no muestra campeones ni deja filas del banco anterior");
+            overlay.Render(MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, ""), "Sivir", [],
+                "El banco está vacío.", picks, grade));
+            Check(Labels(BankRows(panel).Single()).SequenceEqual(["Sivir", "TÚ", "B"]) && Labels(panel).Contains("El banco está vacío."),
+                "un banco vacío conserva solo a tu campeón en la tabla");
+
+            overlay.Render(MayhemTeamDisplay.Create(bounds, 0, catalog, new(data, ""), "Amumu", [.. available, "Sivir"],
+                "El banco está vacío.", picks, grade));
+            var swapped = BankRows(panel).Select(row => Labels(row).ToArray()).ToArray();
+            Check(swapped.Single(row => row.Contains("TÚ")).SequenceEqual(["Amumu", "TÚ", "A"]) &&
+                swapped.Count(row => row[0] == "Amumu") == 1 && swapped.Single(row => row[0] == "Sivir").SequenceEqual(["Sivir", "B"]),
+                "un intercambio actualiza el resalte y evita duplicar la nueva elección si aún figura en el banco");
             var loading = MayhemTeamDisplay.Create(bounds, 0, catalog, new(null, "Consultando tiers de OP.GG…"),
                 null, ["Shyvana", "Renekton"], "Esperando tus cartas…", [], null);
             overlay.Render(loading);
@@ -258,7 +265,7 @@ internal static class MayhemTeamOverlayTests
     {
         var text = TextBlocks(panel).ToLookup(block => block.Text);
         var title = text["Falta daño sostenido"].Single();
-        var headings = new[] { "Tu campeón", "Para tu equipo", "Campeones disponibles" }
+        var headings = new[] { "Para tu equipo", "Campeones disponibles" }
             .Select(heading => text[heading].Single()).ToArray();
         var names = text["Sivir"].Concat(text["Anivia"]).ToArray();
         Check(headings.All(heading => heading.FontSize == headings[0].FontSize && heading.FontFamily.Equals(headings[0].FontFamily)) &&

@@ -21,17 +21,20 @@ internal sealed record MayhemTeamDisplay(Int32Rect Bounds, nint Target, string C
         const string tiers = "SABCD";
         var data = source.Data;
         var eligible = available.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var rows = catalog.Champions.Where(champion => eligible.Contains(champion.Key)).Select(Row)
-            .OrderBy(row => row.Tier is { Length: 1 } tier ? tiers.IndexOf(tier[0]) : tiers.Length)
-            .ThenBy(row => row.Position ?? int.MaxValue)
-            .ThenBy(row => row.Champion, StringComparer.OrdinalIgnoreCase).ToArray();
         ChampionRankingRow? selection = null;
         if (championKey is not null)
         {
+            eligible.Remove(championKey);
             var champion = catalog.Champions.FirstOrDefault(champion =>
                 string.Equals(champion.Key, championKey, StringComparison.OrdinalIgnoreCase));
             selection = champion is null ? new ChampionRankingRow(championKey, data?.Letter(championKey)) : Row(champion);
         }
+        var options = catalog.Champions.Where(champion => eligible.Contains(champion.Key)).Select(Row);
+        if (selection is not null)
+            options = options.Append(selection);
+        var rows = options.OrderBy(row => row.Tier is { Length: 1 } tier ? tiers.IndexOf(tier[0]) : tiers.Length)
+            .ThenBy(row => row.Position ?? int.MaxValue)
+            .ThenBy(row => row.Champion, StringComparer.OrdinalIgnoreCase).ToArray();
         bool previousPatch = data is not null && data.SourcePatch != catalog.Patch;
         string caption = data is null ? source.Status : previousPatch ? "Parche anterior" : "";
         return new(bounds, target, caption, previousPatch, rows, selection, composition, grade, emptyMessage);

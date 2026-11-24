@@ -47,7 +47,7 @@ internal sealed class SpellOverlay : Window
             displayed = null;
             return;
         }
-        if (displayed is null || displayed.Champion != view.Champion || displayed.Selection != view.Selection ||
+        if (displayed is null || displayed.Champion != view.Champion || displayed.Selection.Champion != view.Selection.Champion ||
             displayed.Source != view.Source || displayed.Tier != view.Tier || displayed.TierIsPrevious != view.TierIsPrevious)
             RenderRows(view);
         displayed = view;
@@ -92,10 +92,7 @@ internal sealed class SpellOverlay : Window
             return;
         }
 
-        var primary = SpellPair("Principal", pairs[0], primary: true);
-        spells.Children.Add(primary);
-        if (Matches(pairs[0], view.Selection))
-            primary.Children.Add(Note("Ya tienes estos hechizos"));
+        spells.Children.Add(SpellPair("Principal", pairs[0], primary: true));
         if (pairs.Length > 1)
             spells.Children.Add(SpellPair("Alternativa", pairs[1], primary: false));
         if (previousSpells)
@@ -139,16 +136,6 @@ internal sealed class SpellOverlay : Window
         group.Children.Add(Heading(heading, MayhemTierStyle.PanelSectionSize, MayhemTierStyle.Gold));
         group.Children.Add(Line($"{pair.First} + {pair.Second}", MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, bold: primary));
         return group;
-    }
-
-    internal static bool Matches(OpGgSpellPair pair, ChampionSelection selection)
-    {
-        if (selection.FirstSpell is not { } first || selection.SecondSpell is not { } second) return false;
-        var a = Ratings.Normalize(pair.First);
-        var b = Ratings.Normalize(pair.Second);
-        var one = Ratings.Normalize(first);
-        var two = Ratings.Normalize(second);
-        return (a == one && b == two) || (a == two && b == one);
     }
 
     private static TextBlock Heading(string text, double size, Brush color)
