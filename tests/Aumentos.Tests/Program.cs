@@ -1088,8 +1088,10 @@ internal static class Program
                 96, 96, PixelFormats.Pbgra32);
             rendered.Render(badge);
             var pixel = new byte[4];
-            rendered.CopyPixels(new Int32Rect(rendered.PixelWidth / 2, rendered.PixelHeight / 2, 1, 1), pixel, 4, 0);
-            Check(pixel[3] > 100, "el hexágono tiene píxeles visibles");
+            rendered.CopyPixels(new Int32Rect(rendered.PixelWidth / 2, rendered.PixelHeight / 5, 1, 1), pixel, 4, 0);
+            Check(pixel[3] == 255, "el fondo del tier es opaco");
+            rendered.CopyPixels(new Int32Rect(0, 0, 1, 1), pixel, 4, 0);
+            Check(pixel[3] == 0, "el área fuera del hexágono sigue siendo transparente");
 
             var observed = new ArenaPlacementRating(Tier.A, 319, "26.23", false, 2.74m, .23m, 1);
             overlay.Render(new OverlayUpdate("Arena", bounds, layout,

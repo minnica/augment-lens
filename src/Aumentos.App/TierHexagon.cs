@@ -9,12 +9,12 @@ namespace Aumentos;
 internal static class TierHexagon
 {
     private static readonly Geometry Outline = Geometry.Parse("M 12,1 L 23,7.5 23,19.5 12,26 1,19.5 1,7.5 Z");
-    private static readonly (Brush Ink, Brush Plate) Gold = Palette("#F0CE82", "#EF231B0F");
-    private static readonly (Brush Ink, Brush Plate) Green = Palette("#99E6A6", "#EF0D2019");
-    private static readonly (Brush Ink, Brush Plate) Blue = Palette("#92CBF2", "#EF0B1C28");
-    private static readonly (Brush Ink, Brush Plate) Parchment = Palette("#DAD1BF", "#EF151B23");
-    private static readonly (Brush Ink, Brush Plate) Coral = Palette("#F4A096", "#EF261820");
-    private static readonly (Brush Ink, Brush Plate) Muted = Palette("#AFA69B", "#EF131B23");
+    private static readonly (Brush Ink, Brush Plate) Gold = Palette("#F0CE82", "#231B0F");
+    private static readonly (Brush Ink, Brush Plate) Green = Palette("#99E6A6", "#0D2019");
+    private static readonly (Brush Ink, Brush Plate) Blue = Palette("#92CBF2", "#0B1C28");
+    private static readonly (Brush Ink, Brush Plate) Parchment = Palette("#DAD1BF", "#151B23");
+    private static readonly (Brush Ink, Brush Plate) Coral = Palette("#F4A096", "#261820");
+    private static readonly (Brush Ink, Brush Plate) Muted = Palette("#AFA69B", "#131B23");
 
     internal static Border Create(string? tier, double width, double height, double fontSize, int? position = null,
         bool centerGlyph = false)
