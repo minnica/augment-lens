@@ -10,6 +10,8 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 | Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
 | Invitados de Honor | — | Tier local junto a las opciones de votación |
 
+[Ver las capturas actuales de los overlays de ARAM Caos y Arena](evidencias/overlays/README.md)
+
 ## Instalar en Windows
 
 1. En Windows 10 (versión 2004 o posterior) o Windows 11 **x64**, haz doble clic en `Instalar-AumentosLoL-x64.exe`. El instalador incluye .NET, el lector de cartas en español y el catálogo. Se instala para tu cuenta, sin permisos de administrador.
