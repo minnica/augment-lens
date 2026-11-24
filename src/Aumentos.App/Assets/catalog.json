@@ -6490,6 +6490,7 @@
                        "Yelmo Adaptable"
                    ],
     "arenaPrismatics": [
+        {"id":226630,"name":"Bebedor de Sangre","sharedName":false,"categories":["Health","Damage","Active","CooldownReduction","AbilityHaste"]},
         {"id":443054,"name":"Garras de Acero Oscuro","sharedName":false,"categories":["Armor","AttackSpeed","NonbootsMovement"]},
         {"id":443055,"name":"Fulminación","sharedName":false,"categories":["Damage","AttackSpeed","NonbootsMovement"]},
         {"id":443056,"name":"La Corona del Rey Demonio","sharedName":false,"categories":["Health","Armor","Damage","AttackSpeed","SpellDamage","MagicResist","AbilityHaste"]},
@@ -6669,7 +6670,6 @@
         {"id":224637,"name":"Abrazo Demoniaco","categories":["Health","SpellDamage"],"buyable":false},
         {"id":224644,"name":"Corona de la Reina Fragmentada","categories":["Health","SpellDamage","Mana","AbilityHaste"],"buyable":false},
         {"id":226035,"name":"Amanecer Plateado","categories":["Health","SpellBlock","Damage","Active","Tenacity"],"buyable":false},
-        {"id":226630,"name":"Bebedor de Sangre","categories":["Health","Damage","Active","CooldownReduction","AbilityHaste"],"buyable":false},
         {"id":226632,"name":"Cercenador Divino","categories":["Health","Damage","CooldownReduction","OnHit","MagicPenetration","ArmorPenetration","AbilityHaste"],"buyable":false},
         {"id":226656,"name":"Hielo Eterno","categories":["Health","SpellDamage","Mana","Active","CooldownReduction","Slow","AbilityHaste"],"buyable":false},
         {"id":226667,"name":"Virtud Radiante","categories":["Health","SpellBlock","Armor","Aura","CooldownReduction","AbilityHaste"],"buyable":false},

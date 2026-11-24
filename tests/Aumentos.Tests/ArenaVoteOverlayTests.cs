@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -9,6 +10,7 @@ internal static class ArenaVoteOverlayTests
     internal static void Run()
     {
         var overlay = new ArenaVoteOverlay { Left = -30000, Top = -30000 };
+        nint unawareTarget = 0;
         try
         {
             var handle = new WindowInteropHelper(overlay).EnsureHandle();
@@ -29,6 +31,10 @@ internal static class ArenaVoteOverlayTests
                 "la ventana no se activa ni intercepta clics");
             Check(((Border)layer.Children[1]).BorderBrush != ((Border)layer.Children[0]).BorderBrush,
                 "la recomendación tiene un marco distintivo");
+
+            unawareTarget = CreateDpiUnawareWindow();
+            Check(Native.GetDpiForWindow(unawareTarget) == 96, "la ventana de prueba simula la escala de League");
+            CheckPlacement(full with { Target = unawareTarget });
 
             var compact = full with
             {
@@ -63,15 +69,43 @@ internal static class ArenaVoteOverlayTests
                     var badge = (Border)layer.Children[i];
                     var row = view.Labels[i].Row;
                     int badgeTop = y + (int)Math.Round(Canvas.GetTop(badge) * dpi);
-                    int badgeBottom = badgeTop + (int)Math.Round(badge.ActualHeight * dpi);
-                    Check(badge.ActualWidth > 0 && badgeTop >= row.Y && badgeBottom <= row.Y + row.Height,
-                        "las insignias se alinean con sus respectivas opciones al cambiar el tamaño");
+                    int badgeHeight = (int)Math.Round(badge.ActualHeight * dpi);
+                    int expectedTop = Math.Clamp(row.Y + row.Height * 2 / 3 - badgeHeight / 2, row.Y,
+                        Math.Max(row.Y, row.Y + row.Height - badgeHeight));
+                    Check(badge.ActualWidth > 0 && badgeHeight > 0 &&
+                        badge.ActualWidth * dpi <= placement.Width + 1 &&
+                        badgeTop + badgeHeight <= y + placement.Height + 1 &&
+                        Math.Abs(badgeTop - expectedTop) <= 1 && badgeTop + badgeHeight <= row.Y + row.Height + 1,
+                        "la escala de la ventana del juego no desplaza ni recorta las insignias");
                 }
             }
         }
-        finally { overlay.Close(); }
+        finally
+        {
+            overlay.Close();
+            if (unawareTarget != 0)
+                DestroyWindow(unawareTarget);
+        }
         Console.WriteLine("Panel de votación de Arena en WPF verificado.");
     }
+
+    private static nint CreateDpiUnawareWindow()
+    {
+        nint prior = SetThreadDpiAwarenessContext(-1);
+        if (prior == 0)
+            throw new InvalidOperationException("No se pudo crear la ventana de prueba sin escalado DPI.");
+        try
+        {
+            return CreateWindowExW(0, "Static", "", 0, 0, 0, 20, 20, 0, 0, 0, 0);
+        }
+        finally { SetThreadDpiAwarenessContext(prior); }
+    }
+
+    [DllImport("user32.dll")] private static extern nint SetThreadDpiAwarenessContext(nint context);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern nint CreateWindowExW(uint extendedStyle, string className, string title, uint style,
+        int x, int y, int width, int height, nint parent, nint menu, nint instance, nint parameter);
+    [DllImport("user32.dll")] private static extern bool DestroyWindow(nint handle);
 
     private static IEnumerable<string> ReadText(UIElement element) => element switch
     {

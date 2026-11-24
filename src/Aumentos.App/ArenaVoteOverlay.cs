@@ -59,8 +59,10 @@ internal sealed class ArenaVoteOverlay : Window
             return;
         }
 
-        uint targetDpi = view.Target != 0 ? Native.GetDpiForWindow(view.Target) : 0;
-        double dpi = targetDpi > 0 ? targetDpi / 96.0 : VisualTreeHelper.GetDpi(this).DpiScaleX;
+        if (handle == 0)
+            _ = new WindowInteropHelper(this).EnsureHandle();
+        // Vote rows are in screen pixels. WPF lays out the badges at the overlay's DPI.
+        double dpi = VisualTreeHelper.GetDpi(layer).DpiScaleX;
         var bounds = view.Bounds;
         if (IsVisible && Native.IsWindowVisible(handle) && displayedDpi == dpi && displayed is { } previous &&
             previous.Bounds == bounds && previous.Target == view.Target && previous.Labels.SequenceEqual(view.Labels))

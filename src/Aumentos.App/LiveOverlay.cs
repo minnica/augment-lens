@@ -216,6 +216,7 @@ internal sealed class LiveOverlay
                                     if (currentGame.Mode == Mode.Arena)
                                         arenaBuilds.RememberSuggestedSwap(currentGame, updated);
                                     if (updated is null || plan is null || updated.Swap != plan.Swap ||
+                                        updated.IsLocalRoute != plan.IsLocalRoute ||
                                         !updated.Steps.SequenceEqual(plan.Steps))
                                         plan = updated;
                                     enemyDamage = currentGame.Mode == Mode.Arena

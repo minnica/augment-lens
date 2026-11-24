@@ -11,14 +11,30 @@ internal static class ArenaVoteReaderTests
         (string Guest, string Title)[] options = expectedRound == 8
             ? [("Garen", "Perseverancia"), ("JarvanIV", "Pesada es la Corona"), ("Annie", "Muro de Fuego")]
             : [("Yone", "Demonio interior"), ("Evelynn", "Solo Algo Casual"), ("TahmKench", "Negociación Oscura")];
-        int expectedHealth = expectedRound == 8 ? 70 : 100;
+        return Verify(ratings, assets, shot, options, expectedRound, expectedRound == 8 ? 70 : 100, [.75, .5]);
+    }
+
+    internal static void VerifyKayle(Ratings ratings, string assets, string shot)
+    {
+        var offer = Verify(ratings, assets, shot,
+            [("TahmKench", "Negociación Oscura"), ("Atakhan", "Matanza Absoluta"), ("Kayle", "Ascenso Divino")], 2, 85, []);
+        var match = new LiveMatch(new(Mode.Arena, "Corki"), Arena: new([], []));
+        var display = ArenaVoteAdvice.Create(new(0, 0, 2560, 1440), 0, offer, ratings, match);
+        Check(display.Labels is [{ Tier: "B" }, { Tier: "C" }, { Tier: "A" }] &&
+            display.Labels.Select(label => label.Row).SequenceEqual(offer.Options.Select(option => option.Bounds)),
+            "Corki recibe tres valoraciones y la de Kayle queda en la tercera fila");
+    }
+
+    private static ArenaVoteOffer Verify(Ratings ratings, string assets, string shot,
+        (string Guest, string Title)[] options, int expectedRound, int expectedHealth, double[] scales)
+    {
         var capture = BitmapFrame.Create(new Uri(Path.GetFullPath(shot)), BitmapCreateOptions.PreservePixelFormat,
             BitmapCacheOption.OnLoad);
         using var ocr = new Detection(ratings, Path.Combine(assets, "tessdata"));
         var reader = new ArenaVoteReader(ocr);
         var original = VerifyFrame(capture);
         Check(ReferenceEquals(reader.Read(capture), original), "una captura estable reutiliza la lectura");
-        foreach (var scale in new[] { .75, .5 })
+        foreach (var scale in scales)
             VerifyFrame(new TransformedBitmap(capture, new ScaleTransform(scale, scale)));
 
         var withoutScores = new CroppedBitmap(capture, new Int32Rect(0, 0,
@@ -28,7 +44,8 @@ internal static class ArenaVoteReaderTests
         var withoutBallot = new CroppedBitmap(capture, new Int32Rect(left, 0, capture.PixelWidth - left, capture.PixelHeight));
         Check(reader.Read(withoutBallot) is null, "desaparece la lectura al desaparecer la votación");
         Check(!ReferenceEquals(reader.Read(capture), original), "la siguiente votación se vuelve a leer");
-        Console.WriteLine($"Invitados de Arena de la ronda {expectedRound} verificados con OCR de la captura y escalas menores.");
+        var testedSizes = scales.Length > 0 ? "la captura y escalas menores" : "la captura original";
+        Console.WriteLine($"Invitados de Arena de la ronda {expectedRound} verificados con OCR de {testedSizes}.");
         return original;
 
         ArenaVoteOffer VerifyFrame(BitmapSource frame)

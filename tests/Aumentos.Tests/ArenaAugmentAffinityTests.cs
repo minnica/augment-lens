@@ -5,6 +5,16 @@ internal static class ArenaAugmentAffinityTests
     internal static void Run(Ratings ratings)
     {
         var affinity = new ArenaAugmentAffinity(ratings);
+        var unknownPower = Offer("AurelionSol", [322])[0];
+        var utilityPower = Offer("AurelionSol", [322], equipped: [223020, 447104, 3348])[0];
+        var burnPower = Offer("AurelionSol", [322], equipped: [223020, 222503])[0];
+        var doublePower = Offer("AurelionSol", [322], equipped: [222503, 226653, 2257])[0];
+        Check(unknownPower is { IsArenaVariable: true, LocalReason: "Depende del daño de tus objetos y aumentos" } &&
+            utilityPower is { IsArenaVariable: true, LocalReason: "Sin daño directo confirmado en tus objetos · Aumentos por confirmar" } &&
+            burnPower is { LocalText: "B", LocalReason: "Amplifica el daño de Antorcha de Fuegoscuro", UsesWiki: false } &&
+            doublePower is { LocalText: "A", LocalReason: "Amplifica el daño de Antorcha de Fuegoscuro y Angustia de Liandry" },
+            "Poder Mejorado distingue un inventario desconocido, utilidad y efectos propios de daño confirmados");
+
         var covered = ratings.Catalog.Augments.Count(card => card.Mode == nameof(Mode.Arena) &&
             ratings.RateEditorial(Mode.Arena, "Chogath", card.Id) is null &&
             affinity.Evaluate("Chogath", card.Id)?.Tier is not null);

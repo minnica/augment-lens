@@ -9,7 +9,7 @@ internal static class ArenaPrismaticTests
     private static readonly string[] ChoGathOffer = ["Fuerza de la Entropía", "Manto de la Noche Estrellada", "Armadura de Warmog"];
 
     internal static void Run(Ratings ratings, string assets, string? screenshot, string? tristanaScreenshot,
-        string? choGathScreenshot = null, string? renataScreenshot = null)
+        string? choGathScreenshot = null, string? renataScreenshot = null, string? goredrinkerScreenshot = null)
     {
         var rell = new GameContext(Mode.Arena, "Rell");
         var offer = new DetectionResult(true, new int?[3], RellOffer, [true, true, true]);
@@ -54,6 +54,20 @@ internal static class ArenaPrismaticTests
         {
             Texts = ["Espada Encantada por la Luna", crown!, "Filo del Crepúsculo"]
         });
+        var aurelion = new GameContext(Mode.Arena, "AurelionSol");
+        var goredrinker = offer with { Texts = ["Relicario Enervante", "Virtud Radiante", "Bebedor de Sangre"] };
+        CheckGoredrinkerOffer(goredrinker);
+        var incomplete = ratings.Prismatics.ForOffer(aurelion,
+            goredrinker with { Texts = ["Relicario Enervante", "Virtud Radiante", "Objeto sin catálogo"] });
+        Check(incomplete is { Top.Entries.Length: 5, Badges: [
+                { ArenaChoice: { Tier: Tier.A, Recommended: false } },
+                { ArenaChoice: { Tier: Tier.B, Recommended: false } }, null] },
+            "dos prismáticos exclusivos conservan sus tiers y el panel cuando falta clasificar la tercera opción");
+        Check(ratings.Prismatics.ForOffer(aurelion,
+            goredrinker with { Texts = ["Garra del Merodeador", "Virtud Radiante", "Objeto sin catálogo"] }) is null,
+            "un nombre compartido no basta para clasificar una oferta con otro objeto desconocido");
+        if (goredrinkerScreenshot is not null)
+            CheckGoredrinkerOffer(ReadScreenshot(ratings, assets, goredrinkerScreenshot));
         if (screenshot is not null)
         {
             CheckRellOffer(ratings, rell, ReadScreenshot(ratings, assets, screenshot));
@@ -75,6 +89,16 @@ internal static class ArenaPrismaticTests
             Console.WriteLine("Captura de Renata: Corona de la Reina Fragmentada B recomendada.");
         }
         Console.WriteLine("Tiers de objetos prismáticos verificados por campeón, con aislamiento de otros paneles.");
+
+        void CheckGoredrinkerOffer(DetectionResult detection)
+        {
+            var result = ratings.Prismatics.ForOffer(aurelion, detection);
+            Check(result is { Top.Entries.Length: 5, Badges: [
+                    { ArenaChoice: { Name: "Relicario Enervante", Tier: Tier.A, Recommended: true } },
+                    { ArenaChoice: { Name: "Virtud Radiante", Tier: Tier.B } },
+                    { ArenaChoice: { Name: "Bebedor de Sangre", Tier: Tier.C } }] },
+                $"Aurelion Sol conserva los tres tiers y el Top 5: {string.Join(" / ", detection.Texts)}");
+        }
     }
 
     private static DetectionResult ReadScreenshot(Ratings ratings, string assets, string screenshot)

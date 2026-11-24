@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace Aumentos;
 
 internal sealed record BuildStep(OpGgBuildItem Item, string? Detail = null, bool Owned = false);
-internal sealed record MayhemBuildPlan(BuildStep[] Steps, BuildSwap? Swap = null);
+internal sealed record MayhemBuildPlan(BuildStep[] Steps, BuildSwap? Swap = null, bool IsLocalRoute = false);
 
 internal sealed record MayhemItem(string Name, bool Finished, bool Available, bool Boots, bool OnHit, bool Sustain,
     int Armor, int MagicResist, int Health, int AttackDamage, int AbilityPower, decimal Crit, decimal AttackSpeed);
@@ -143,18 +143,15 @@ internal sealed class MayhemBuilds
             .Select(choice => choice.Select(item => BaseId(item.Id))
                 .Where(id => items.GetValueOrDefault(id) is { Available: true, Boots: false }).Distinct().ToArray())
             .Where(choice => choice.Length >= 2).ToArray() ?? [];
+        bool localRoute = paths.Length == 0;
         var core = paths.MaxBy(path => path.Intersect(owned.Select(BaseId)).Count()) ?? [];
         var style = BuildStyle(champion, core.Concat(owned).Distinct());
         if (steps.Count == 6)
         {
             var equipped = steps.ToArray();
-            return new(equipped, RecommendSwap(equipped, core, style, match, worthMagicPenetration));
+            return new(equipped, RecommendSwap(equipped, core, style, match, worthMagicPenetration), localRoute);
         }
         var purchaseThreats = AssessThreats(match.Opponents, purchasesOnly: true, prioritizeCarry: owned.Length == 5).ToArray();
-        if (paths.Length == 0)
-            return purchaseThreats.FirstOrDefault() is { Priority: LeadingRivalPriority } leading && AddCounter(leading)
-                ? new(steps.ToArray()) : null;
-
         int coreLimit = 4;
         if (owned.Length >= 2)
         {
@@ -170,12 +167,27 @@ internal sealed class MayhemBuilds
         var boot = source?.Groups.FirstOrDefault(group => group.Section == OpGgBuildSection.Boots)?.Choices
             .SelectMany(choice => choice).Select(item => item.Id)
             .FirstOrDefault(id => items.GetValueOrDefault(id) is { Available: true, Boots: true }) ?? 0;
-        foreach (var id in core.Take(1).Concat([boot]).Concat(core.Skip(1)))
+        if (localRoute)
         {
-            if (steps.Count >= coreLimit)
-                break;
-            if (CanAdd(id, steps, worthMagicPenetration))
-                steps.Add(Step(id, id == boot ? "Botas de OP.GG" : PublishedCore));
+            int firstItem = LocalFirstItem(style);
+            if (owned.All(id => items[id].Boots) && CanAdd(firstItem, steps, worthMagicPenetration))
+                steps.Add(Step(firstItem));
+            if (steps.Count < coreLimit && champion.Key != "Cassiopeia" && !owned.Any(id => items[id].Boots))
+            {
+                int localBoot = boot != 0 ? boot : LocalBoot(style, EstimateEnemyDamage(match));
+                if (CanAdd(localBoot, steps, worthMagicPenetration))
+                    steps.Add(Step(localBoot, boot != 0 ? "Botas de OP.GG" : null));
+            }
+        }
+        else
+        {
+            foreach (var id in core.Take(1).Concat([boot]).Concat(core.Skip(1)))
+            {
+                if (steps.Count >= coreLimit)
+                    break;
+                if (CanAdd(id, steps, worthMagicPenetration))
+                    steps.Add(Step(id, id == boot ? "Botas de OP.GG" : PublishedCore));
+            }
         }
 
         var inferredThreats = AssessThreats(match.Opponents);
@@ -190,6 +202,9 @@ internal sealed class MayhemBuilds
         var alternatives = paths.Where(path => BuildStyle(champion, path) == style).SelectMany(path => path).ToArray();
         var defaults = Choices.Where(choice => choice.Need == Need.General && (choice.Styles & style) != 0)
             .Select(choice => choice.Id);
+        if (localRoute)
+            defaults = defaults.Prepend(LocalFirstItem(style));
+
         foreach (var id in alternatives.Concat(defaults))
         {
             if (steps.Count == 6)
@@ -197,7 +212,7 @@ internal sealed class MayhemBuilds
             if (CanAdd(id, steps, worthMagicPenetration) && !items[id].Boots)
                 steps.Add(Step(id, alternatives.Contains(id) ? PublishedCore : null));
         }
-        return steps.Count == 6 ? new(steps.ToArray()) : null;
+        return steps.Count == 6 || (localRoute && steps.Count > 0) ? new(steps.ToArray(), IsLocalRoute: localRoute) : null;
 
         bool AddCounter(Threat threat)
         {
@@ -211,6 +226,26 @@ internal sealed class MayhemBuilds
             return true;
         }
     }
+
+    private static int LocalFirstItem(Style style) => style switch
+    {
+        Style.Mage => 6653,
+        Style.Support => 6617,
+        Style.Tank => 3084,
+        Style.Lethality => 3142,
+        Style.Crit => 3032,
+        Style.OnHit => 3153,
+        _ => 3078
+    };
+
+    private static int LocalBoot(Style style, EnemyDamageMix? damage) => style switch
+    {
+        Style.Mage => 3020,
+        Style.Support => 3158,
+        Style.Crit or Style.OnHit => 3006,
+        Style.Lethality => 3158,
+        _ => damage is { PhysicalPercent: >= 60 } ? 3047 : 3111
+    };
 
     private BuildSwap? RecommendSwap(BuildStep[] equipped, int[] core, Style style, MayhemMatch match,
         bool worthMagicPenetration)

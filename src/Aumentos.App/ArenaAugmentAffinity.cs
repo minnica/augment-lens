@@ -5,10 +5,11 @@ using System.Linq;
 namespace Aumentos;
 
 internal sealed record ArenaAugmentFit(Tier? Tier, string Reason, int? Priority = null, bool Contextual = false,
-    bool BaseOnly = false);
+    bool BaseOnly = false, bool UsesWiki = true);
 
 internal sealed class ArenaAugmentAffinity(Ratings ratings)
 {
+    private const int AugmentedPower = 322;
     private readonly Dictionary<string, Champion> champions = ratings.Catalog.Champions.ToDictionary(
         champion => champion.Key, StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, ArenaItem> items = (ratings.Catalog.ArenaEquipment ?? [])
@@ -41,7 +42,8 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
                 Local = local,
                 LocalReason = fit.Reason,
                 PreferLocalArenaTier = badge.PreferLocalArenaTier || fit.Contextual || fit.Priority is not null,
-                UsesWiki = badge.UsesWiki || fit.Contextual || local != badge.Local || fit.Reason != badge.LocalReason
+                UsesWiki = badge.UsesWiki || fit.UsesWiki &&
+                    (fit.Contextual || local != badge.Local || fit.Reason != badge.LocalReason)
             };
         }
 
@@ -88,7 +90,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
 
     private Profile? Context(string key, IReadOnlyList<int>? equipped)
     {
-        if (ratings.Wiki is null || !champions.TryGetValue(key, out var champion))
+        if (!champions.TryGetValue(key, out var champion))
             return null;
         var gear = (equipped ?? []).Where(id => id > 0)
             .Select(id => items.GetValueOrDefault(id) ?? items.GetValueOrDefault(id < 10000 ? id + 220000 : id))
@@ -100,13 +102,17 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
             Count("OnHit"), Count("AttackSpeed"), Count("CriticalStrike"), Count("Health"),
             Count("SpellDamage"), Count("SpellVamp") + Count("LifeSteal"),
             gear.Any(item => item.Id == 223084), gear.Any(item => item.Id == 223116),
-            gear.Any(item => item.Id is 223068 or 223115 or 223153 or 224633 or 226672));
+            gear.Any(item => item.Id is 223068 or 223115 or 223153 or 224633 or 226672),
+            equipped is null ? null : gear.Where(DealsDamage).Select(item => item.Name).Distinct().ToArray());
     }
 
     private ArenaAugmentFit? Evaluate(Profile profile, int id, int? level)
     {
-        if (!IsSupportedLevel(level) || ratings.VariableReason(Mode.Arena, id) is not null ||
-            ratings.ArenaAugment(id) is not { } card || (card.MaxLevel is { } max && level > max) ||
+        if (!IsSupportedLevel(level) || ratings.ArenaAugment(id) is not { } card || (card.MaxLevel is { } max && level > max))
+            return null;
+        if (id == AugmentedPower && !IsUpgrade(level))
+            return RateAugmentedPower(profile.DamagingItems);
+        if (ratings.VariableReason(Mode.Arena, id) is not null ||
             ratings.Wiki?.Find(card) is not { Disabled: not true, Removed: not true } wiki)
             return null;
 
@@ -120,6 +126,22 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
         return ratings.HasOverride(Mode.Arena, profile.Champion.Key, id)
             ? fit with { Tier = baseline } : fit;
     }
+
+    private static ArenaAugmentFit? RateAugmentedPower(string[]? damagingItems) => damagingItems switch
+    {
+        null => null,
+        [] => new(null, "Sin daño directo confirmado en tus objetos · Aumentos por confirmar", UsesWiki: false),
+        [var first] => new(Tier.B, $"Amplifica el daño de {first}", Contextual: true, UsesWiki: false),
+        [var first, var second, ..] => new(Tier.A, $"Amplifica el daño de {first} y {second}", Contextual: true, UsesWiki: false)
+    };
+
+    // Item effects that deal their own damage in the Arena client. Stats and damage modifiers alone do not count.
+    private static bool DealsDamage(ArenaItem item) => item.Id is
+        222502 or 222503 or 222510 or 222523 or 223050 or 223068 or 223074 or 223075 or 223084 or 223087 or 223094 or
+        223107 or 223115 or 223118 or 223124 or 223146 or 223152 or 223153 or 223508 or 223742 or 223748 or 224646 or
+        226620 or 226630 or 226631 or 226653 or 226655 or 226662 or 226664 or 226672 or 226693 or 226698 or 226699 or
+        443055 or 443069 or 443081 or 443090 or 444636 or 446656 or 446671 or 446693 or 447102 or 447108 or 447109 or
+        447113 or 447114 or 447116 or 447118 or 447119 or 447121;
 
     private static ArenaAugmentFit? BaseOfUpgrade(Profile profile, int id, Tier? baseline, ArenaWikiSignal signals)
     {
@@ -291,7 +313,7 @@ internal sealed class ArenaAugmentAffinity(Ratings ratings)
     private sealed record Profile(Champion Champion, bool Attacks, bool AttackSpeed, bool Crit, bool Range, bool Ap,
         bool Casting, bool Burst, bool Control, bool Ally, bool Durable, bool Sustain, bool Mobility, bool Hybrid,
         int OnHit, int SpeedItems, int CritItems, int Health, int SpellItems, int Lifesteal,
-        bool Heartsteel, bool Rylais, bool ItemDamage)
+        bool Heartsteel, bool Rylais, bool ItemDamage, string[]? DamagingItems)
     {
         internal bool Frontline => Champion.Roles[0] is "Tank" or "Fighter";
         internal bool Physical => !Ap && Champion.Roles[0] is "Assassin" or "Fighter" or "Marksman";

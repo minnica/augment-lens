@@ -69,7 +69,11 @@ internal sealed class BuildPanel : Border
 
         var build = view.Source?.Data;
         if (view.Plan is { } plan)
+        {
+            if (plan.IsLocalRoute)
+                AddLine("Ruta local · Según tu partida", 12, Accent, bold: true);
             AddPurchaseRoute(plan, view.ClientPatch ?? build?.ClientPatch ?? "");
+        }
 
         if (build is { Groups.Length: > 0 })
             AddSourceBuild(view, build);

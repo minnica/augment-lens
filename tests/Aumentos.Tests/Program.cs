@@ -36,7 +36,18 @@ internal static class Program
             Option("--arena-anvil-pair-shot"));
         ArenaJaxOfferTests.Run(ratings);
         ArenaPrismaticTests.Run(ratings, assets, Option("--arena-prismatic-shot"), Option("--arena-prismatic-top-shot"),
-            Option("--arena-prismatic-rank-shot"), Option("--arena-prismatic-renata-shot"));
+            Option("--arena-prismatic-rank-shot"), Option("--arena-prismatic-renata-shot"),
+            Option("--arena-prismatic-goredrinker-shot"));
+        if (Option("--arena-augmented-power-shot") is { } powerShot)
+        {
+            var shot = Diagnostics.OpenBitmap(powerShot);
+            var scan = new Int32Rect(0, 0, shot.PixelWidth, shot.PixelHeight);
+            using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
+            var candidates = new LayoutStore(Path.Combine(assets, "layouts.json"), "").Find(Mode.Arena, scan.Width, scan.Height);
+            var read = detector.ReadPanel(shot, scan, candidates, Mode.Arena, null);
+            Check(read?.Result.Cards is [129, 232, 322], "reconoce Quebrantado: Tirador Mágico y los otros dos aumentos");
+            Console.WriteLine("Captura de Aurelion Sol: Tirador Mágico, Hora del Slime y Poder Mejorado reconocidos.");
+        }
         StatShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
@@ -181,6 +192,8 @@ internal static class Program
             ArenaVoteOverlayTests.Run();
         if (Option("--arena-vote-round-eight-shot") is { } roundEightShot)
             ArenaVoteReaderTests.Verify(ratings, assets, roundEightShot, expectedRound: 8);
+        if (Option("--arena-vote-kayle-shot") is { } kayleVoteShot)
+            ArenaVoteReaderTests.VerifyKayle(ratings, assets, kayleVoteShot);
         if (Option("--arena-vote-shot") is { } voteShot)
         {
             var voteOffer = ArenaVoteReaderTests.Verify(ratings, assets, voteShot);

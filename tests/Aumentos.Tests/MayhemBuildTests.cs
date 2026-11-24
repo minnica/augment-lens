@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Windows;
+using System.Windows.Controls;
 using Aumentos;
 
 internal static class MayhemBuildTests
@@ -38,7 +40,8 @@ internal static class MayhemBuildTests
                 [[new(6655, "Eco de Luden"), new(4645, "Lumbría"), new(3089, "Sombrero Mortífero de Rabadon")],
                  [new(6655, "Eco de Luden"), new(4646, "Descarga Tormentosa"), new(4645, "Lumbría")]])
         ]);
-        var source = new MayhemBuilds(ratings, MayhemItemCatalog.Load(ratings.Catalog.Patch, assets));
+        var itemCatalog = MayhemItemCatalog.Load(ratings.Catalog.Patch, assets);
+        var source = new MayhemBuilds(ratings, itemCatalog);
         Check(!source.HasStartingPurchase(null, build) && !source.HasStartingPurchase(new([2003], []), build) &&
             source.HasStartingPurchase(new([1056], []), build) && source.HasStartingPurchase(new([1038], []), build) &&
             source.HasStartingPurchase(new([6655], []), null),
@@ -178,7 +181,38 @@ internal static class MayhemBuildTests
             "una build completa de Karthus añade defensa contra críticos y conserva Rabadon, penetración y heridas graves");
         CheckLeadingRival(source, build);
         CheckNautilusFullBuild(source, build);
+        CheckLocalRoute(ratings, source, itemCatalog);
         Console.WriteLine("Build situacional de ARAM Caos verificada con inventario, compras y marcador rival.");
+    }
+
+    private static void CheckLocalRoute(Ratings ratings, MayhemBuilds source, Dictionary<int, MayhemItem> items)
+    {
+        var amumu = new GameContext(Mode.Caos, "Amumu");
+        var match = new MayhemMatch([3118, 3020, 4646], [new("Brand", [6655]), new("Jinx", [3031])]);
+        var plan = source.Recommend(amumu, match, null);
+        Check(plan is { IsLocalRoute: true, Steps.Length: 6 } &&
+            plan.Steps.Where(step => step.Owned).Select(step => step.Item.Id).SequenceEqual(match.Items) &&
+            plan.Steps.Count(step => items[step.Item.Id].Boots) == 1,
+            "si OP.GG falla, Amumu conserva sus compras y consigue una ruta local hasta seis objetos");
+
+        var panel = new BuildPanel(null);
+        panel.Render(new BuildDisplay(new Int32Rect(0, 0, 2560, 1440), 0, "Amumu", Mode.Caos,
+            new(null, "Build de OP.GG no disponible (500)."), Plan: plan, ClientPatch: ratings.Catalog.Patch,
+            EnemyDamage: new(50)));
+        var content = (StackPanel)panel.Child;
+        var labels = content.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
+        Check(labels.Contains("Ruta local · Según tu partida") && labels.Contains("Equipados · 3 de 6") &&
+            labels.Contains("Daño rival estimado") && !labels.Any(text => text.Contains("(500)")) &&
+            content.Children.OfType<Border>().Any(),
+            "la tienda muestra una compra destacada, los objetos equipados y el daño ante el error 500");
+
+        foreach (var champion in ratings.Catalog.Champions)
+        {
+            var early = source.Recommend(new(Mode.Caos, champion.Key), new([], []), null);
+            Check(early is { IsLocalRoute: true, Steps.Length: 6 } &&
+                early.Steps.Count(step => items[step.Item.Id].Boots) == (champion.Key == "Cassiopeia" ? 0 : 1),
+                $"la ruta local inicial de {champion.Name} cubre los seis espacios con las botas aplicables");
+        }
     }
 
     private static void CheckNautilusFullBuild(MayhemBuilds source, OpGgBuildSnapshot build)

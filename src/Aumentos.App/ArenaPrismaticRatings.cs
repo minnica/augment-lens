@@ -12,7 +12,7 @@ internal sealed record ArenaPrismaticOffer(CardComparison?[] Badges, ArenaPrisma
 
 internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string, HashSet<string>> profiles)
 {
-    private readonly ArenaItemTitles titles = new(items);
+    private readonly ArenaItemTitles titles = new(items, allowUnlisted: true);
     private readonly Dictionary<string, ChampionRanking> rankings = profiles.ToDictionary(
         profile => profile.Key, profile => Rank(items, profile.Value), profiles.Comparer);
 
@@ -66,6 +66,7 @@ internal sealed class ArenaPrismaticRatings(ArenaItem[] items, Dictionary<string
     {
         var fit = item.Id switch
         {
+            226630 => new Fit("Cura al golpear enemigos cercanos", "sustain", "durability"),
             443054 => new Fit("Ataques al impacto y armadura", "attacks", "durability"),
             443055 => new Fit("Ataques energizados", "attacks"),
             443056 => new Fit("Escala con victorias de ronda", ""),

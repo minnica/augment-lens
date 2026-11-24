@@ -76,6 +76,15 @@ internal static class BuildTests
         Check(fallback.Data is { IsPrevious: true } && fallback.Status.Contains("Parche anterior 26.22") &&
             fallback.Status.Contains("Copia guardada") && blocked.Requests == 1,
             "si falla OP.GG se identifica la copia del parche inmediatamente anterior");
+        var unavailable = new Handler((_, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)));
+        using var unavailableHttp = new HttpClient(unavailable);
+        var failedBuilds = new OpGgBuilds(catalog, directory.Path, unavailableHttp);
+        var amumu = new GameContext(Mode.Caos, "Amumu");
+        var failed = await failedBuilds.ForCaptureAsync(amumu, default);
+        Check(failed.Data is null && failed.Status.Contains("(500)") &&
+            await failedBuilds.ForCaptureAsync(amumu, default) == failed && unavailable.Requests == 1,
+            "el error 500 sin caché deja el diagnóstico disponible y espera antes de reintentar");
         Console.WriteLine("Builds de OP.GG verificadas para ARAM Caos y Arena.");
 
         static void Reject(string html, GameContext game, string message)

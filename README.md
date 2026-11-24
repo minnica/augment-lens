@@ -60,6 +60,8 @@ Las ofertas de dos cartas de **Sube de nivel un aumento** también muestran su v
 
 Al elegir un **fragmento del Yunque de estadísticas** en **ARAM Caos o Arena**, el overlay muestra el tier local. El motivo según tu campeón está en **Detalles de las cartas**. En **Arena**, también valora los objetos legendarios y prismáticos. Durante una oferta prismática, un panel lateral muestra los **cinco objetos prismáticos con mayor afinidad** y esas cartas llevan su posición, como **Top #5**. Si la oferta completa tiene una opción claramente superior, el overlay la destaca.
 
+En **Arena**, **Poder Mejorado** tiene en cuenta los objetos equipados que generan daño por sí mismos. Los objetos que solo aportan estadísticas, como las botas de penetración, no cuentan como fuentes de daño. Cuando la API local no entrega los aumentos elegidos, la valoración señala que faltan por confirmar.
+
 Para ajustar el tamaño de las insignias de **ARAM Caos** y **Arena**, pulsa **Tamaño de los tiers** en el borde derecho de la pantalla durante una oferta. Mueve el deslizador de **75 % a 150 %** para ver el cambio en las cartas y aparta el cursor para cerrar el ajuste. El tamaño se guarda automáticamente y se adapta al espacio disponible. Desde la bandeja, **Tamaño de los tiers de cartas…** abre la vista previa de escritorio.
 
 Para ajustar el panel **Top 5 prismáticos**, pulsa **Tamaño…** encima del panel y ajusta su escala en partida. El panel guarda su propio tamaño y se ajusta al espacio disponible junto a las cartas. Desde la bandeja, **Tamaño del panel de prismáticos…** abre la vista previa de escritorio.
@@ -84,7 +86,7 @@ Pulsa **P**, la tecla predeterminada de la tienda, en **ARAM Caos** o **Arena**.
 
 Los números indican el **orden de compra** y cada icono va acompañado del nombre del objeto en español. Cuando hay poco espacio junto a la tienda, los objetos se leen en una sola columna. El panel incluye objetos iniciales, botas y las rutas que publica OP.GG. En Arena también muestra los objetos prismáticos de la fuente. [Build de Zyra en ARAM Caos](https://op.gg/es-419/lol/modes/aram-mayhem/zyra/build) · [Build de Elise en Arena](https://op.gg/es-419/lol/modes/arena/elise/build)
 
-En **ARAM Caos**, la ruta a seis objetos destaca la **Siguiente compra** al inicio del panel. Las compras pendientes se leen en **Después** y los objetos terminados de tu inventario, incluidas las botas mejoradas, se agrupan en **Equipados**. La ruta parte del núcleo de OP.GG y cubre los espacios libres según la composición y las compras que reporta el marcador del cliente local. La app actualiza la ruta durante la partida y usa los datos de objetos del parche de Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
+En **ARAM Caos**, la ruta a seis objetos destaca la **Siguiente compra** al inicio del panel. Las compras pendientes se leen en **Después** y los objetos terminados de tu inventario, incluidas las botas mejoradas, se agrupan en **Equipados**. La ruta parte del núcleo de OP.GG y cubre los espacios libres según la composición y las compras que reporta el marcador del cliente local. Si falta un núcleo de OP.GG utilizable, **Ruta local** propone compras con el perfil de tu campeón, tu inventario y los datos rivales disponibles. La app actualiza la ruta durante la partida y usa los datos de objetos del parche de Data Dragon. [API local de Riot](https://developer.riotgames.com/docs/lol#live-client-data-api)
 
 En **ARAM Caos**, la sección **Objetos iniciales** se oculta cuando el cliente confirma que llevas una pieza inicial recomendada o un objeto terminado. **Ruta alternativa** solo aparece si te queda espacio en la build y falta al menos un objeto de esa ruta.
 
@@ -190,6 +192,9 @@ La suite verifica las fuentes, el historial, las builds, la selección de campe�
 - `--arena-champion-overlay-smoke` comprueba el Top 30 general, el tier de tu elección, el tier del equipo y las sugerencias de composición de Arena.
 - `--arena-vote-overlay-smoke --arena-vote-shot "ruta\votacion.png"` comprueba la posición de las insignias y reproduce la votación de referencia de Yone, Evelynn y Tahm Kench.
 - `--arena-vote-round-eight-shot "ruta\votacion-ronda-8.png"` reproduce la votación de Garen, Jarvan IV y Annie y verifica la lectura de la ronda y la vida del equipo.
+- `--arena-vote-kayle-shot "ruta\votacion-kayle.png"` verifica que la captura con Tahm Kench, Atakhan y Kayle produce tres valoraciones en sus filas.
+- `--arena-prismatic-goredrinker-shot "ruta\prismaticos-aurelion.png"` comprueba los tres tiers y el Top 5 en una oferta con Bebedor de Sangre.
+- `--arena-augmented-power-shot "ruta\aumentos-aurelion.png"` verifica la lectura de Tirador Mágico con el prefijo «Quebrantado», Hora del Slime y Poder Mejorado.
 - `--patch-update-smoke` verifica con datos públicos el catálogo que se descarga para el parche incluido y la lectura de tríos y objetos de GGEZ.GG. Genera las copias de prueba en una carpeta temporal.
 - `--mayhem-draft-shot "ruta\oferta.png" --mayhem-locked-shot "ruta\campeon-elegido.png"` comprueba la oferta de referencia de Kai'Sa, Jinx y Aurelion Sol y el cierre al elegir.
 - `--mayhem-pair-shot "ruta\oferta-doble.png"` comprueba la oferta de Camille y Bel'Veth con una carta ampliada.

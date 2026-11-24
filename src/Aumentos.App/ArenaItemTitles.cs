@@ -5,7 +5,7 @@ namespace Aumentos;
 public sealed record ArenaItem(int Id, string Name, bool SharedName = false, string[]? Categories = null,
     bool Buyable = false);
 
-internal sealed class ArenaItemTitles(ArenaItem[] items)
+internal sealed class ArenaItemTitles(ArenaItem[] items, bool allowUnlisted = false)
 {
     private readonly ILookup<string, ArenaItem> byName = items.ToLookup(item => Ratings.Normalize(item.Name));
 
@@ -17,8 +17,11 @@ internal sealed class ArenaItemTitles(ArenaItem[] items)
         var recognized = offer.Texts.Select((text, index) => offer.Items[index] &&
             byName[Ratings.Normalize(text)].Take(2).ToArray() is [var item] ? item : null).ToArray();
         // An item name can be shared by both pools. Confirm it against another exact card in the offer.
-        if (recognized.Count(item => item is not null) < 2 || !recognized.Any(item => item is { SharedName: false }) ||
-            recognized.Where((item, index) => offer.Items[index] && item is null).Any())
+        int exclusive = recognized.Count(item => item is { SharedName: false });
+        bool unlisted = recognized.Where((item, index) => offer.Items[index] && item is null).Any();
+        // Two exclusive prismatics still identify the offer when another item is missing from the pool.
+        if (recognized.Count(item => item is not null) < 2 || exclusive == 0 ||
+            unlisted && (!allowUnlisted || exclusive < 2))
             return null;
         return recognized;
     }

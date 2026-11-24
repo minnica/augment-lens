@@ -162,6 +162,9 @@ public sealed class Ratings
         const string badLuck = "mala suerte ";
         if (mode == Mode.Arena && query.StartsWith(badLuck, StringComparison.Ordinal))
             return Exact(query[badLuck.Length..]);
+        const string shattered = "quebrantado ";
+        if (mode == Mode.Arena && query.StartsWith(shattered, StringComparison.Ordinal))
+            return Exact(query[shattered.Length..]);
         if (mode == Mode.Arena && Regex.Match(text, @"^\s*\(\d+\)\s+(.+)$") is { Success: true } prefix)
         {
             var title = Normalize(prefix.Groups[1].Value);

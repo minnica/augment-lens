@@ -225,10 +225,14 @@ $arenaItems = @($allItems | Where-Object {
     (($_.id -ge 440000 -and $_.id -lt 450000) -or ($_.id -ge 220000 -and $_.id -lt 230000)) -and $_.name
 } | Select-Object -ExpandProperty name | Sort-Object -Unique)
 if (!$arenaItems.Count) { throw 'No se encontraron objetos de Arena.' }
-$legendaryNames = @($allItems | Where-Object { $_.id -ge 220000 -and $_.id -lt 230000 -and $_.inStore } |
+# Goredrinker is offered by Prismatic Anvils under its older Arena item ID.
+$legacyPrismaticIds = @(226630)
+$legendaryNames = @($allItems | Where-Object {
+    $_.id -ge 220000 -and $_.id -lt 230000 -and $_.inStore -and $_.id -notin $legacyPrismaticIds
+} |
     Select-Object -ExpandProperty name)
 $arenaPrismatics = @($allItems | Where-Object {
-    $_.id -ge 443000 -and $_.id -lt 448000 -and $_.inStore -and $_.name -and
+    (($_.id -ge 443000 -and $_.id -lt 448000) -or $_.id -in $legacyPrismaticIds) -and $_.inStore -and $_.name -and
         ($_.priceTotal -eq 2750 -or $_.id -eq 446693)
 } | Sort-Object id | ForEach-Object {
     [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $legendaryNames); categories=@($_.categories) }
