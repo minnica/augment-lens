@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,7 +14,8 @@ namespace Aumentos;
 
 internal sealed record MayhemBenchChoice(int Slot, Champion Champion);
 
-internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, HttpClient http)
+internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, HttpClient http,
+    ChampionSelectPortraits? portraits = null)
 {
     private const int GridSize = 8;
     private const int SignatureSize = GridSize * GridSize * 3;
@@ -28,6 +27,7 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
     internal static int PortraitLeft(int slot) => FirstPortrait + (int)Math.Round(slot * 91.7);
 
     private readonly Dictionary<string, Champion> champions = catalog.Champions.ToDictionary(champion => champion.Key);
+    private readonly ChampionSelectPortraits source = portraits ?? new(catalog, settings, http);
     private Task<Dictionary<string, byte[]>?>? load;
     private long retryAt;
 
@@ -54,7 +54,7 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
         {
             var portrait = MayhemDraftReader.Scaled(PortraitLeft(slot), 17, PortraitSize, PortraitSize,
                 frame.PixelWidth, frame.PixelHeight);
-            var sample = Signature(frame, portrait);
+            var sample = Signature(new CroppedBitmap(frame, portrait));
             if (!IsAvailablePortrait(sample))
                 continue;
 
@@ -105,12 +105,7 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
 
     internal async Task<Dictionary<string, byte[]>?> Load(CancellationToken cancellation)
     {
-        var configured = catalog.Sources?.GetValueOrDefault("champions");
-        const string prefix = "Data Dragon ";
-        var version = configured?.StartsWith(prefix, StringComparison.Ordinal) == true &&
-            Version.TryParse(configured[prefix.Length..], out var release) &&
-            release.ToString(2) == catalog.Patch ? release.ToString() : catalog.Patch + ".1";
-        var cache = Path.Combine(settings, "mayhem-portraits", version + ".json");
+        var cache = Path.Combine(settings, "mayhem-portraits", source.Version + ".json");
         try
         {
             var existing = Ratings.Read<Dictionary<string, byte[]>>(cache);
@@ -122,57 +117,34 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
 
         try
         {
-            var root = $"https://ddragon.leagueoflegends.com/cdn/{version}";
-            var metadata = await http.GetFromJsonAsync<ChampionImages>(root + "/data/en_US/champion.json",
-                Ratings.JsonOptions, cancellation).ConfigureAwait(false);
-            var images = metadata?.Data?.Where(pair => champions.ContainsKey(pair.Key) &&
-                pair.Value?.Image is { W: 48, H: 48, X: >= 0, Y: >= 0, Sprite: { } file } &&
-                file.StartsWith("champion", StringComparison.Ordinal) && file.EndsWith(".png", StringComparison.Ordinal) &&
-                int.TryParse(file.AsSpan(8, file.Length - 12), NumberStyles.None, CultureInfo.InvariantCulture, out _))
-                .GroupBy(pair => pair.Value.Image.Sprite).ToArray() ?? [];
-            var sprites = await Task.WhenAll(images.Select(async group =>
-            {
-                var bytes = await http.GetByteArrayAsync(root + "/img/sprite/" + group.Key, cancellation).ConfigureAwait(false);
-                return (Regions: group, Bytes: bytes);
-            })).ConfigureAwait(false);
-            var templates = new Dictionary<string, byte[]>();
-            foreach (var (regions, bytes) in sprites)
-            {
-                using var stream = new MemoryStream(bytes, writable: false);
-                var image = BitmapFrame.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                foreach (var entry in regions)
-                {
-                    var box = entry.Value.Image;
-                    if (box.X <= image.PixelWidth - box.W && box.Y <= image.PixelHeight - box.H)
-                        templates.Add(entry.Key, Signature(image, new(box.X, box.Y, box.W, box.H)));
-                }
-            }
-            if (templates.Count < champions.Count / 2)
+            var images = await source.ReadAll().WaitAsync(cancellation).ConfigureAwait(false);
+            if (images is null)
                 return null;
+            var templates = images.ToDictionary(pair => pair.Key, pair => Signature(pair.Value));
             StatsCache.Write(cache, templates);
             return templates;
         }
-        catch (Exception error) when (error is HttpRequestException or IOException or JsonException or OperationCanceledException or
-            ArgumentException or NotSupportedException or FileFormatException or InvalidOperationException)
+        catch (Exception error) when (error is OperationCanceledException or ArgumentException or NotSupportedException or
+            FileFormatException or InvalidOperationException)
         {
             return null;
         }
     }
 
-    private static byte[] Signature(BitmapSource image, Int32Rect area)
+    private static byte[] Signature(BitmapSource image)
     {
-        var cropped = new CroppedBitmap(image, area);
-        var rgb = new FormatConvertedBitmap(cropped, PixelFormats.Rgb24, null, 0);
-        int stride = area.Width * 3;
-        var source = new byte[stride * area.Height];
+        var rgb = new FormatConvertedBitmap(image, PixelFormats.Rgb24, null, 0);
+        int width = image.PixelWidth, height = image.PixelHeight;
+        int stride = width * 3;
+        var source = new byte[stride * height];
         rgb.CopyPixels(source, stride, 0);
         var result = new byte[SignatureSize];
         // Keep the central portion of the portrait to discard the border and lock icon.
         for (int y = 0; y < GridSize; y++)
         for (int x = 0; x < GridSize; x++)
         {
-            int left = Cell(area.Width, x), right = Cell(area.Width, x + 1);
-            int top = Cell(area.Height, y), bottom = Cell(area.Height, y + 1);
+            int left = Cell(width, x), right = Cell(width, x + 1);
+            int top = Cell(height, y), bottom = Cell(height, y + 1);
             for (int channel = 0; channel < 3; channel++)
             {
                 int sum = 0;
@@ -186,8 +158,4 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
 
         static int Cell(int extent, int index) => (int)(extent * (0.18 + index * 0.08));
     }
-
-    private sealed record ChampionImages(Dictionary<string, ChampionImage>? Data);
-    private sealed record ChampionImage(SpriteRegion Image);
-    private sealed record SpriteRegion(string Sprite, int X, int Y, int W, int H);
 }

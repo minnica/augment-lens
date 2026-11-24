@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
-using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Interop;
@@ -50,7 +49,7 @@ internal sealed record ArenaChampionDisplay(Int32Rect Bounds, nint Target, Arena
     }
 }
 
-internal sealed class ArenaChampionOverlay() : ChampionRankingOverlay(Mode.Arena)
+internal sealed class ArenaChampionOverlay(ChampionSelectPortraits? portraits = null) : ChampionRankingOverlay(Mode.Arena, portraits)
 {
     internal void Render(ArenaChampionDisplay? view) => RenderRanking(view is null ? null : new(
         view.Bounds, view.Target, view.Source.Data is { } data ? data.IsPrevious ? "Parche anterior" : "" : view.Source.Status,
@@ -83,24 +82,25 @@ internal abstract class ChampionRankingOverlay : Window
     private const double ArenaRankingWidth = 298;
     private const double CompactArenaWidth = 244;
     private static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es-MX");
-    private static readonly Brush ArenaRowTint = Overlay.Paint("#09141D");
-    private static readonly Brush ArenaSelectionTint = Overlay.Paint("#30291D");
+    private static readonly Brush RowTint = Overlay.Paint("#09141D");
+    private static readonly Brush SelectionTint = Overlay.Paint("#30291D");
+    private static readonly Brush SelectionFrame = Overlay.Paint("#785A28");
     private const double TierColumnWidth = 32;
     private const double Inset = 11;
-    private const double ChampionTierSize = 15;
-    private static readonly Brush TierTint = Overlay.Paint("#14212A");
     private readonly StackPanel rows = new();
     private readonly Border panel;
     private readonly bool mayhem;
+    private readonly ChampionSelectPortraits? portraits;
     private ChampionRankingDisplay? displayed;
     private bool displayedCompact;
     private double displayedWidth;
     private nint handle;
     private Int32Rect placement;
 
-    protected ChampionRankingOverlay(Mode mode)
+    protected ChampionRankingOverlay(Mode mode, ChampionSelectPortraits? portraits)
     {
         mayhem = mode == Mode.Caos;
+        this.portraits = portraits;
         Title = mayhem ? "Aumentos LoL · Selección de campeón" : "Aumentos LoL · Tier de campeones";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -184,13 +184,13 @@ internal abstract class ChampionRankingOverlay : Window
         rows.Children.Add(sections);
         if (mayhem && view.Selection is { } selection)
         {
-            var identity = new StackPanel();
-            identity.Children.Add(Heading("Tu campeón", MayhemTierStyle.Gold));
-            var name = Label(selection.Champion, MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, bold: true);
-            name.TextWrapping = TextWrapping.Wrap;
-            identity.Children.Add(name);
-            sections.Children.Add(TierRow(identity, MayhemTierStyle.ChampionBadge(selection.Tier, selection.Champion,
-                28, 28, ChampionTierSize)));
+            sections.Children.Add(Heading("Tu campeón", MayhemTierStyle.Gold));
+            var own = TierRow(ChampionIdentity(selection.Champion, 22, selected: true),
+                ChampionTier(selection.Champion, selection.Tier));
+            own.MinHeight = 30;
+            own.Margin = new Thickness(0, 3, 0, 0);
+            AddRowBackground(own, 0, selected: true);
+            sections.Children.Add(own);
         }
 
         if (view.ArenaGroups is { Length: > 0 } groups)
@@ -220,7 +220,7 @@ internal abstract class ChampionRankingOverlay : Window
         previous.Length == current.Length && previous.Zip(current).All(pair =>
             pair.First.Category == pair.Second.Category && pair.First.Options.SequenceEqual(pair.Second.Options));
 
-    private static void AddArenaGroups(StackPanel sections, ArenaCompositionGroup[] groups)
+    private void AddArenaGroups(StackPanel sections, ArenaCompositionGroup[] groups)
     {
         BeginSection(sections);
         sections.Children.Add(Heading("Para tu equipo", MayhemTierStyle.Gold));
@@ -230,7 +230,7 @@ internal abstract class ChampionRankingOverlay : Window
             category.Children.Add(Label(group.Category, MayhemTierStyle.PanelDetailSize, MayhemTierStyle.Gold, bold: true));
             foreach (var option in group.Options)
             {
-                var row = TierRow(Label(option.Champion, MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink), TierLabel(option.Tier));
+                var row = TierRow(ChampionIdentity(option.Champion, 16), ChampionTier(option.Champion, option.Tier, compact: true));
                 row.MinHeight = 18;
                 category.Children.Add(row);
             }
@@ -238,7 +238,7 @@ internal abstract class ChampionRankingOverlay : Window
         }
     }
 
-    private static void RenderAvailable(StackPanel sections, ChampionRankingDisplay view)
+    private void RenderAvailable(StackPanel sections, ChampionRankingDisplay view)
     {
         var heading = Heading("Campeones disponibles", MayhemTierStyle.Gold);
         var hasOptions = view.Rows.Length > 0;
@@ -251,11 +251,13 @@ internal abstract class ChampionRankingOverlay : Window
         else if (view.Caption.Length > 0)
             sections.Children.Add(SourceNote(view));
 
-        foreach (var option in view.Rows)
+        for (int index = 0; index < view.Rows.Length; index++)
         {
-            var name = Label(option.Champion, MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink);
-            var row = TierRow(name, TierLabel(option.Tier));
-            row.MinHeight = 19;
+            var option = view.Rows[index];
+            var row = TierRow(ChampionIdentity(option.Champion, 20), ChampionTier(option.Champion, option.Tier));
+            row.MinHeight = 26;
+            if (index % 2 != 0)
+                AddRowBackground(row, 0, selected: false);
             sections.Children.Add(row);
         }
     }
@@ -272,7 +274,7 @@ internal abstract class ChampionRankingOverlay : Window
             sections.Children.Add(RankingTable(view.Rows, view.Selection, compact));
     }
 
-    private static Border TeamEvaluation(ChampionRankingDisplay view, bool balanced, bool mayhem)
+    private Border TeamEvaluation(ChampionRankingDisplay view, bool balanced, bool mayhem)
     {
         var grade = view.Grade;
         var waiting = view.Selection is null ? "Esperando tu elección" : "Esperando un aliado";
@@ -284,7 +286,7 @@ internal abstract class ChampionRankingOverlay : Window
             text.Children.Add(Note($"{partial.Members}/{partial.TeamSize} campeones", MayhemTierStyle.Muted));
         if (grade?.Detail is { } detail)
             text.Children.Add(Note(detail, MayhemTierStyle.Muted));
-        var summary = TierRow(text, grade is null ? null : MayhemTierStyle.Badge(grade.Tier, TierColumnWidth, 32, 22));
+        var summary = TierRow(text, grade is null ? null : TierHexagon.Create(grade.Tier, 28, 31, 18));
         FrameworkElement content = summary;
         if (view.Roster is { Length: > 0 } roster)
         {
@@ -302,7 +304,7 @@ internal abstract class ChampionRankingOverlay : Window
         };
     }
 
-    private static Grid ArenaRoster(ArenaRosterMember[] members)
+    private Grid ArenaRoster(ArenaRosterMember[] members)
     {
         var grid = new Grid { Margin = new Thickness(0, 5, 0, 0) };
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -320,23 +322,20 @@ internal abstract class ChampionRankingOverlay : Window
         {
             var member = members[index];
             int row = index + 1;
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, MinHeight = 18 });
-            var champion = Label(member.Own ? $"{member.Champion} (tú)" : member.Champion,
-                MayhemTierStyle.PanelBodySize, member.Own ? MayhemTierStyle.Gold : MayhemTierStyle.Ink, bold: member.Own);
-            champion.TextWrapping = TextWrapping.Wrap;
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto, MinHeight = 24 });
+            if (member.Own)
+                AddRowBackground(grid, row, selected: true);
+            var champion = ChampionIdentity(member.Champion, 18, selected: member.Own, wrapName: true);
             champion.Margin = new Thickness(0, 0, 5, 0);
             AddCell(row, 0, champion);
             string status = member.Confirmed switch { true => "Confirmado", false => "Preselección", _ => "—" };
             AddCell(row, 1, Label(status, MayhemTierStyle.PanelDetailSize,
                 member.Confirmed == true ? MayhemTierStyle.Gold : MayhemTierStyle.Muted));
-            var tier = TierLabel(member.Tier);
-            if (member.Tier is null)
-                AutomationProperties.SetName(tier, "Sin tier publicado");
-            AddCell(row, 2, tier);
+            AddCell(row, 2, ChampionTier(member.Champion, member.Tier));
         }
         return grid;
 
-        void AddCell(int row, int column, TextBlock label)
+        void AddCell(int row, int column, FrameworkElement label)
         {
             label.VerticalAlignment = VerticalAlignment.Center;
             Grid.SetRow(label, row);
@@ -345,14 +344,9 @@ internal abstract class ChampionRankingOverlay : Window
         }
     }
 
-    private static Grid TeamPick(ChampionRankingPick pick, bool showTradeoff)
+    private Grid TeamPick(ChampionRankingPick pick, bool showTradeoff)
     {
-        var tier = new Border
-        {
-            Width = 24, Height = 19, HorizontalAlignment = HorizontalAlignment.Center,
-            Background = TierTint, Child = TierLabel(pick.Tier)
-        };
-        var grid = TierRow(Label(pick.Champion, MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, bold: true), tier);
+        var grid = TierRow(ChampionIdentity(pick.Champion, 20, bold: true), ChampionTier(pick.Champion, pick.Tier));
         grid.Margin = new Thickness(0, 4, 0, 0);
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -385,11 +379,51 @@ internal abstract class ChampionRankingOverlay : Window
         return grid;
     }
 
-    private static TextBlock TierLabel(string? tier) => new()
+    private Grid ChampionIdentity(string champion, double portraitSize, bool selected = false, bool bold = false, bool wrapName = false)
     {
-        Text = tier ?? "—", FontSize = ChampionTierSize, Foreground = MayhemTierStyle.Tier(tier), FontFamily = MayhemTierStyle.Heading,
-        FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center
-    };
+        var identity = new Grid();
+        identity.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        identity.ColumnDefinitions.Add(new ColumnDefinition());
+        var portrait = ChampionSelectStyle.Portrait(portraits, champion, portraitSize);
+        portrait.Margin = new Thickness(5, 0, 6, 0);
+        identity.Children.Add(portrait);
+        var name = Label(champion, MayhemTierStyle.PanelBodySize,
+            selected ? MayhemTierStyle.Gold : MayhemTierStyle.Ink, bold: selected || bold);
+        name.VerticalAlignment = VerticalAlignment.Center;
+        if (wrapName)
+            name.TextWrapping = TextWrapping.Wrap;
+        Grid.SetColumn(name, 1);
+        identity.Children.Add(name);
+        if (selected)
+        {
+            var marker = new Border
+            {
+                BorderBrush = SelectionFrame, BorderThickness = new Thickness(1), Margin = new Thickness(4, 0, 0, 0),
+                Padding = new Thickness(3, 0, 3, 0), VerticalAlignment = VerticalAlignment.Center,
+                Child = Label("TÚ", 9, MayhemTierStyle.Gold, bold: true)
+            };
+            identity.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(marker, 2);
+            identity.Children.Add(marker);
+        }
+        return identity;
+    }
+
+    private Border ChampionTier(string champion, string? tier, bool compact = false) =>
+        MayhemTierStyle.ChampionBadge(tier, champion, compact ? 15 : 19, compact ? 16 : 21,
+            compact ? 10 : 12, mayhem ? "OP.GG" : "GGEZ.GG");
+
+    private static void AddRowBackground(Grid grid, int row, bool selected)
+    {
+        var background = new Border
+        {
+            Background = selected ? SelectionTint : RowTint,
+            BorderBrush = selected ? SelectionFrame : null, BorderThickness = new Thickness(1)
+        };
+        Grid.SetRow(background, row);
+        Grid.SetColumnSpan(background, grid.ColumnDefinitions.Count);
+        grid.Children.Insert(0, background);
+    }
 
     private static TextBlock Heading(string value, Brush color, double size = MayhemTierStyle.PanelSectionSize) => new()
     {
@@ -415,11 +449,11 @@ internal abstract class ChampionRankingOverlay : Window
             });
     }
 
-    private static Grid RankingTable(ChampionRankingRow[] rows, ChampionRankingRow? selection, bool compact)
+    private Grid RankingTable(ChampionRankingRow[] rows, ChampionRankingRow? selection, bool compact)
     {
         var grid = new Grid { Margin = new Thickness(0, 6, 0, 0) };
         const int headerHeight = 19;
-        int rowHeight = compact ? 17 : 21;
+        int rowHeight = compact ? 18 : 22;
 
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 25 : 30) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -444,17 +478,13 @@ internal abstract class ChampionRankingOverlay : Window
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(rowHeight) });
             bool selected = row == selection;
             if (selected || i % 2 != 0)
-            {
-                var background = new Border { Background = selected ? ArenaSelectionTint : ArenaRowTint };
-                Grid.SetRow(background, line);
-                Grid.SetColumnSpan(background, grid.ColumnDefinitions.Count);
-                grid.Children.Add(background);
-            }
+                AddRowBackground(grid, line, selected);
             AddCell(line, 0, line.ToString(Spanish), MayhemTierStyle.PanelDetailSize,
                 selected ? MayhemTierStyle.Gold : MayhemTierStyle.Muted, TextAlignment.Right);
-            AddCell(line, 1, row.Champion, MayhemTierStyle.PanelBodySize,
-                selected ? MayhemTierStyle.Gold : MayhemTierStyle.Ink, bold: selected);
-            AddCellText(line, 2, TierLabel(row.Tier));
+            AddCellElement(line, 1, ChampionIdentity(row.Champion, compact ? 15 : 18, selected));
+            var tier = ChampionTier(row.Champion, row.Tier, compact);
+            tier.VerticalAlignment = VerticalAlignment.Center;
+            AddCellElement(line, 2, tier);
             if (row.TopThreePercent is { } topThree)
                 AddCell(line, 3, TopThree(topThree), MayhemTierStyle.PanelBodySize, MayhemTierStyle.Ink, TextAlignment.Right);
         }
@@ -471,14 +501,14 @@ internal abstract class ChampionRankingOverlay : Window
             if (column == 3)
                 text.Margin = new Thickness(0, 0, 3, 0);
             Typography.SetNumeralAlignment(text, FontNumeralAlignment.Tabular);
-            AddCellText(row, column, text);
+            AddCellElement(row, column, text);
         }
 
-        void AddCellText(int row, int column, TextBlock text)
+        void AddCellElement(int row, int column, FrameworkElement element)
         {
-            Grid.SetRow(text, row);
-            Grid.SetColumn(text, column);
-            grid.Children.Add(text);
+            Grid.SetRow(element, row);
+            Grid.SetColumn(element, column);
+            grid.Children.Add(element);
         }
     }
 

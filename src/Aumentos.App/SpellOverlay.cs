@@ -11,12 +11,14 @@ internal sealed class SpellOverlay : Window
     private const double Inset = 12;
     private readonly StackPanel rows = new();
     private readonly Border panel;
+    private readonly ChampionSelectPortraits? portraits;
     private SpellDisplay? displayed;
     private nint handle;
     private Int32Rect placement;
 
-    internal SpellOverlay()
+    internal SpellOverlay(ChampionSelectPortraits? portraits = null)
     {
+        this.portraits = portraits;
         Title = "Aumentos LoL · Hechizos";
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
@@ -104,17 +106,21 @@ internal sealed class SpellOverlay : Window
         }
     }
 
-    private static Border Header(SpellDisplay view, bool previousTier)
+    private Border Header(SpellDisplay view, bool previousTier)
     {
         var header = new DockPanel();
         if (view.Tier is { } tier)
         {
-            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 32, 32, 22);
+            var badge = MayhemTierStyle.ChampionBadge(tier, view.Champion, 27, 30, 17);
             badge.Margin = new Thickness(6, 0, 0, 0);
             badge.VerticalAlignment = VerticalAlignment.Center;
             DockPanel.SetDock(badge, Dock.Right);
             header.Children.Add(badge);
         }
+        var portrait = ChampionSelectStyle.Portrait(portraits, view.Selection.Champion, 30);
+        portrait.Margin = new Thickness(0, 0, 7, 0);
+        DockPanel.SetDock(portrait, Dock.Left);
+        header.Children.Add(portrait);
         var identity = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         identity.Children.Add(Heading(view.Champion, MayhemTierStyle.PanelTitleSize, MayhemTierStyle.Ink));
         if (previousTier)

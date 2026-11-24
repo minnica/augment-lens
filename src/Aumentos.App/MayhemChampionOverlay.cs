@@ -95,7 +95,7 @@ internal sealed class MayhemChampionOverlay : Window
             {
                 if (view.Tiers.Letter(choice.Champion.Key) is not { } letter)
                     continue;
-                var badge = MayhemTierStyle.ChampionBadge(letter, choice.Champion.Name, 31 * scale, 29 * scale, 21 * scale);
+                var badge = MayhemTierStyle.ChampionBadge(letter, choice.Champion.Name, 27 * scale, 30 * scale, 17 * scale);
                 var right = MayhemBenchPortraits.PortraitLeft(choice.Slot) + MayhemBenchPortraits.PortraitSize - 4;
                 Canvas.SetLeft(badge, right - LeftEdge - badge.Width);
                 Canvas.SetTop(badge, MayhemBenchPortraits.PortraitSize - 3 - badge.Height);
@@ -106,7 +106,7 @@ internal sealed class MayhemChampionOverlay : Window
         foreach (var choice in view.Choices)
         {
             var badge = MayhemTierStyle.ChampionBadge(view.Tiers.Letter(choice.Champion.Key), choice.Champion.Name,
-                58 * scale, 46 * scale, 32 * scale);
+                40 * scale, 44 * scale, 25 * scale);
             Canvas.SetLeft(badge, choice.Center - LeftEdge - badge.Width / 2);
             Canvas.SetTop(badge, 7);
             badges.Children.Add(badge);

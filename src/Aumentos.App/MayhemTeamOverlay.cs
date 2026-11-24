@@ -40,7 +40,7 @@ internal sealed record MayhemTeamDisplay(Int32Rect Bounds, nint Target, string C
     }
 }
 
-internal sealed class MayhemTeamOverlay() : ChampionRankingOverlay(Mode.Caos)
+internal sealed class MayhemTeamOverlay(ChampionSelectPortraits? portraits = null) : ChampionRankingOverlay(Mode.Caos, portraits)
 {
     internal void Render(MayhemTeamDisplay? view) => RenderRanking(view is null ? null : new(
         view.Bounds, view.Target, view.Caption, view.PreviousPatch, view.Rows, view.Selection,

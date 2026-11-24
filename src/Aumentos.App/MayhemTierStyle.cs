@@ -48,27 +48,11 @@ internal static class MayhemTierStyle
         return panel;
     }
 
-    internal static Border Badge(string? tier, double width, double height, double fontSize)
-    {
-        var letter = new TextBlock
-        {
-            Text = tier ?? "—", Foreground = Tier(tier), FontFamily = Heading, FontSize = fontSize,
-            FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        return new Border
-        {
-            Width = width, Height = height, Background = Surface,
-            BorderBrush = tier is "S" or "S+" ? AccentFrame : Frame, BorderThickness = new Thickness(1.5),
-            Child = letter, SnapsToDevicePixels = true
-        };
-    }
-
     internal static Border ChampionBadge(string? tier, string champion, double width, double height, double fontSize,
         string source = "OP.GG")
     {
-        var badge = Badge(tier, width, height, fontSize);
-        AutomationProperties.SetName(badge, $"{champion} · {(tier is null ? "Sin tier" : $"Tier {tier}")} de {source}");
+        var badge = TierHexagon.Create(tier, width, height, fontSize);
+        AutomationProperties.SetName(badge, $"{champion} · {(tier is null ? "Sin tier publicado" : $"Tier {tier} de {source}")}");
         return badge;
     }
 }

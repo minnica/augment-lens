@@ -124,12 +124,14 @@ internal static class MayhemChampionTests
             var handle = new WindowInteropHelper(overlay).Handle;
             var placement = Native.Bounds(handle);
             var badges = (Canvas)((Viewbox)overlay.Content).Child;
+            var hexagons = badges.Children.Cast<Border>().ToArray();
             var displayed = badges.Children.Cast<Border>().Select(row => ((TextBlock)row.Child).Text);
             Check(Native.IsWindowVisible(handle) && placement.Y >= bounds.Y + (int)(bounds.Height * 0.667) &&
                 placement.Y + placement.Height < bounds.Y + (int)(bounds.Height * 0.784) &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
-                displayed.SequenceEqual(["C", "A", "A"]),
-                "debajo de las cartas solo aparecen los tiers en orden y con clics transparentes");
+                displayed.SequenceEqual(["C", "A", "A"]) && hexagons.All(ChampionSelectTests.IsTierBadge) &&
+                !Equals(((TextBlock)hexagons[0].Child).Foreground, ((TextBlock)hexagons[1].Child).Foreground),
+                "debajo de las cartas aparecen los tiers hexagonales por color, en orden y con clics transparentes");
             overlay.Render(new MayhemChampionDisplay(bounds, 0, data, [choices[2]]));
             Check(badges.Children.Count == 1 && Canvas.GetLeft(badges.Children[0]) > 700,
                 "una lectura parcial conserva la posición del campeón reconocido");
@@ -147,6 +149,7 @@ internal static class MayhemChampionTests
             overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, selected, choices, bench));
             placement = Native.Bounds(handle);
             Check(placement.Y == bounds.Y + 10 && displayed.SequenceEqual(["B", "A"]) &&
+                badges.Children.Cast<Border>().All(ChampionSelectTests.IsTierBadge) &&
                 Canvas.GetLeft(badges.Children[0]) < Canvas.GetLeft(badges.Children[1]),
                 "después de elegir solo se dibujan los tiers del banco superior aunque aún lleguen cartas de la oferta anterior");
             overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, null, choices, []));

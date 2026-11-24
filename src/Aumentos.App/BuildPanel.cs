@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -12,8 +13,8 @@ namespace Aumentos;
 
 internal sealed class BuildPanel : Border
 {
-    internal const double ShopWidth = 372;
-    internal const double CompactWidth = 282;
+    internal const double ShopWidth = 310;
+    internal const double CompactWidth = 270;
     internal const double PrismaticWidth = 320;
 
     private static readonly Brush Muted = OverlayPanelStyle.Muted;
@@ -24,11 +25,22 @@ internal sealed class BuildPanel : Border
     private static readonly Brush PurchaseBorder = Overlay.Paint("#927951");
     private static readonly Brush Divider = OverlayPanelStyle.Divider;
     private static readonly Brush ItemSurface = Overlay.Paint("#172E39");
+    private static readonly Brush RowSurface = Overlay.Paint("#192F3A");
     private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
     private static readonly Brush MagicDamage = Overlay.Paint("#B9A7FA");
 
     private readonly StackPanel content = new();
+    private readonly TextBlock shopTitle = new() { FontSize = 15, FontFamily = OverlayPanelStyle.Heading,
+        FontWeight = FontWeights.Bold, Foreground = OverlayPanelStyle.Gold, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly Path shopGrip = new()
+    {
+        Data = Geometry.Parse("M 0,0 L 10,0 M 0,3 L 10,3 M 0,6 L 10,6"),
+        Stroke = OverlayPanelStyle.Gold, StrokeThickness = 1, SnapsToDevicePixels = true,
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 3, 0), Visibility = Visibility.Collapsed
+    };
     private readonly BuildItemIcons? itemIcons;
+    internal FrameworkElement DragHandle { get; }
     internal bool Compact => Width < CompactWidth;
 
     internal BuildPanel(BuildItemIcons? itemIcons)
@@ -41,11 +53,13 @@ internal sealed class BuildPanel : Border
         BorderThickness = new Thickness(3, 4, 3, 3);
         Background = OverlayPanelStyle.Surface;
         Child = content;
+        DragHandle = CreateShopHeader();
     }
 
     internal void RenderPreview(string patch)
     {
         content.Children.Clear();
+        AddShopHeader(null);
         AddPurchase(new(6653, "El Tormento de Liandry"), patch, 1);
     }
 
@@ -53,7 +67,10 @@ internal sealed class BuildPanel : Border
     {
         content.Children.Clear();
         Width = view.Prismatics is null ? layoutWidth : PrismaticWidth;
-        Padding = Compact ? new Thickness(11, 9, 11, 10) : new Thickness(16, 12, 16, 14);
+        Padding = view.Prismatics is not null ? new Thickness(16, 12, 16, 14)
+            : Compact ? new Thickness(9, 7, 9, 9) : new Thickness(12, 8, 12, 11);
+        if (view.Prismatics is null)
+            AddShopHeader(view.Champion);
         if (string.IsNullOrWhiteSpace(view.Champion))
         {
             AutomationProperties.SetName(this, "Recomendaciones de objetos");
@@ -150,6 +167,30 @@ internal sealed class BuildPanel : Border
             AddLine(label, 13, Accent, bold: true, top: content.Children.Count == 0 || content.Children[^1] is Rectangle ? 0 : 8);
     }
 
+    private Grid CreateShopHeader()
+    {
+        var header = new Grid { Background = Brushes.Transparent, MinHeight = 28, Margin = new Thickness(0, 0, 0, 7) };
+        header.Children.Add(shopGrip);
+        shopTitle.Margin = new Thickness(2, 0, 19, 0);
+        shopTitle.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(shopTitle);
+        header.Children.Add(new Rectangle { Fill = Divider, Height = 1, VerticalAlignment = VerticalAlignment.Bottom });
+        AutomationProperties.SetName(header, "Mover panel de recomendaciones de objetos");
+        return header;
+    }
+
+    private void AddShopHeader(string? champion)
+    {
+        shopTitle.Text = string.IsNullOrWhiteSpace(champion) ? "Recomendaciones de objetos" : $"Build de {champion}";
+        content.Children.Add(DragHandle);
+    }
+
+    internal void SetShopDragEnabled(bool enabled)
+    {
+        DragHandle.Cursor = enabled ? Cursors.SizeAll : null;
+        shopGrip.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void AddEnemyDamage(BuildDisplay view)
     {
         AddDivider();
@@ -230,7 +271,7 @@ internal sealed class BuildPanel : Border
         }
 
         AddLine($"Equipados · {purchased.Length} de 6", 14, Brushes.WhiteSmoke, bold: true, top: 10);
-        AddItems(purchased.Select(step => step.Item).ToArray(), patch, ordered: false);
+        AddItems(purchased.Select(step => step.Item).ToArray(), patch, ordered: false, equipped: true);
     }
 
     private void AddSwap(BuildSwap swap, string patch)
@@ -262,27 +303,14 @@ internal sealed class BuildPanel : Border
     private void AddPurchase(OpGgBuildItem item, string patch, int position, string? reason = null)
     {
         bool next = position == 1;
-        var row = new DockPanel { Margin = next ? new Thickness(0) : new Thickness(0, 4, 0, 0) };
-        if (!next)
-        {
-            var order = new TextBlock { Text = $"{position}.", Width = 19, Foreground = Muted, FontSize = 13,
-                VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 4, 0, 0) };
-            DockPanel.SetDock(order, Dock.Left);
-            row.Children.Add(order);
-        }
-
-        double iconSize = next ? (Compact ? 36 : 46) : (Compact ? 23 : 28);
-        var icon = ItemIcon(item, patch, iconSize);
-        icon.Margin = new Thickness(0, 1, 9, 0);
-        icon.VerticalAlignment = next ? VerticalAlignment.Center : VerticalAlignment.Top;
-        DockPanel.SetDock(icon, Dock.Left);
-        row.Children.Add(icon);
+        double iconSize = next ? (Compact ? 32 : 38) : 23;
+        var row = ItemRow(item, patch, iconSize, next ? null : position);
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         if (next)
             text.Children.Add(new TextBlock { Text = "Siguiente compra", FontSize = 13,
                 Foreground = PurchaseAccent, FontWeight = FontWeights.Bold });
-        double nameSize = next ? (Compact ? 17 : 19) : 14;
+        double nameSize = next ? (Compact ? 16 : 18) : 13;
         text.Children.Add(new TextBlock { Text = item.Name, FontSize = nameSize, Foreground = Brushes.WhiteSmoke,
             FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
         if (reason is not null)
@@ -293,12 +321,17 @@ internal sealed class BuildPanel : Border
         if (next)
             AddPurchaseCard(row);
         else
-            content.Children.Add(row);
+            AddItemCard(row);
     }
 
     private void AddPurchaseCard(UIElement child) =>
         content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(Compact ? 7 : 9) });
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4), Padding = new Thickness(Compact ? 6 : 8) });
+
+    private void AddItemCard(UIElement child, bool featured = false) =>
+        content.Children.Add(new Border { Child = child, Background = featured ? PurchaseSurface : RowSurface,
+            BorderBrush = featured ? PurchaseBorder : Divider, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3), Padding = new Thickness(5, 2, 5, 2), Margin = new Thickness(0, 3, 0, 0) });
 
     internal void RenderPrismatics(string champion, ArenaPrismaticTop top, string patch)
     {
@@ -337,29 +370,29 @@ internal sealed class BuildPanel : Border
         }
     }
 
-    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered)
+    private void AddItems(OpGgBuildItem[] items, string patch, bool ordered, bool equipped = false)
     {
-        if (Compact)
+        if (!equipped || Compact)
         {
             for (int i = 0; i < items.Length; i++)
-                AddCompactItem(items[i], patch, ordered ? i + 1 : null);
+            {
+                var item = items[i];
+                var row = ItemRow(item, patch, 22, ordered ? i + 1 : null);
+                row.Children.Add(new TextBlock { Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
+                    TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+                AddItemCard(row, featured: ordered && i == 0);
+            }
             return;
         }
 
         const int columns = 3;
-        int position = 0;
         foreach (var itemsInRow in items.Chunk(columns))
         {
             var row = new UniformGrid { Columns = columns, Margin = new Thickness(0, 4, 0, 2) };
             foreach (var item in itemsInRow)
             {
                 var tile = new StackPanel { Margin = new Thickness(2, 0, 2, 0) };
-                var iconRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                if (ordered)
-                    iconRow.Children.Add(new TextBlock { Text = $"{++position}.", FontSize = 13, Foreground = Accent,
-                        Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center });
-                iconRow.Children.Add(ItemIcon(item, patch, 34));
-                tile.Children.Add(iconRow);
+                tile.Children.Add(ItemIcon(item, patch, 27));
                 tile.Children.Add(new TextBlock
                 {
                     Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
@@ -371,18 +404,20 @@ internal sealed class BuildPanel : Border
         }
     }
 
-    private void AddCompactItem(OpGgBuildItem item, string patch, int? position)
+    private DockPanel ItemRow(OpGgBuildItem item, string patch, double iconSize, int? position)
     {
-        var row = new DockPanel { Margin = new Thickness(0, 3, 0, 0) };
-        if (position is { } number)
-            row.Children.Add(new TextBlock { Text = $"{number}.", Width = 20, FontSize = 13,
-                Foreground = Accent, VerticalAlignment = VerticalAlignment.Center });
-        var icon = ItemIcon(item, patch, 23);
+        var row = new DockPanel();
+        var icon = ItemIcon(item, patch, iconSize);
         icon.Margin = new Thickness(0, 0, 7, 0);
         row.Children.Add(icon);
-        row.Children.Add(new TextBlock { Text = item.Name, FontSize = 12.5, Foreground = Brushes.WhiteSmoke,
-            TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
-        content.Children.Add(row);
+        if (position is { } number)
+        {
+            var order = new TextBlock { Text = $"{number}.", FontSize = 12, Foreground = Muted,
+                Margin = new Thickness(5, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(order, Dock.Right);
+            row.Children.Add(order);
+        }
+        return row;
     }
 
     private Border ItemIcon(OpGgBuildItem item, string patch, double size)

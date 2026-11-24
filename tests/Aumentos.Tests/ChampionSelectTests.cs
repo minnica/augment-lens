@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Aumentos;
 
@@ -163,8 +164,10 @@ internal static class ChampionSelectTests
             var current = view with { Tier = "A", Source = new(prior with { SourcePatch = prior.ClientPatch }, "OP.GG · Parche 26.23") };
             overlay.Render(current);
             var labels = TextBlocks(panel).ToDictionary(label => label.Text);
-            var badge = ((DockPanel)((Border)panel.Children[0]).Child).Children.OfType<Border>().Single();
-            Check(DockPanel.GetDock(badge) == Dock.Right && labels.ContainsKey("A") && labels.ContainsKey("Kennen") &&
+            var header = (DockPanel)((Border)panel.Children[0]).Child;
+            var badge = header.Children.OfType<Border>().Single(IsTierBadge);
+            Check(DockPanel.GetDock(badge) == Dock.Right && Elements(header).OfType<Image>().Count() == 1 &&
+                labels.ContainsKey("A") && labels.ContainsKey("Kennen") &&
                 !labels.Keys.Any(text => text.Contains("Parche", StringComparison.OrdinalIgnoreCase) || text.Contains("OP.GG")) &&
                 !labels.ContainsKey("Hechizos") && labels["Kennen"].FontSize > labels["Principal"].FontSize &&
                 labels["Principal"].FontSize == labels["Alternativa"].FontSize &&
@@ -239,7 +242,7 @@ internal static class ChampionSelectTests
             var evaluation = (Border)panel.Children[0];
             Check(TextBlocks(evaluation).Take(2).Select(text => text.Text).SequenceEqual([grade.Reason, "A"]) &&
                 RosterRow(0).SequenceEqual(["Campeón", "Estado", "Tier"]) &&
-                RosterRow(1).SequenceEqual([$"{excludedChampion.Name} (tú)", "Preselección", "B"]) &&
+                RosterRow(1).SequenceEqual([excludedChampion.Name, "TÚ", "Preselección", "B"]) &&
                 RosterRow(2).SequenceEqual(["Lillia", "Confirmado", "S"]) &&
                 !TextBlocks(panel).Any(text => text.Text is "50 % top 3" or "2/3 campeones"),
                 "el equipo agrupa nombre, estado y tier sin el contador ni el porcentaje individual");
@@ -263,12 +266,15 @@ internal static class ChampionSelectTests
                 "el puesto observado y su muestra quedan debajo de la necesidad");
 
             overlay.Render(selected with { Roster = [selected.Roster[0] with { Confirmed = true }, selected.Roster[1]] });
-            Check(RosterRow(1).SequenceEqual([$"{excludedChampion.Name} (tú)", "Confirmado", "B"]),
+            Check(RosterRow(1).SequenceEqual([excludedChampion.Name, "TÚ", "Confirmado", "B"]),
                 "confirmar actualiza los estados aunque sigan iguales los campeones y las sugerencias");
             CheckColumn(bounds);
             overlay.Render(selected with { Selection = null, Grade = null, Roster = [selected.Roster[1]] });
             Check(TextBlocks((Border)panel.Children[0]).First().Text == "Esperando tu elección" &&
                 RosterRow(1).SequenceEqual(["Lillia", "Confirmado", "S"]), "los aliados se muestran antes de elegir tu campeón");
+
+            CheckRankingSelection("Jax", 3);
+            CheckRankingSelection("Lillia", 1);
 
             var medium = new Int32Rect(bounds.X, bounds.Y, 1280, 720);
             overlay.Render(selected with { Bounds = medium });
@@ -278,7 +284,7 @@ internal static class ChampionSelectTests
             CheckColumn(narrow);
             var unavailable = ArenaChampionDisplay.Create(bounds, 0, catalog, source, "Aurora");
             overlay.Render(unavailable);
-            Check(RosterRow(1).SequenceEqual(["Aurora (tú)", "—", "—"]) &&
+            Check(RosterRow(1).SequenceEqual(["Aurora", "TÚ", "—", "—"]) &&
                 TextBlocks((Border)panel.Children[0]).First().Text == "Esperando un aliado",
                 "muestra el campeón cuando la fuente carece de una valoración");
             overlay.Render(global);
@@ -296,15 +302,28 @@ internal static class ChampionSelectTests
 
             StackPanel Sections() => panel.Children.OfType<StackPanel>().Single();
             IEnumerable<string> RosterRow(int row) => ((StackPanel)((Border)panel.Children[0]).Child)
-                .Children.OfType<Grid>().Last().Children.OfType<TextBlock>()
-                .Where(text => Grid.GetRow(text) == row).OrderBy(Grid.GetColumn).Select(text => text.Text);
+                .Children.OfType<Grid>().Last().Children.OfType<FrameworkElement>()
+                .Where(cell => Grid.GetRow(cell) == row).OrderBy(Grid.GetColumn).SelectMany(TextBlocks).Select(text => text.Text);
+
+            void CheckRankingSelection(string champion, int row)
+            {
+                overlay.Render(ArenaChampionDisplay.Create(bounds, 0, catalog, source, champion));
+                var ranking = Sections().Children.OfType<Grid>().Last();
+                var highlighted = ranking.Children.OfType<FrameworkElement>().Where(cell => Grid.GetRow(cell) == row).ToArray();
+                Check(highlighted.SelectMany(TextBlocks).Any(text => text.Text == champion) &&
+                    highlighted.SelectMany(TextBlocks).Count(text => text.Text == "TÚ") == 1 &&
+                    highlighted.OfType<Border>().Any(border => Grid.GetColumnSpan(border) == ranking.ColumnDefinitions.Count &&
+                        border.BorderBrush is not null && border.Background is not null) &&
+                    TextBlocks(ranking).Count(text => text.Text == "TÚ") == 1,
+                    "la fila de tu campeón resalta en el ranking y cambia con la preselección");
+            }
 
             void CheckColumn(Int32Rect client)
             {
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 var placement = Native.Bounds(handle);
                 var ranking = Sections().Children.OfType<Grid>().Last();
-                var cells = ranking.Children.OfType<TextBlock>().ToArray();
+                var cells = ranking.Children.OfType<FrameworkElement>().ToArray();
                 var names = cells.Where(cell => Grid.GetColumn(cell) == 1 && Grid.GetRow(cell) > 0).ToArray();
                 Check(placement.X >= client.X + client.Width / 2 &&
                     placement.X + placement.Width <= client.X + client.Width &&
@@ -312,9 +331,11 @@ internal static class ChampionSelectTests
                     Math.Abs(placement.Width - placement.Height * frame.ActualWidth / frame.ActualHeight) < 2 &&
                     ranking.RowDefinitions.Count == 31 &&
                     Math.Abs(ranking.ActualHeight - ranking.RowDefinitions.Sum(row => row.Height.Value)) < 1 &&
-                    names.Length == 30 && names.All(cell => cell.FontSize == MayhemTierStyle.PanelBodySize) &&
+                    names.Length == 30 && names.All(cell => TextBlocks(cell).First().FontSize == MayhemTierStyle.PanelBodySize &&
+                        Elements(cell).OfType<Image>().Count() == 1) &&
                     names.Select(cell => Grid.GetRow(cell)).SequenceEqual(Enumerable.Range(1, 30)) &&
-                    cells.Where(cell => Grid.GetColumn(cell) == 0)
+                    cells.OfType<Border>().Count(IsTierBadge) == 30 &&
+                    cells.OfType<TextBlock>().Where(cell => Grid.GetColumn(cell) == 0)
                         .Select(cell => int.Parse(cell.Text)).SequenceEqual(Enumerable.Range(1, 30)),
                     "muestra las treinta posiciones en una sola columna dentro de la ventana del cliente");
             }
@@ -322,13 +343,22 @@ internal static class ChampionSelectTests
         finally { overlay.Close(); }
     }
 
-    private static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => element switch
+    internal static bool IsTierBadge(Border border) => border.Background is DrawingBrush && border.Child is TextBlock;
+
+    private static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => Elements(element).OfType<TextBlock>();
+
+    internal static IEnumerable<FrameworkElement> Elements(FrameworkElement element)
     {
-        TextBlock label => [label],
-        Panel panel => panel.Children.OfType<FrameworkElement>().SelectMany(TextBlocks),
-        Decorator { Child: FrameworkElement child } => TextBlocks(child),
-        _ => []
-    };
+        yield return element;
+        IEnumerable<FrameworkElement> nested = element switch
+        {
+            Panel panel => panel.Children.OfType<FrameworkElement>(),
+            Decorator { Child: FrameworkElement child } => [child],
+            _ => []
+        };
+        foreach (var descendant in nested.SelectMany(Elements))
+            yield return descendant;
+    }
 
     private static OpGgBuildSnapshot ReadSpells()
     {

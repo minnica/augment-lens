@@ -1,6 +1,12 @@
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Aumentos;
 
@@ -9,7 +15,7 @@ internal static class MayhemTeamOverlayTests
     internal static void Smoke(Catalog catalog)
     {
         var bounds = new Int32Rect(-30000, -30000, 2000, 1125);
-        string[] available = ["Sona", "Shyvana", "Renekton", "Amumu", "Anivia", "Leona", "Talon", "Taric", "Galio", "Braum"];
+        string[] available = ["Sona", "Shyvana", "Renekton", "Amumu", "Anivia", "Leona", "Talon", "Taric", "Galio", "MonkeyKing"];
         var ranks = new Dictionary<string, int> { ["twistedfate"] = 1, ["sivir"] = 34, ["anivia"] = 68,
             ["leona"] = 39, ["amumu"] = 45 };
         var tiers = new Dictionary<string, int> { ["twistedfate"] = 1, ["sivir"] = 3, ["anivia"] = 1, ["leona"] = 2,
@@ -27,10 +33,15 @@ internal static class MayhemTeamOverlayTests
             "Caos ordena los campeones disponibles por tier, con el puesto de OP.GG como desempate");
         CheckAvailability(catalog);
 
-        var overlay = new MayhemTeamOverlay { Left = -30000, Top = -30000 };
+        var settings = Directory.CreateTempSubdirectory("aumentos-portrait-test-");
+        var handler = new Portraits();
+        using var http = new HttpClient(handler);
+        var portraitCatalog = catalog with { Champions = catalog.Champions.Where(champion => champion.Key is "Sivir" or "MonkeyKing").ToArray() };
+        var portraits = new ChampionSelectPortraits(portraitCatalog, settings.FullName, http);
+        var overlay = new MayhemTeamOverlay(portraits) { Left = -30000, Top = -30000 };
         try
         {
-            overlay.Render(view);
+            Dispatcher.CurrentDispatcher.Invoke(() => overlay.Render(view), DispatcherPriority.Normal);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var handle = new WindowInteropHelper(overlay).Handle;
             var panel = (StackPanel)((Border)((Viewbox)overlay.Content).Child).Child;
@@ -56,18 +67,35 @@ internal static class MayhemTeamOverlayTests
             CheckTypeHierarchy(panel);
             foreach (var row in recommendations)
             {
-                var name = (TextBlock)row.Children[0];
-                var badge = (Border)row.Children[1];
+                var identity = (FrameworkElement)row.Children[0];
+                var name = TextBlocks(identity).First();
+                var badge = row.Children.OfType<Border>().Single(ChampionSelectTests.IsTierBadge);
                 var nameCenter = name.TranslatePoint(new Point(0, name.ActualHeight / 2), panel);
                 var badgeCenter = badge.TranslatePoint(new Point(badge.ActualWidth / 2, badge.ActualHeight / 2), panel);
                 var teamTier = (Border)evaluation.Children[1];
                 var teamCenter = teamTier.TranslatePoint(new Point(teamTier.ActualWidth / 2, 0), panel);
-                Check(Grid.GetColumn(badge) == 1 && Math.Abs(nameCenter.Y - badgeCenter.Y) <= 1 &&
+                Check(ChampionSelectTests.Elements(identity).OfType<Image>().Count() == 1 &&
+                    Grid.GetColumn(badge) == 1 && Math.Abs(nameCenter.Y - badgeCenter.Y) <= 1 &&
                     Math.Abs(teamCenter.X - badgeCenter.X) <= 1, "cada letra se alinea con el nombre y con la columna del equipo");
             }
+            var own = panel.Children.OfType<StackPanel>().Single().Children.OfType<Grid>()
+                .Single(row => Labels(row).Contains("TÚ"));
+            var selectedPortrait = ChampionSelectTests.Elements(own).OfType<Image>().Single();
+            var wukongPortrait = ChampionSelectTests.Elements(BankRows(panel).Single(row => Labels(row).Contains("Wukong")))
+                .OfType<Image>().Single();
+            WaitForPortraits(selectedPortrait, wukongPortrait);
+            Check(Labels(own).Contains("Sivir") && ReadPortrait(selectedPortrait) > ReadPortrait(wukongPortrait) &&
+                ChampionSelectTests.Elements(own).OfType<Border>().Any(border => border.Background is SolidColorBrush &&
+                    border.BorderBrush is not null && border.BorderThickness.Left > 0),
+                "tu campeón se distingue del banco y los retratos corresponden al campeón aunque el alias interno sea distinto");
+            handler.Offline = true;
+            var cached = new ChampionSelectPortraits(portraitCatalog, settings.FullName, http);
+            Check(cached.Read("Wukong").GetAwaiter().GetResult() is { IsFrozen: true } && handler.Requests == 2,
+                "una sesión nueva reutiliza el retrato guardado cuando la red está desconectada");
             Check(BankRows(panel).SelectMany(Labels).Where((_, index) => index % 2 == 1)
                 .SequenceEqual(["S", "A", "A", "B", "—", "—", "—", "—", "—", "—"]) &&
-                !labels.Contains("Twisted Fate"), "la lista conserva los candidatos y sus tiers disponibles");
+                BankRows(panel).All(row => ChampionSelectTests.Elements(row).OfType<Image>().Count() == 1) &&
+                !labels.Contains("Twisted Fate"), "la lista conserva los candidatos, sus retratos y sus tiers disponibles");
 
             overlay.Render(view with { Composition = picks.Select(pick => pick with { Tradeoff = tradeoff }).ToArray() });
             Check(Labels(panel).Count(text => text == tradeoff) == 1, "un costo común aparece una sola vez");
@@ -128,7 +156,78 @@ internal static class MayhemTeamOverlayTests
                     "el panel reserva las cartas, el banco y el área de hechizos");
             }
         }
-        finally { overlay.Close(); }
+        finally
+        {
+            overlay.Close();
+            settings.Delete(recursive: true);
+        }
+    }
+
+    private static void WaitForPortraits(params Image[] images)
+    {
+        var frame = new DispatcherFrame();
+        long deadline = Environment.TickCount64 + 2000;
+        var timer = new DispatcherTimer(TimeSpan.FromMilliseconds(10), DispatcherPriority.Background, (_, _) =>
+        {
+            if (images.All(image => image.Source is not null) || Environment.TickCount64 >= deadline)
+                frame.Continue = false;
+        }, Dispatcher.CurrentDispatcher);
+        Dispatcher.PushFrame(frame);
+        timer.Stop();
+    }
+
+    private static byte ReadPortrait(Image portrait)
+    {
+        if (portrait.Source is not BitmapSource source)
+            throw new InvalidOperationException("El retrato aparece después de cargar la imagen");
+        var bitmap = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        var pixel = new byte[4];
+        bitmap.CopyPixels(new Int32Rect(24, 24, 1, 1), pixel, 4, 0);
+        return pixel[0];
+    }
+
+    private sealed class Portraits : HttpMessageHandler
+    {
+        private readonly byte[] sprite = CreateSprite();
+        internal bool Offline { get; set; }
+        internal int Requests { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests++;
+            if (Offline)
+                throw new HttpRequestException("Sin conexión durante la lectura de la copia guardada");
+            var response = request.RequestUri?.AbsolutePath switch
+            {
+                { } path when path.EndsWith("/champion.json", StringComparison.Ordinal) => new StringContent("""
+                    {"data":{"Sivir":{"image":{"sprite":"champion0.png","x":0,"y":0,"w":48,"h":48}},
+                             "MonkeyKing":{"image":{"sprite":"champion0.png","x":48,"y":0,"w":48,"h":48}}}}
+                    """, Encoding.UTF8, "application/json"),
+                { } path when path.EndsWith("/champion0.png", StringComparison.Ordinal) => (HttpContent)new ByteArrayContent(sprite),
+                _ => throw new InvalidOperationException("Ruta de retrato inesperada")
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = response });
+        }
+
+        private static byte[] CreateSprite()
+        {
+            const int size = 48;
+            const int width = size * 2;
+            var pixels = new byte[width * size * 4];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < width; x++)
+            {
+                int offset = (y * width + x) * 4;
+                pixels[offset] = x < size ? (byte)230 : (byte)40;
+                pixels[offset + 3] = 255;
+            }
+            var bitmap = BitmapSource.Create(width, size, 96, 96, PixelFormats.Bgra32, null, pixels, width * 4);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var output = new MemoryStream();
+            encoder.Save(output);
+            return output.ToArray();
+        }
     }
 
     private static bool IsMetadata(string text) => text.Contains("Composición") || text.Contains("Tier local") ||

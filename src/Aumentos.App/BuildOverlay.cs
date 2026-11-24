@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Aumentos;
 
@@ -76,6 +77,10 @@ internal sealed class BuildOverlay : Window
     private bool sizeShortcutRegistered;
     private BuildSizeButton? sizeButton;
     private BuildSizeButton? prismaticSizeButton;
+    private readonly DispatcherTimer dragTimer;
+    private BuildDragSurface? dragSurface;
+    private (nint Target, Mode Mode, Point Origin)? floatingPosition;
+    private (Point Cursor, Point Origin, bool Moving)? drag;
     private bool sizeEditorOpen;
     private bool panelOnLeft;
     private bool mayhemCollapsed;
@@ -105,6 +110,8 @@ internal sealed class BuildOverlay : Window
 
         panel = new BuildPanel(itemIcons);
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform };
+        dragTimer = new DispatcherTimer(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(16) };
+        dragTimer.Tick += (_, _) => TrackDrag();
         SourceInitialized += (_, _) =>
         {
             handle = new WindowInteropHelper(this).Handle;
@@ -136,6 +143,7 @@ internal sealed class BuildOverlay : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        StopDrag();
         if (hotkeySource is { } source)
         {
             if (onToggle is not null)
@@ -257,10 +265,91 @@ internal sealed class BuildOverlay : Window
         Render(view);
     }
 
+    private bool CanDrag(BuildDisplay? view) => IsVisible && !sizeEditorOpen &&
+        view is { Shop: not null, Prismatics: null } && (view.Target == 0 || Native.GetForegroundWindow() == view.Target);
+
+    private void BeginDrag()
+    {
+        if (GetCursorPos(out var cursor))
+            StartDrag(new Point(cursor.X, cursor.Y));
+    }
+
+    internal void StartDrag(Point cursor)
+    {
+        if (displayed is not { } view || !CanDrag(view))
+            return;
+        drag = (cursor, new Point(placement.X - view.Bounds.X, placement.Y - view.Bounds.Y), false);
+        dragTimer.Start();
+    }
+
+    private void TrackDrag()
+    {
+        const int swappedButtons = 23;
+        const int leftButton = 1, rightButton = 2;
+        int primaryButton = GetSystemMetrics(swappedButtons) == 0 ? leftButton : rightButton;
+        if (!CanDrag(displayed) || GetAsyncKeyState(primaryButton) >= 0 || !GetCursorPos(out var cursor))
+        {
+            StopDrag();
+            return;
+        }
+        MoveDrag(new Point(cursor.X, cursor.Y));
+    }
+
+    internal void MoveDrag(Point cursor)
+    {
+        if (drag is not { } start || displayed is not { } view)
+            return;
+        var delta = cursor - start.Cursor;
+        if (!start.Moving && Math.Abs(delta.X) + Math.Abs(delta.Y) < 3)
+            return;
+        drag = (start.Cursor, start.Origin, true);
+        var origin = start.Origin + delta;
+        if (floatingPosition == (view.Target, view.Mode, origin))
+            return;
+        floatingPosition = (view.Target, view.Mode, origin);
+        Render(view);
+    }
+
+    private void StopDrag()
+    {
+        if (drag is { Moving: true } && displayed is { } view)
+            floatingPosition = (view.Target, view.Mode,
+                new Point(placement.X - view.Bounds.X, placement.Y - view.Bounds.Y));
+        dragTimer.Stop();
+        drag = null;
+    }
+
+    private void PositionDragSurface(BuildDisplay view, double dpi)
+    {
+        if (!CanDrag(view))
+        {
+            StopDrag();
+            dragSurface?.Hide();
+            return;
+        }
+
+        UpdateLayout();
+        var header = panel.DragHandle;
+        if (!header.IsVisible || header.ActualWidth <= 0 || header.ActualHeight <= 0)
+        {
+            dragSurface?.Hide();
+            return;
+        }
+
+        var start = header.PointToScreen(new Point(0, 0));
+        var end = header.PointToScreen(new Point(header.ActualWidth, header.ActualHeight));
+        var area = new Int32Rect((int)Math.Round(start.X), (int)Math.Round(start.Y),
+            Math.Max(1, (int)Math.Round(end.X - start.X)), Math.Max(1, (int)Math.Round(end.Y - start.Y)));
+        dragSurface ??= new BuildDragSurface(BeginDrag, () => CanDrag(displayed)) { Owner = this };
+        dragSurface.Display(area, dpi);
+    }
+
     internal void Render(BuildDisplay? view)
     {
         if (view is null || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
         {
+            StopDrag();
+            dragSurface?.Hide();
             CloseSizeEditor();
             sizeButton?.Hide();
             prismaticSizeButton?.Hide();
@@ -277,7 +366,12 @@ internal sealed class BuildOverlay : Window
         bool prismatics = view.Prismatics is not null;
         if (displayed is null || displayed.Target != view.Target || displayed.Mode != view.Mode ||
             displayed.Prismatics?.Layout != view.Prismatics?.Layout)
+        {
+            StopDrag();
             CloseSizeEditor();
+        }
+        var floatingOrigin = !prismatics && view.Shop is not null && floatingPosition is { } floating &&
+            floating.Target == view.Target && floating.Mode == view.Mode ? (Point?)floating.Origin : null;
         double requestedScale = dpi * sizePercent / 100.0;
         int margin = Math.Min((int)Math.Round(14 * dpi), Math.Min(bounds.Width, bounds.Height) / 4);
         int maxWidth = bounds.Width - 2 * margin, maxHeight = bounds.Height - 2 * margin;
@@ -300,10 +394,7 @@ internal sealed class BuildOverlay : Window
             // Keep the slider on the same side even if the preferred side changes with the scale.
             placeLeft = sizeEditorOpen ? panelOnLeft : rightSpace < desiredWidth && leftSpace > rightSpace;
             int sideSpace = placeLeft ? leftSpace : rightSpace;
-            if (sideSpace >= minimumWidth)
-                maxWidth = Math.Min(maxWidth, sideSpace);
-            else
-                maxWidth = Math.Min(maxWidth, (int)Math.Ceiling(BuildPanel.CompactWidth * dpi));
+            maxWidth = Math.Min(maxWidth, sideSpace >= minimumWidth ? sideSpace : (int)Math.Ceiling(BuildPanel.CompactWidth * dpi));
         }
 
         if (!prismatics)
@@ -351,7 +442,7 @@ internal sealed class BuildOverlay : Window
             if (panelTop < bounds.Height - margin)
                 top = Math.Max(top, panelTop);
         }
-        if (sizeEditorOpen)
+        if (sizeEditorOpen && floatingOrigin is null)
             top = Math.Max(top, preferredTop);
         maxHeight -= top - margin;
         double fittingScale = Math.Min(maxWidth / desired.Width, maxHeight / desired.Height);
@@ -360,8 +451,10 @@ internal sealed class BuildOverlay : Window
         double scale = Math.Min(requestedScale, fittingScale);
         int width = Math.Clamp((int)Math.Ceiling(desired.Width * scale), 1, maxWidth);
         int height = Math.Clamp((int)Math.Ceiling(desired.Height * scale), 1, maxHeight);
-        var target = new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
-            bounds.Y + Math.Clamp(preferredTop, top, bounds.Height - margin - height), width, height);
+        var target = floatingOrigin is { } origin
+            ? FloatingBounds(bounds, origin, margin, top, width, height)
+            : new Int32Rect(bounds.X + (placeLeft ? margin : bounds.Width - margin - width),
+                bounds.Y + Math.Clamp(preferredTop, top, bounds.Height - margin - height), width, height);
 
         if (collapsed)
         {
@@ -385,7 +478,7 @@ internal sealed class BuildOverlay : Window
         {
             int toolbarWidth = sizeButtonFits ? controlsWidth : buttonHeight;
             if (!placeLeft)
-                disclosureX = Math.Min(disclosureX, target.X + target.Width - toolbarWidth);
+                disclosureX = Math.Clamp(target.X + target.Width - toolbarWidth, bounds.X + margin, target.X);
             if (MayhemDisclosure is null)
             {
                 MayhemDisclosure = new BuildSizeButton(ToggleMayhemPanel, "Recomendaciones de objetos de ARAM Caos");
@@ -418,7 +511,13 @@ internal sealed class BuildOverlay : Window
             sizeButton?.Hide();
             prismaticSizeButton?.Hide();
         }
+        panel.SetShopDragEnabled(view.Shop.HasValue && !prismatics);
+        PositionDragSurface(view, dpi);
     }
+
+    internal static Int32Rect FloatingBounds(Int32Rect bounds, Point origin, int margin, int top, int width, int height) =>
+        new(bounds.X + Math.Clamp((int)origin.X, margin, bounds.Width - margin - width),
+            bounds.Y + Math.Clamp((int)origin.Y, top, bounds.Height - margin - height), width, height);
 
     internal static (bool OnLeft, int AvailableWidth) PrismaticSide(Int32Rect bounds, Int32Rect[] titles, double dpi)
     {
@@ -457,4 +556,17 @@ internal sealed class BuildOverlay : Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool UnregisterHotKey(nint hwnd, int id);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint { public int X, Y; }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out CursorPoint point);
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int key);
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int index);
 }

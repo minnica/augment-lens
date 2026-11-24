@@ -178,17 +178,18 @@ internal static class Program
             buildOverlay.SetPrismaticSize(prismaticSizePreference.Load());
             BuildSizeWindow? buildSizeWindow = null;
             BuildSizeWindow? prismaticSizeWindow = null;
-            var spellOverlay = new SpellOverlay();
-            var arenaChampionOverlay = new ArenaChampionOverlay();
+            var championPortraits = new ChampionSelectPortraits(ratings.Catalog, settings, http);
+            var spellOverlay = new SpellOverlay(championPortraits);
+            var arenaChampionOverlay = new ArenaChampionOverlay(championPortraits);
             var arenaVoteOverlay = new ArenaVoteOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
-            var mayhemTeamOverlay = new MayhemTeamOverlay();
+            var mayhemTeamOverlay = new MayhemTeamOverlay(championPortraits);
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
             var arenaTeams = new ArenaTeamSource(ratings.Catalog, settings, http);
             var mayhemChampionTiers = new MayhemChampionTiers(ratings.Catalog, settings, http);
             var patchStatistics = new PatchStatistics(ratings.Catalog, settings, opgg, builds, ggez, ggezGlobal,
                 championTiers, arenaTeams, mayhemChampionTiers, aramMayhem, aramHex);
-            var mayhemBench = new MayhemBenchPortraits(ratings.Catalog, settings, http);
+            var mayhemBench = new MayhemBenchPortraits(ratings.Catalog, settings, http, championPortraits);
             var championSelect = new ChampionSelectAdvice(ratings, assets, builds, championTiers, mayhemChampionTiers, mayhemBench,
                 app.Dispatcher, spellOverlay.Render, arenaChampionOverlay.Render, mayhemChampionOverlay.Render,
                 mayhemTeamOverlay.Render, arenaTeams);

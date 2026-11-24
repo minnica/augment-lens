@@ -28,6 +28,11 @@ internal sealed class Overlay
     private const double ArenaItemDefaultScale = 1.25;
     private const double ArenaRoundClockBottom = 0.09;
     private const double ArenaUpgradeHeadingBottom = 0.146;
+    private const double CardTopToLowerFrame = 0.465;
+    private const double LowerFrameToReroll = 0.037;
+    private const int CompactTierWidth = 32;
+    private const int CompactTierHeight = 36;
+    private const int CompactTierFontSize = 19;
     private readonly Func<int, bool>? saveTierSize;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     private BuildSizeButton? tierSizeButton;
@@ -78,8 +83,9 @@ internal sealed class Overlay
             ? new CardComparison("A", ArenaChoice: new("Reverberación", Tier.A,
                 "Inmovilizar activa impactos", Recommended: true, TopPosition: 4))
             : new CardComparison("A", new OpGgCard("A"));
-        int width = ShowDetails ? DetailWidth : arenaItems ? SummaryWidth : MayhemSummaryWidth;
-        badge.Render(example, width, ShowDetails, arenaItems ? Mode.Arena : Mode.Caos);
+        bool lowerTier = !ShowDetails && !arenaItems;
+        int width = ShowDetails ? DetailWidth : arenaItems ? SummaryWidth : CompactTierWidth;
+        badge.Render(example, width, ShowDetails, arenaItems ? Mode.Arena : Mode.Caos, lowerTier);
         if (arenaItems)
         {
             // Keep the item baseline separate from the slider's layout transform.
@@ -156,7 +162,7 @@ internal sealed class Overlay
             // Reserve the same space for every frame before placing the badges on the cards.
             int visibleSlots = Math.Min(badges.Length, Math.Min(labels.Length, titles.Length));
             for (int index = 0; index < visibleSlots; index++)
-                if (labels[index] is { } label)
+                if (labels[index] is { } label && !UsesLowerTier(label, update.Mode))
                     mayhemHeight = Math.Max(mayhemHeight, badges[index].Prepare(label, width, dpi, ShowDetails, update.Mode));
         }
 
@@ -173,6 +179,31 @@ internal sealed class Overlay
             int gap = label.ArenaChoice is null ? margin : Math.Max(2 * margin, title.Height / 3);
             int anchor = cardEdge ?? (title.Y - gap);
             int center = title.X + title.Width / 2;
+            if (UsesLowerTier(label, update.Mode) && cardEdge is { } topEdge)
+            {
+                int preferred = mayhem && label.DisplayedMayhemObserved is null && !label.RecommendedAugment
+                    ? CompactTierWidth : ArenaEvidenceWidth;
+                int lowerWidth = Math.Min(widthLimit, Math.Max(1, (int)Math.Ceiling(preferred * dpi)));
+                int desired = badge.Prepare(label, lowerWidth, dpi, ShowDetails, update.Mode, lowerTier: true);
+                int lowerEdge = topEdge + (int)Math.Round(bounds.Height * CardTopToLowerFrame);
+                int hexagonHalf = (int)Math.Ceiling(CompactTierHeight * dpi / 2);
+                int above = lowerEdge - title.Y - title.Height;
+                int below = Math.Min(bounds.Height - margin - lowerEdge, (int)(bounds.Height * LowerFrameToReroll));
+                double fit = Math.Min((double)above / Math.Max(1, desired - hexagonHalf),
+                    Math.Min((double)below / hexagonHalf, (double)widthLimit / lowerWidth));
+                if (fit > 0)
+                {
+                    double lowerScale = Math.Min(fit, tierSizePercent / 100.0);
+                    int lowerHeight = Math.Max(1, (int)Math.Round(desired * lowerScale));
+                    int lowerBottom = lowerEdge + (int)Math.Round(hexagonHalf * lowerScale);
+                    int fitted = Math.Clamp((int)Math.Round(lowerWidth * lowerScale), 1, widthLimit);
+                    int lowerX = Math.Clamp(center - fitted / 2, 0, bounds.Width - fitted);
+                    badge.Display(new(bounds.X + lowerX, bounds.Y + lowerBottom - lowerHeight, fitted, lowerHeight),
+                        dpi, allowUpscale: lowerScale > 1, contentHeight: 0);
+                    continue;
+                }
+            }
+
             int minimumTop = tierClearance;
             if (arenaCards && title.X < bounds.Width / 2 && title.X + title.Width > bounds.Width / 2)
             {
@@ -191,7 +222,8 @@ internal sealed class Overlay
             int preferredWidth = label.IsArenaVariable ? DetailWidth : label.DisplayedArenaPlacement is not null
                 ? ArenaEvidenceWidth : SummaryWidth;
             int badgeWidth = mayhem || ShowDetails ? width : Math.Min(widthLimit, Math.Max(1, (int)(preferredWidth * dpi)));
-            int desiredHeight = mayhem ? mayhemHeight : badge.Prepare(label, badgeWidth, dpi, ShowDetails, update.Mode);
+            int desiredHeight = mayhem && !UsesLowerTier(label, update.Mode) ? mayhemHeight :
+                badge.Prepare(label, badgeWidth, dpi, ShowDetails, update.Mode);
             double fittingScale = Math.Min((double)widthLimit / badgeWidth, (double)heightLimit / desiredHeight);
             double fittedBase = Math.Min(baseScale, fittingScale);
             double scale = Math.Min(fittingScale, fittedBase * tierSizePercent / 100.0);
@@ -208,6 +240,12 @@ internal sealed class Overlay
         else
             HideTierSizeButton();
     }
+
+    private bool UsesLowerTier(CardComparison label, Mode? mode) =>
+        !ShowDetails && mode is Mode.Caos or Mode.Arena && label.ArenaChoice is null &&
+        label != CardComparison.Unread && label.Local != "Variable" &&
+        (label.Local != CardComparison.Missing || label.DisplayedArenaPlacement is not null ||
+            mode == Mode.Caos && (label.External?.Tier is not null || label.DisplayedMayhemObserved is not null));
 
     private static (Int32Rect Bounds, bool InTopBand)? PlaceTierSizeButton(
         Int32Rect bounds, Int32Rect[] titles, int cardEdge, int gap, double dpi, bool prismaticsOnRight)
@@ -282,7 +320,7 @@ internal sealed class Overlay
         private readonly BadgePanel badge = new();
         private readonly Viewbox frame;
         private CardComparison? displayed;
-        private (int Width, double Dpi, bool ShowDetails, Mode? Mode) measuredAt;
+        private (int Width, double Dpi, bool ShowDetails, Mode? Mode, bool LowerTier) measuredAt;
         private int measuredHeight;
         private nint handle;
         private Int32Rect placement;
@@ -316,17 +354,17 @@ internal sealed class Overlay
                 Hide();
         }
 
-        internal int Prepare(CardComparison value, int width, double dpi, bool showDetails, Mode? mode)
+        internal int Prepare(CardComparison value, int width, double dpi, bool showDetails, Mode? mode, bool lowerTier = false)
         {
-            if (displayed == value && measuredAt == (width, dpi, showDetails, mode))
+            if (displayed == value && measuredAt == (width, dpi, showDetails, mode, lowerTier))
                 return measuredHeight;
 
             badge.MinHeight = 0;
-            badge.Render(value, width / dpi, showDetails, mode);
+            badge.Render(value, width / dpi, showDetails, mode, lowerTier);
             badge.InvalidateMeasure();
             badge.Measure(new Size(badge.Width, double.PositiveInfinity));
             displayed = value;
-            measuredAt = (width, dpi, showDetails, mode);
+            measuredAt = (width, dpi, showDetails, mode, lowerTier);
             measuredHeight = (int)Math.Ceiling(badge.DesiredSize.Height * dpi) + 1;
             return measuredHeight;
         }
@@ -350,6 +388,7 @@ internal sealed class Overlay
     private sealed class BadgePanel : Border
     {
         private bool mayhem;
+        private bool lowerTier;
         private Brush Divider => mayhem ? MayhemTierStyle.Divider : OverlayPanelStyle.Divider;
         private Brush Muted => mayhem ? MayhemTierStyle.Muted : OverlayPanelStyle.Muted;
         private Brush Gold => mayhem ? MayhemTierStyle.Gold : OverlayPanelStyle.Gold;
@@ -368,10 +407,11 @@ internal sealed class Overlay
             TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
         }
 
-        internal void Render(CardComparison value, double width, bool showDetails, Mode? mode)
+        internal void Render(CardComparison value, double width, bool showDetails, Mode? mode, bool lowerTier = false)
         {
             Width = width;
             mayhem = mode == Mode.Caos;
+            this.lowerTier = lowerTier;
             bool compactArena = mode == Mode.Arena && !showDetails;
             bool narrow = width < 150;
             Padding = compactArena ? new Thickness(6, 2, 6, 3) :
@@ -385,6 +425,11 @@ internal sealed class Overlay
             string? published = arena ? null : value.External?.Tier;
             bool sPlus = value.VisibleTierText == "S+";
             ApplyFrame(sPlus, recommended);
+            if (lowerTier)
+            {
+                Background = Brushes.Transparent;
+                BorderThickness = Padding = new Thickness(0);
+            }
             if (value == CardComparison.Unread)
             {
                 AddStatus("Leyendo carta…");
@@ -507,6 +552,12 @@ internal sealed class Overlay
         private void AddGrade(string tier, string label, string? context, string? recommendation, bool narrow,
             string? localTier = null, bool compactArena = false)
         {
+            if (lowerTier)
+            {
+                AddLowerTier(tier, label, context, recommendation);
+                return;
+            }
+
             double size = narrow ? 38 : 46;
             var grade = Line(tier, size, TierInk(tier), centered: true);
             grade.FontFamily = mayhem ? MayhemTierStyle.Heading : OverlayPanelStyle.Heading;
@@ -555,6 +606,29 @@ internal sealed class Overlay
                 content.Children.Add(Line(context, 12, tier == "S+" && !mayhem ? SPlusMuted : Muted, centered: true));
             if (recommendation is not null)
                 content.Children.Add(Line(recommendation, narrow ? 11 : 12, Gold, bold: true, top: 2, centered: true));
+        }
+
+        private void AddLowerTier(string tier, string label, string? context, string? recommendation)
+        {
+            bool showSource = !mayhem || context is not null || label == "AramHex · China";
+            string? caption = showSource ? context is null ? label : $"{label} · {context}" : null;
+            if (caption is not null || recommendation is not null)
+            {
+                var metadata = Line(caption ?? recommendation!, 12, caption is null ? Gold : Ink, bold: true, centered: true);
+                if (caption is not null && recommendation is not null)
+                {
+                    metadata.Inlines.Add(new Run(" · "));
+                    metadata.Inlines.Add(new Run(recommendation) { Foreground = Gold });
+                }
+                content.Children.Add(new Border
+                {
+                    Background = mayhem ? MayhemTierStyle.Surface : OverlayPanelStyle.Surface,
+                    BorderBrush = Divider, BorderThickness = new Thickness(1), Padding = new Thickness(5, 1, 5, 1),
+                    Margin = new Thickness(0, 0, 0, 2), HorizontalAlignment = HorizontalAlignment.Center,
+                    Child = metadata
+                });
+            }
+            content.Children.Add(TierHexagon.Create(tier, CompactTierWidth, CompactTierHeight, CompactTierFontSize));
         }
 
         private void AddStatus(string text, string? context = null)
