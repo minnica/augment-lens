@@ -64,6 +64,40 @@ $itemCatalog = "{`n  `"patch`": `"$Patch`",`n  `"source`": `"$itemSource`",`n  `
 [System.IO.File]::WriteAllText((Join-Path (Resolve-Path $assets) 'mayhem-items.json'), $itemCatalog)
 if ($OnlyMayhemItems) { return }
 
+$newline = [string][char]10
+function Convert-ItemText([string]$value) {
+    $value = $value -replace '<br\s*/?>', $newline
+    $value = [Net.WebUtility]::HtmlDecode(($value -replace '<[^>]+>', ''))
+    ($value.Trim() -replace '[ \t]*\r?\n[ \t]*', $newline -replace '\n{3,}', ($newline + $newline))
+}
+$categoryLabels = [ordered]@{
+    Boots='Botas'; Consumable='Consumible'; CriticalStrike='Golpe crítico'; Armor='Armadura';
+    SpellBlock='Resistencia mágica'; LifeSteal='Robo de vida'; AttackSpeed='Velocidad de ataque';
+    SpellDamage='Poder de habilidad'; Damage='Daño de ataque'; Health='Vida'; AbilityHaste='Aceleración de habilidad'
+}
+$shopRows = foreach ($entry in $itemData.PSObject.Properties) {
+    $item = $entry.Value
+    if ((!$item.maps.'453' -and !$item.maps.'12' -and !$item.maps.'30') -or !$item.name) { continue }
+    $description = $item.description -replace '(?is)<(rules|flavorText)>.*?</\1>', ''
+    $stats = [regex]::Match($description, '(?is)<stats>(.*?)</stats>').Groups[1].Value
+    $effect = Convert-ItemText ($description -replace '(?is)<stats>.*?</stats>', '')
+    $category = if ($item.tags -contains 'Active' -and $effect -match '(?i)\bte desplazas\b|\bdespl.zate\b') { 'Desplazamiento' }
+        else { $categoryLabels.Keys | Where-Object { $_ -in $item.tags } | Select-Object -First 1 | ForEach-Object { $categoryLabels[$_] } }
+    $row = [ordered]@{}
+    if ($item.gold.purchasable -and $item.gold.total -gt 0) { $row['cost'] = [int]$item.gold.total }
+    if ($category) { $row['category'] = $category }
+    if ($stats) { $row['stats'] = Convert-ItemText $stats }
+    if ($effect) { $row['effect'] = $effect }
+    if ($description -match '(?i)<trueDamage>' -and $effect -notmatch 'contra súbditos' -and
+        $effect -match '(?i)\b(?:inflige|infligen|infligirá)\b[^.\n]{0,140}\bdaño verdadero\b') {
+        $row['hasTrueDamage'] = $true
+    }
+    if ($row.Count) { '    "' + $entry.Name + '": ' + ($row | ConvertTo-Json -Compress) }
+}
+$shopCatalog = ('{', ('  "patch": "' + $Patch + '",'), ('  "source": "' + $itemSource + '",'), '  "items": {') -join $newline
+$shopCatalog += $newline + ($shopRows -join (',' + $newline)) + $newline + '  }' + $newline + '}' + $newline
+[IO.File]::WriteAllText((Join-Path (Resolve-Path $assets) 'shop-items.json'), $shopCatalog)
+
 $arena = (Get-Json "$cdn/cdragon/arena/es_mx.json").augments
 $arenaModeSource = "$cdn/game/maps/modespecificdata/cherry.bin.json"
 $arenaMode = Get-Json $arenaModeSource

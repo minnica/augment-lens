@@ -171,9 +171,10 @@ internal static class Program
             overlay.SetTierSize(tierSizePreference.Load());
             BuildSizeWindow? tierSizeWindow = null;
             var itemIcons = new BuildItemIcons(http);
+            var shopItems = ShopItemCatalog.Load(assets, ratings.Catalog.Patch);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
             var prismaticSizePreference = new BuildSizePreference(Path.Combine(settings, "prismatic-panel-size.json"));
-            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save, prismaticSizePreference.Save);
+            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save, prismaticSizePreference.Save, shopItems);
             buildOverlay.SetSize(sizePreference.Load());
             buildOverlay.SetPrismaticSize(prismaticSizePreference.Load());
             BuildSizeWindow? buildSizeWindow = null;
@@ -199,7 +200,7 @@ internal static class Program
             using var stop = new CancellationTokenSource();
             string previous = "";
             var worker = new LiveOverlay(ratings, layouts, history, opgg, aramMayhem, ggez, ggezGlobal, aramHex,
-                builds, new ShopItemStats(ratings.Catalog.Patch, settings, http), assets, app.Dispatcher, state =>
+                builds, shopItems, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
                 arenaVoteOverlay.Render(state.ArenaVote);

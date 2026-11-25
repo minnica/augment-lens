@@ -91,6 +91,10 @@ internal static class MayhemBuildTests
             source.EstimateEnemyDamage(updatedMix) is { PhysicalPercent: 60, MagicPercent: 40 } &&
             source.EstimateEnemyDamage(damageMix with { Opponents = [new("Ornn", []), new("Desconocido", [])] }) is null,
             "la proporción cambia con las compras rivales y queda pendiente sin perfiles de daño identificables");
+        var shop = ShopItemCatalog.Load(assets, ratings.Catalog.Patch);
+        Check(source.EstimateEnemyDamage(damageMix with { Opponents = [new("Jinx", [2512])] }, shop)
+            is { PhysicalPercent: 92, MagicPercent: 0, TruePercent: 8 },
+            "ARAM Caos incorpora las fuentes de daño verdadero del inventario");
 
         var leona = new GameContext(Mode.Caos, "Leona");
         var leonaBuild = build with { Champion = leona.Champion, Groups =

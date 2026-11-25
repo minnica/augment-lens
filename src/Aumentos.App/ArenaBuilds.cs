@@ -52,20 +52,21 @@ internal sealed class ArenaBuilds(Ratings ratings)
 
     internal void ResetSwap() => suggestedSwap = null;
 
-    internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match) => match is null ? null :
-        EstimateDamage(RecentOpponents(match));
+    internal EnemyDamageMix? EstimateEnemyDamage(ArenaMatch? match, ShopItemCatalog? shopItems = null) => match is null ? null :
+        EstimateDamage(RecentOpponents(match), shopItems);
 
-    internal EnemyDamageMix? EstimateLobbyDamage(ArenaMatch? match) => match?.LobbyOpponents is { } opponents
-        ? EstimateDamage(opponents) : null;
+    internal EnemyDamageMix? EstimateLobbyDamage(ArenaMatch? match, ShopItemCatalog? shopItems = null) => match?.LobbyOpponents is { } opponents
+        ? EstimateDamage(opponents, shopItems) : null;
 
-    private EnemyDamageMix? EstimateDamage(IEnumerable<ArenaParticipant> participants) =>
+    private EnemyDamageMix? EstimateDamage(IEnumerable<ArenaParticipant> participants, ShopItemCatalog? shopItems) =>
         EnemyDamageMix.Estimate(participants.Select(participant =>
         {
             if (!champions.TryGetValue(participant.Champion, out var champion))
                 return null;
             var items = EquippedItems(participant).Where(item => !IsBoot(item)).ToArray();
-            return EnemyDamageMix.PhysicalShare(ratings, champion,
-                items.Count(item => Has(item, "Damage") || Has(item, "CriticalStrike")), items.Count(item => Has(item, "SpellDamage")));
+            return EnemyDamageMix.Shares(ratings, champion,
+                items.Count(item => Has(item, "Damage") || Has(item, "CriticalStrike")), items.Count(item => Has(item, "SpellDamage")),
+                participant.Items.Distinct().Count(id => shopItems?.Find(id, Mode.Arena)?.HasTrueDamage == true));
         }));
 
     internal MayhemBuildPlan? Recommend(GameContext game, ArenaMatch? match, OpGgBuildSnapshot? build)

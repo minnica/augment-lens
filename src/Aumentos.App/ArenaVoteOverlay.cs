@@ -7,7 +7,7 @@ using System.Windows.Media;
 
 namespace Aumentos;
 
-internal sealed record ArenaVoteLabel(Int32Rect Row, string? Tier, string Reason, bool Recommended = false);
+internal sealed record ArenaVoteLabel(Int32Rect Row, string? Tier);
 internal sealed record ArenaVoteDisplay(Int32Rect Bounds, nint Target, ArenaVoteLabel[] Labels);
 
 internal sealed class ArenaVoteOverlay : Window
@@ -60,19 +60,9 @@ internal sealed class ArenaVoteOverlay : Window
             return;
 
         var rows = view.Labels.Where(label =>
-            label.Row.X >= 0 && label.Row.Y >= 0 && label.Row.Width > 0 && label.Row.Height / dpi >= 18 &&
+            label.Tier is not null && label.Row.X >= 0 && label.Row.Y >= 0 && label.Row.Width > 0 && label.Row.Height / dpi >= 18 &&
             label.Row.Width <= bounds.Width - label.Row.X && label.Row.Height <= bounds.Height - label.Row.Y).ToArray();
         if (rows.Length == 0)
-        {
-            Clear();
-            return;
-        }
-
-        int gap = (int)Math.Ceiling(6 * dpi);
-        int left = rows.Max(label => label.Row.X + label.Row.Width) + gap;
-        int width = Math.Min((int)Math.Round(225 * dpi), (int)Math.Floor(bounds.Width * .15));
-        width = Math.Min(width, bounds.Width - left - gap);
-        if (width / dpi < 38)
         {
             Clear();
             return;
@@ -81,31 +71,34 @@ internal sealed class ArenaVoteOverlay : Window
         var positions = rows.Select(label =>
         {
             var row = label.Row;
-            bool compact = row.Height / dpi < 44 || width / dpi < 156;
-            int height = Math.Min(row.Height, (int)Math.Floor((compact ? 32 : 44) * dpi));
-            // The option title occupies the lower part of the game's row.
-            int center = row.Y + row.Height * 2 / 3;
-            int top = Math.Clamp(center - height / 2, row.Y, row.Y + row.Height - height);
-            return (Label: label, Top: top, Height: height, Compact: compact);
+            int height = Math.Min(row.Height, (int)Math.Round(30 * dpi));
+            int width = Math.Min(bounds.Width, (int)Math.Round(height * TierHexagon.ArtworkAspect));
+            int left = Math.Clamp(row.X + row.Width - width / 2, 0, bounds.Width - width);
+            // The name tab sits above the bordered title. Center the tier on the title's right edge.
+            int titleTop = row.Y + row.Height / 3;
+            int top = titleTop + (row.Y + row.Height - titleTop - height) / 2;
+            return (Label: label, Left: left, Top: top, Width: width, Height: height);
         }).ToArray();
 
+        int firstLeft = positions.Min(position => position.Left);
+        int contentWidth = positions.Max(position => position.Left + position.Width) - firstLeft;
         int firstTop = positions.Min(position => position.Top);
-        int lastBottom = positions.Max(position => position.Top + position.Height);
-        int contentHeight = lastBottom - firstTop;
+        int contentHeight = positions.Max(position => position.Top + position.Height) - firstTop;
         layer.Children.Clear();
         foreach (var position in positions)
         {
-            var badge = Badge(position.Label, width / dpi, position.Height / dpi, position.Compact);
+            var badge = TierHexagon.Create(position.Label.Tier, position.Width / dpi, position.Height / dpi);
+            Canvas.SetLeft(badge, (position.Left - firstLeft) / dpi);
             Canvas.SetTop(badge, (position.Top - firstTop) / dpi);
             layer.Children.Add(badge);
         }
 
-        Width = width / dpi;
+        Width = contentWidth / dpi;
         Height = contentHeight / dpi;
         if (!IsVisible)
             Show();
         const uint showWithoutActivation = 0x0040 | 0x0010;
-        if (Native.SetWindowPos(handle, -1, bounds.X + left, bounds.Y + firstTop, width, contentHeight, showWithoutActivation))
+        if (Native.SetWindowPos(handle, -1, bounds.X + firstLeft, bounds.Y + firstTop, contentWidth, contentHeight, showWithoutActivation))
         {
             displayed = view;
             displayedDpi = dpi;
@@ -118,56 +111,4 @@ internal sealed class ArenaVoteOverlay : Window
         if (IsVisible)
             Hide();
     }
-
-    private static Border Badge(ArenaVoteLabel label, double width, double height, bool compact)
-    {
-        bool recommended = label.Recommended && label.Tier is not null;
-        double tierHeight = Math.Min(height - 2, compact ? 24 : 30);
-        var tier = TierHexagon.Create(label.Tier, tierHeight * .9, tierHeight);
-        tier.VerticalAlignment = VerticalAlignment.Center;
-        tier.HorizontalAlignment = HorizontalAlignment.Center;
-        UIElement content = tier;
-        if (width >= 104 && height >= 28 && (recommended || !string.IsNullOrWhiteSpace(label.Reason)))
-        {
-            var tierColumn = new Grid { Width = compact ? 30 : 38 };
-            tierColumn.Children.Add(tier);
-            var row = new DockPanel();
-            DockPanel.SetDock(tierColumn, Dock.Left);
-            row.Children.Add(tierColumn);
-            var detail = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 5, 0) };
-            if (recommended)
-                detail.Children.Add(Detail("Recomendado", OverlayPanelStyle.BrightGold, OverlayPanelStyle.DetailSize, lines: 1, semibold: true));
-            if (!string.IsNullOrWhiteSpace(label.Reason))
-                detail.Children.Add(Detail(label.Reason, OverlayPanelStyle.Ink, compact ? OverlayPanelStyle.DetailSize : 12, lines: compact && recommended ? 1 : 2));
-            row.Children.Add(detail);
-            content = row;
-        }
-
-        var badge = new Border
-        {
-            Width = width,
-            Height = height,
-            Child = content
-        };
-        OverlayPanelStyle.ApplyFrame(badge);
-        if (recommended)
-        {
-            badge.Background = OverlayPanelStyle.SelectedSurface;
-            badge.BorderBrush = OverlayPanelStyle.Gold;
-        }
-        return badge;
-    }
-
-    private static TextBlock Detail(string text, Brush foreground, double size, int lines, bool semibold = false) => new()
-    {
-        Text = text,
-        FontSize = size,
-        FontWeight = semibold ? FontWeights.SemiBold : FontWeights.Normal,
-        Foreground = foreground,
-        LineHeight = 13,
-        LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
-        MaxHeight = lines * 13 + 2,
-        TextWrapping = lines == 1 ? TextWrapping.NoWrap : TextWrapping.Wrap,
-        TextTrimming = TextTrimming.CharacterEllipsis
-    };
 }

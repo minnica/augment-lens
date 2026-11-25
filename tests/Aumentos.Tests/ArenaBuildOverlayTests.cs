@@ -19,17 +19,16 @@ internal static class ArenaBuildOverlayTests
         var clientPatch = ratings.Catalog.Patch;
         var build = new OpGgBuildSnapshot(Mode.Arena, "Jax", clientPatch, clientPatch, DateTimeOffset.UtcNow,
             [new(OpGgBuildSection.Prismatic, [[new(443090, "Cuota del Segador")]])]);
-        var rates = new ShopItemRates(clientPatch, DateTimeOffset.UtcNow, new() { [226609] = new(31.4m, 51.2m) });
         var view = new BuildDisplay(new Int32Rect(0, 0, 1600, 900), 0, "Jax", Mode.Arena, new(build, "Prueba"),
-            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67), LobbyDamage: new(45), ItemRates: rates);
+            Plan: jaxRoute, ClientPatch: clientPatch, ArenaRivalsDetected: true, EnemyDamage: new(67, 8), LobbyDamage: new(45, 15));
         var renderer = new BuildPanel(null);
         var panel = (StackPanel)renderer.Child;
         renderer.Render(view);
         var blocks = panel.Children.OfType<TextBlock>().Select(text => text.Text).ToArray();
-        Check(blocks.SequenceEqual(["Cuarto objeto", "Objetos prismáticos", $"OP.GG · Arena · {LeaguePatch.Public(clientPatch)}",
+        Check(blocks.SequenceEqual(["Cuarto objeto", "Objetos prismáticos",
             "Daño rival estimado", "Según rivales de rondas jugadas", "Daño del lobby", "Solo rivales identificados"]) &&
-            ReadText(panel.Children[^4]).SequenceEqual(["67% físico", "33% mágico"]) &&
-            ReadText(panel.Children[^1]).SequenceEqual(["45% físico", "55% mágico"]),
+            ReadText(panel.Children[^4]).SequenceEqual(["67% físico", "25% mágico", "8% verdadero"]) &&
+            ReadText(panel.Children[^1]).SequenceEqual(["45% físico", "40% mágico", "15% verdadero"]),
             "Arena distingue los rivales recientes de los que identifica en todo el lobby");
         var next = (Border)panel.Children[2];
         var pending = (Border)panel.Children[3];
@@ -37,10 +36,10 @@ internal static class ArenaBuildOverlayTests
             panel.Children.OfType<Border>().All(row => row.BorderThickness == new Thickness(0) &&
                 (row == next || row.Background is null)) &&
             ((DockPanel)next.Child).Children.OfType<TextBlock>().Single().Text == "El mejor" &&
-            ReadText(next).SequenceEqual(["El mejor", "Sierraespada Quimpunk", "31.4 % elección", "51.2 % victorias", "Para reducir la curación de Karma y Zed"]) &&
+            ReadText(next).SequenceEqual(["El mejor", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
             ReadText(pending).SequenceEqual(["Presagio de Randuin", "Contra los golpes críticos de Zed"]) &&
             !ReadText(panel).Contains("Cuchilla Oscura") && !ReadText(panel).Contains("Botas"),
-            "el mejor candidato muestra las tasas de Arena y las compras confirmadas se quitan de las opciones");
+            "el mejor candidato muestra el motivo y las compras confirmadas se quitan de las opciones");
 
         var empty = new MayhemBuildPlan(jaxRoute.Steps.Select(step => step with
             { Detail = "Encaja con tu campeón", Owned = false }).ToArray());
@@ -55,7 +54,7 @@ internal static class ArenaBuildOverlayTests
         renderer.Measure(new Size(215, double.PositiveInfinity));
         var narrowLabels = ReadText(panel).ToArray();
         Check(!narrowLabels.Contains("Encaja con tu campeón") && narrowLabels.Contains("Esperando confirmar rivales.") &&
-            narrowLabels.Contains("45% físico") && narrowLabels.Contains("55% mágico") &&
+            narrowLabels.Contains("45% físico") && narrowLabels.Contains("40% mágico") && narrowLabels.Contains("15% verdadero") &&
             renderer.DesiredSize.Width <= 215 && panel.Children.OfType<Border>().Count() == 4,
             "la vista estrecha permite ver el daño del lobby mientras se confirman los rivales");
 

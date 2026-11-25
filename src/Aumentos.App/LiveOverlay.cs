@@ -31,7 +31,7 @@ internal sealed class LiveOverlay
     private readonly GgezArenaGlobalRatings ggezGlobal;
     private readonly AramHexRatings aramHex;
     private readonly OpGgBuilds builds;
-    private readonly ShopItemStats itemStats;
+    private readonly ShopItemCatalog shopItems;
     private readonly ShopAugmentAffinity itemAffinity;
     private readonly string assets;
     private readonly Dispatcher dispatcher;
@@ -43,7 +43,7 @@ internal sealed class LiveOverlay
 
     public LiveOverlay(Ratings ratings, LayoutStore layouts, CardHistory history, OpGgRatings opgg,
         AramMayhemRatings aramMayhem, GgezArenaRatings ggez, GgezArenaGlobalRatings ggezGlobal, AramHexRatings aramHex,
-        OpGgBuilds builds, ShopItemStats itemStats, string assets,
+        OpGgBuilds builds, ShopItemCatalog shopItems, string assets,
         Dispatcher dispatcher, Action<OverlayUpdate> update, Action<BuildDisplay?> updateBuild, Func<ArenaVoteDraft?> voteDraft)
     {
         this.ratings = ratings;
@@ -55,7 +55,7 @@ internal sealed class LiveOverlay
         this.ggezGlobal = ggezGlobal;
         this.aramHex = aramHex;
         this.builds = builds;
-        this.itemStats = itemStats;
+        this.shopItems = shopItems;
         itemAffinity = new ShopAugmentAffinity(ratings.Catalog);
         this.assets = assets;
         this.dispatcher = dispatcher;
@@ -235,16 +235,15 @@ internal sealed class LiveOverlay
                                         !updated.Steps.SequenceEqual(plan.Steps))
                                         plan = updated;
                                     enemyDamage = currentGame.Mode == Mode.Arena
-                                        ? arenaBuilds.EstimateEnemyDamage(match?.Arena)
-                                        : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem);
-                                    lobbyDamage = arenaBuilds.EstimateLobbyDamage(match?.Arena);
+                                        ? arenaBuilds.EstimateEnemyDamage(match?.Arena, shopItems)
+                                        : mayhemBuilds.EstimateEnemyDamage(match?.Mayhem, shopItems);
+                                    lobbyDamage = arenaBuilds.EstimateLobbyDamage(match?.Arena, shopItems);
                                     hideStartingItems = mayhemBuilds.HasStartingPurchase(match?.Mayhem, suggestion.Data);
                                 }
                                 build = new BuildDisplay(window.Bounds, window.Handle, champion,
                                     currentGame.Mode, suggestion, shop, plan, ClientPatch: ratings.Catalog.Patch,
                                     ArenaRivalsDetected: match?.Arena?.Opponents.Length > 0, EnemyDamage: enemyDamage,
-                                    HideStartingItems: hideStartingItems, LobbyDamage: lobbyDamage,
-                                    ItemRates: itemStats.Current(currentGame, cancellation));
+                                    HideStartingItems: hideStartingItems, LobbyDamage: lobbyDamage);
                             }
                         }
                         else if (showShopBuild)

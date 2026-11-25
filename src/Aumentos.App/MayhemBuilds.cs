@@ -107,12 +107,13 @@ internal sealed class MayhemBuilds
 
     internal static bool IsDiver(Champion champion) => champion.Roles[0] == "Assassin" || Divers.Contains(champion.Key);
 
-    internal EnemyDamageMix? EstimateEnemyDamage(MayhemMatch? match) => match is null ? null :
+    internal EnemyDamageMix? EstimateEnemyDamage(MayhemMatch? match, ShopItemCatalog? shopItems = null) => match is null ? null :
         EnemyDamageMix.Estimate(match.Opponents.Where(opponent => champions.ContainsKey(opponent.Champion)).Select(opponent =>
         {
             var equipped = EquippedItems(opponent).Where(item => item.Finished && !item.Boots).ToArray();
-            return EnemyDamageMix.PhysicalShare(ratings, champions[opponent.Champion],
-                equipped.Count(item => item.AttackDamage > 0 || item.Crit > 0), equipped.Count(item => item.AbilityPower > 0));
+            return EnemyDamageMix.Shares(ratings, champions[opponent.Champion],
+                equipped.Count(item => item.AttackDamage > 0 || item.Crit > 0), equipped.Count(item => item.AbilityPower > 0),
+                opponent.Items.Distinct().Count(id => shopItems?.Find(id, Mode.Caos)?.HasTrueDamage == true));
         }));
 
     internal bool HasStartingPurchase(MayhemMatch? match, OpGgBuildSnapshot? build)
@@ -244,7 +245,7 @@ internal sealed class MayhemBuilds
         Style.Support => 3158,
         Style.Crit or Style.OnHit => 3006,
         Style.Lethality => 3158,
-        _ => damage is { PhysicalPercent: >= 60 } ? 3047 : 3111
+        _ => damage is { } mix && mix.PhysicalPercent * 100 >= 60 * (100 - mix.TruePercent) ? 3047 : 3111
     };
 
     private BuildSwap? RecommendSwap(BuildStep[] equipped, int[] core, Style style, MayhemMatch match,

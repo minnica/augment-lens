@@ -76,7 +76,7 @@ Para auditar la cobertura desde PowerShell con el paquete de desarrollo, ejecuta
 
 ## Votar por Invitados de Honor en Arena
 
-Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Al lado de cada opción muestra un tier local de **S a C** y el motivo principal. Si una opción tiene una ventaja clara sobre las otras dos, lleva la marca **Recomendado**. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
+Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Cada opción valorada muestra su insignia de **S a C** centrada en el borde derecho del recuadro del título. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
 
 Cada invitado cambia las reglas de todo el lobby. La letra estima cuánto favorece al equipo según tu campeón, los aliados confirmados, las compras y los rivales detectados. También considera la ronda y la vida del equipo cuando puede leerlas en el marcador. Antes de que la partida confirme a los aliados por sus combates, la app puede usar la composición fijada en la selección si la reconoce en la lista de jugadores. Por ejemplo, **Negociación Oscura** de Tahm Kench puede perder valor en composiciones que dependen de la vida máxima. Las reglas se contrastaron con los datos del cliente de **26.23**. [Textos del cliente 16.23](https://raw.communitydragon.org/16.23/game/es_mx/data/menu/en_us/lol.stringtable.json)
 
@@ -88,7 +88,7 @@ El panel muestra hasta tres objetos pendientes para la etapa de compra, con su i
 
 Con la tienda abierta en **ARAM Caos** o **Arena**, arrastra el encabezado **Build de…** para colocar el panel dentro de la ventana del juego. Las recomendaciones siguen actualizándose en esa posición mientras compras.
 
-Los porcentajes de **elección** y **victorias** son los que publica la fuente para cada objeto. En **Arena**, OP.GG los publica para el campeón. En **ARAM Caos**, HexMayhem aporta las cifras globales del modo. El panel indica la fuente y el parche. Cuando una fila carece de estadísticas publicadas, sigue mostrando el objeto. [Objetos de Jax en OP.GG](https://op.gg/es-419/lol/modes/arena/jax/items) · [Objetos de ARAM Caos en HexMayhem](https://hexmayhem.com/items)
+Pasa el cursor sobre un objeto del panel para ver su ficha. Incluye el icono y, según el catálogo del parche, el costo total, la categoría, las estadísticas y el efecto. El costo total corresponde al objeto completo. [Datos de objetos de Riot](https://developer.riotgames.com/docs/lol#data-dragon)
 
 En **ARAM Caos**, **Objetos iniciales** se oculta al confirmar una pieza inicial recomendada o un objeto terminado. Si falta un núcleo de OP.GG, **Ruta local** propone compras con el perfil del campeón, su inventario y los datos rivales.
 
@@ -100,7 +100,7 @@ En **ARAM Caos**, el cambio de una build completa también considera el marcador
 
 Para cambiar un objeto de una build completa, la app compara cuánta armadura o resistencia mágica perderías frente al daño relevante. Si lideras a tu equipo, exige además un beneficio defensivo claro antes de cambiar un objeto que aporta mucha vida a tu build de tanque. Las opciones de Heridas Graves tienen en cuenta si un aliado ya puede aplicarlas al hacer daño.
 
-Al pie del panel, **Daño rival estimado** muestra el daño **físico** en naranja y el **mágico** en violeta. Estima la proporción a partir del perfil y los objetos ofensivos terminados de cada rival identificable, y se actualiza durante la partida. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero. La barra **Daño del lobby** reúne solo a los rivales que la app identifica, incluidos equipos de otras rondas, y se amplía a medida que los eventos de combate permiten distinguirlos.
+Al pie del panel, **Daño rival estimado** muestra el daño **físico** en naranja, el **mágico** en violeta y el **verdadero** en marfil. Estima la proporción a partir del perfil del campeón y los objetos ofensivos de cada rival identificable, y se actualiza durante la partida. Para el daño verdadero considera las habilidades y los efectos de objetos que reconoce. En Arena usa hasta tres rivales de rondas jugadas e indica cuándo está esperando confirmar al primero. La barra **Daño del lobby** reúne solo a los rivales que la app identifica, incluidos equipos de otras rondas, y se amplía a medida que los eventos de combate permiten distinguirlos.
 
 Para consultar la build manualmente, pulsa **Ctrl + Alt + B** o usa **Mostrar u ocultar build de OP.GG** en la bandeja y vuelve al juego. Dentro de la tienda, ese control permite ocultar el panel hasta la siguiente apertura. Usa **Abrir build de OP.GG** para visitar la página del último campeón consultado.
 

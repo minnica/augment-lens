@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Aumentos;
 
@@ -12,7 +13,7 @@ internal sealed record PrismaticDisplay(ArenaPrismaticTop Top, Calibration Layou
 internal sealed record BuildDisplay(Int32Rect Bounds, nint Target, string? Champion, Mode Mode, OpGgBuildView? Source,
     Int32Rect? Shop = null, MayhemBuildPlan? Plan = null, PrismaticDisplay? Prismatics = null,
     string? ClientPatch = null, bool ArenaRivalsDetected = false, EnemyDamageMix? EnemyDamage = null,
-    bool HideStartingItems = false, EnemyDamageMix? LobbyDamage = null, ShopItemRates? ItemRates = null);
+    bool HideStartingItems = false, EnemyDamageMix? LobbyDamage = null);
 
 internal sealed class BuildVisibility
 {
@@ -65,6 +66,8 @@ internal sealed class BuildOverlay : Window
     private const double MinimumShopSideWidth = 210;
 
     private readonly BuildItemIcons? itemIcons;
+    private readonly ShopItemCatalog? shopItems;
+    private readonly DispatcherTimer itemHoverTimer;
     private readonly Func<int, bool>? saveSize;
     private readonly Func<int, bool>? savePrismaticSize;
     private readonly BuildPanel panel;
@@ -77,6 +80,10 @@ internal sealed class BuildOverlay : Window
     private BuildSizeButton? sizeButton;
     private BuildSizeButton? prismaticSizeButton;
     private BuildDragSurface? dragSurface;
+    private BuildItemCard? itemCard;
+    private FrameworkElement? hoveredRow;
+    private long hoveredSince;
+    private Int32Rect itemCardPanel;
     private (nint Target, Mode Mode, Point Origin)? floatingPosition;
     private (Point Cursor, Int32Rect Origin, (nint Handle, Int32Rect Bounds)[] Windows, bool Moving)? drag;
     private (int Margin, int Top) floatingLimits;
@@ -91,9 +98,11 @@ internal sealed class BuildOverlay : Window
     internal int SizePercent => sizePercent;
     internal int PrismaticSizePercent => prismaticSizePercent;
 
-    internal BuildOverlay(BuildItemIcons? itemIcons = null, Func<int, bool>? saveSize = null, Func<int, bool>? savePrismaticSize = null)
+    internal BuildOverlay(BuildItemIcons? itemIcons = null, Func<int, bool>? saveSize = null,
+        Func<int, bool>? savePrismaticSize = null, ShopItemCatalog? shopItems = null)
     {
         this.itemIcons = itemIcons;
+        this.shopItems = shopItems;
         this.saveSize = saveSize;
         this.savePrismaticSize = savePrismaticSize;
         Title = "Aumentos LoL · Recomendaciones de objetos";
@@ -110,6 +119,24 @@ internal sealed class BuildOverlay : Window
 
         panel = new BuildPanel(itemIcons);
         Content = new Viewbox { Child = panel, Stretch = Stretch.Uniform };
+        itemHoverTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(65) };
+        itemHoverTimer.Tick += (_, _) =>
+        {
+            if (GetCursorPos(out var cursor))
+                TrackItemHover(new Point(cursor.X, cursor.Y), Environment.TickCount64);
+            else
+                ClearItemHover();
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+                itemHoverTimer.Start();
+            else
+            {
+                itemHoverTimer.Stop();
+                ClearItemHover();
+            }
+        };
         SourceInitialized += (_, _) =>
         {
             handle = new WindowInteropHelper(this).Handle;
@@ -141,6 +168,7 @@ internal sealed class BuildOverlay : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        itemHoverTimer.Stop();
         StopDrag();
         if (hotkeySource is { } source)
         {
@@ -276,6 +304,7 @@ internal sealed class BuildOverlay : Window
     {
         if (drag is not null || !CanDrag(displayed))
             return;
+        ClearItemHover();
         Window?[] windows = [this, dragSurface, sizeButton, MayhemDisclosure];
         var visible = windows.OfType<Window>().Where(window => window.IsVisible)
             .Select(window => new WindowInteropHelper(window).Handle)
@@ -373,6 +402,44 @@ internal sealed class BuildOverlay : Window
         dragSurface.Display(area, dpi);
     }
 
+    private void ClearItemHover()
+    {
+        hoveredRow = null;
+        if (itemCard is { IsVisible: true })
+            itemCard.Hide();
+    }
+
+    internal void TrackItemHover(Point cursor, long now)
+    {
+        if (!IsVisible || displayed is not { } view || drag is not null || sizeEditorOpen ||
+            view.Target != 0 && Native.GetForegroundWindow() != view.Target ||
+            cursor.X < placement.X || cursor.X >= placement.X + placement.Width ||
+            cursor.Y < placement.Y || cursor.Y >= placement.Y + placement.Height ||
+            panel.ItemAt(panel.PointFromScreen(cursor)) is not { } hit)
+        {
+            ClearItemHover();
+            return;
+        }
+
+        if (hoveredRow != hit.Row)
+        {
+            ClearItemHover();
+            hoveredRow = hit.Row;
+            hoveredSince = now;
+        }
+        if (now - hoveredSince < 260 || itemCard is { IsVisible: true } && itemCardPanel == placement)
+            return;
+
+        var start = hit.Row.PointToScreen(new Point(0, 0));
+        var end = hit.Row.PointToScreen(new Point(hit.Row.ActualWidth, hit.Row.ActualHeight));
+        var patch = view.Prismatics?.Patch ?? view.ClientPatch ?? view.Source?.Data?.ClientPatch ?? "";
+        var icon = panel.ItemIcon(hit.Item, patch, 65);
+        itemCard ??= new BuildItemCard { Owner = this };
+        itemCard.Present(hit.Item, icon, shopItems?.Find(hit.Item.Id, view.Mode), new Rect(start, end),
+            placement, view.Bounds, Math.Clamp(placement.Width / panel.ActualWidth, .85, 1.4));
+        itemCardPanel = placement;
+    }
+
     internal void Render(BuildDisplay? view)
     {
         if (view is null || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
@@ -442,10 +509,10 @@ internal sealed class BuildOverlay : Window
             displayed.Source != view.Source || displayed.Plan != view.Plan || displayed.Prismatics != view.Prismatics ||
             displayed.ClientPatch != view.ClientPatch || displayed.ArenaRivalsDetected != view.ArenaRivalsDetected ||
             displayed.EnemyDamage != view.EnemyDamage || displayed.LobbyDamage != view.LobbyDamage ||
-            displayed.ItemRates != view.ItemRates ||
             displayed.HideStartingItems != view.HideStartingItems ||
             panel.Compact != (layoutWidth < BuildPanel.CompactWidth))
         {
+            ClearItemHover();
             panel.Render(view, layoutWidth);
             panel.InvalidateMeasure();
         }

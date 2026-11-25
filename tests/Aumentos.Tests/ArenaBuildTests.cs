@@ -32,6 +32,9 @@ internal static class ArenaBuildTests
             planner.EstimateEnemyDamage(physical) is { PhysicalPercent: 100, MagicPercent: 0 } &&
             planner.EstimateEnemyDamage(match with { Opponents = [] }) is null,
             "el daño estimado usa las compras de hasta tres rivales confirmados y espera si aún no hay rivales");
+        Check(planner.EstimateEnemyDamage(match with { Opponents = [new("Vayne", []), new("Lux", [])] })
+            is { PhysicalPercent: 38, MagicPercent: 49, TruePercent: 13 },
+            "Arena incorpora el daño verdadero de una habilidad al total de los rivales");
         var lobby = damageMix with
         {
             LobbyOpponents = [new("Ashe", []), .. damageMix.Opponents, new("Lux", [223089]), new("Ornn", []), new("Unknown", [223031])]

@@ -209,8 +209,7 @@ internal static class Program
             var view = ArenaVoteAdvice.Create(new(0, 0, image.PixelWidth, image.PixelHeight), 0, voteOffer, ratings, match);
             Check(view.Labels.Length == 3 && view.Labels.Select(label => label.Row)
                 .SequenceEqual(voteOffer.Options.Select(option => option.Bounds)) &&
-                view.Labels.All(label => label.Tier is not null && label.Reason.Length > 0) &&
-                view.Labels.Count(label => label.Recommended) <= 1,
+                view.Labels.All(label => label.Tier is not null),
                 "las opciones leídas en la captura reciben su valoración de equipo en la fila correspondiente");
             var lowHealth = ArenaVoteAdvice.Create(view.Bounds, 0, voteOffer with { TeamHealth = 36 }, ratings, match);
             Check(view.Labels[1].Tier != "S" && lowHealth.Labels[1].Tier == "S",
@@ -600,7 +599,8 @@ internal static class Program
     {
         using var http = new System.Net.Http.HttpClient(new TestIcons());
         var icons = new BuildItemIcons(http);
-        var overlay = new BuildOverlay(icons);
+        var shopItems = ShopItemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "Assets"), "16.23");
+        var overlay = new BuildOverlay(icons, shopItems: shopItems);
         try
         {
             var bounds = new Int32Rect(10, 10, 1040, 720);
@@ -639,15 +639,19 @@ internal static class Program
             ]);
             var build = data with { Groups = [new(OpGgBuildSection.Start, [[new(1056, "Sortija de Doran")]]),
                 new(OpGgBuildSection.Boots, [[new(3020, "Botas del Hechicero")]]), ..data.Groups] };
-            var itemRates = new ShopItemRates("16.23", DateTimeOffset.UtcNow, new() { [3116] = new(18.7m, 52.1m) });
             var view = new BuildDisplay(bounds, 0, "Zyra", Mode.Caos, new(build, "Prueba"),
-                Plan: plan, EnemyDamage: new(78), ItemRates: itemRates);
+                Plan: plan, EnemyDamage: new(78, 8));
             overlay.Render(view);
-            Check(BestLabels().SequenceEqual(["El mejor", "Cetro de Cristal de Rylai", "18.7 % elección", "52.1 % victorias"]) &&
-                Labels().Contains("Segundo objeto") && Labels().Contains("HexMayhem · Global de ARAM Caos · 26.23") &&
+            Check(BestLabels().SequenceEqual(["El mejor", "Cetro de Cristal de Rylai"]) &&
+                Labels().Contains("Segundo objeto") && !Labels().Any(label => label.Contains("HexMayhem")) &&
                 !Labels().Contains("El Tormento de Liandry") && !Labels().Contains("Morellonomicón"),
-                "ARAM Caos muestra tres compras, el mejor candidato y las dos tasas globales con atribución");
-            CheckDamageBar(rows, 78);
+                "ARAM Caos muestra tres compras y el mejor candidato");
+            CheckDamageBar(rows, 78, 8);
+            CheckHover("Cetro de Cristal de Rylai", "2,600 de oro");
+            var arenaPlan = new MayhemBuildPlan([new(new(223152, "Cinturón Cohete Hextech"))]);
+            overlay.Render(view with { Mode = Mode.Arena, Source = null, Plan = arenaPlan, ClientPatch = "16.23" });
+            CheckHover("Cinturón Cohete Hextech", "2,500 de oro");
+            overlay.Render(view);
             Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "Objetos iniciales"),
                 "las referencias iniciales aparecen antes de comprar");
             view = view with { HideStartingItems = true };
@@ -722,26 +726,49 @@ internal static class Program
             string[] Labels() => BuildElements<TextBlock>(rows).Select(text => text.Text).ToArray();
             string[] BestLabels() => ItemRows(rows).Select(row => BuildElements<TextBlock>(row).Select(text => text.Text).ToArray())
                 .Single(texts => texts.Contains("El mejor"));
+
+            void CheckHover(string name, string price)
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                var row = ItemRows(rows).Single(item => BuildElements<TextBlock>(item).Any(text => text.Text == name));
+                var cursor = row.PointToScreen(new Point(row.ActualWidth / 2, row.ActualHeight / 2));
+                overlay.TrackItemHover(cursor, 100);
+                Check(!overlay.OwnedWindows.OfType<BuildItemCard>().Any(card => card.IsVisible), "el hover espera a que se detenga el cursor");
+                overlay.TrackItemHover(cursor, 400);
+                var card = overlay.OwnedWindows.OfType<BuildItemCard>().Single();
+                var cardHandle = new WindowInteropHelper(card).Handle;
+                var cardBounds = Native.Bounds(cardHandle);
+                var cardText = BuildElements<TextBlock>((UIElement)((Viewbox)card.Content).Child).Select(text => text.Text).ToArray();
+                Check(card.IsVisible && cardText.Contains(name) && cardText.Contains(price) &&
+                    (Native.GetWindowLongW(cardHandle, -20) & 0x08000020) == 0x08000020 &&
+                    cardBounds.X >= bounds.X && cardBounds.Y >= bounds.Y &&
+                    cardBounds.X + cardBounds.Width <= bounds.X + bounds.Width &&
+                    cardBounds.Y + cardBounds.Height <= bounds.Y + bounds.Height,
+                    "la ficha muestra el objeto del modo, cabe en la ventana y deja pasar los clics");
+                overlay.TrackItemHover(new Point(-30000, -30000), 500);
+                Check(!card.IsVisible, "la ficha se oculta al sacar el cursor");
+            }
         }
         finally { overlay.Close(); }
 
         static IEnumerable<DockPanel> ItemRows(StackPanel rows) =>
             rows.Children.OfType<Border>().Select(card => card.Child).OfType<DockPanel>();
 
-        static void CheckDamageBar(StackPanel rows, int physical)
+        static void CheckDamageBar(StackPanel rows, int physical, int trueDamage = 0)
         {
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var distribution = rows.Children.OfType<StackPanel>().Single();
             var labels = (Grid)distribution.Children[0];
             var bar = (Grid)distribution.Children[1];
             var segments = bar.Children.OfType<Border>().ToArray();
+            int magic = 100 - physical - trueDamage;
+            var visibleShares = new[] { physical, magic, trueDamage }.Where(percent => percent > 0).ToArray();
             Check(rows.Children[^1] == distribution &&
                 labels.Children.OfType<TextBlock>().Select(label => label.Text)
-                    .SequenceEqual([$"{physical}% físico", $"{100 - physical}% mágico"]) &&
-                bar.ActualWidth > 0 && segments.Length == 2 &&
-                Math.Abs(segments[0].ActualWidth - bar.ActualWidth * physical / 100) <= 1 &&
-                Math.Abs(segments[1].ActualWidth - bar.ActualWidth * (100 - physical) / 100) <= 1,
-                "la barra muestra ambos porcentajes y actualiza las proporciones aunque la ruta siga igual");
+                    .SequenceEqual([$"{physical}% físico", $"{magic}% mágico", $"{trueDamage}% verdadero"]) &&
+                bar.ActualWidth > 0 && segments.Length == visibleShares.Length &&
+                segments.Zip(visibleShares).All(pair => Math.Abs(pair.First.ActualWidth - bar.ActualWidth * pair.Second / 100) <= 1),
+                "la barra muestra los tres porcentajes y actualiza las proporciones aunque la ruta siga igual");
         }
     }
 
