@@ -367,10 +367,15 @@ internal sealed class BuildPanel : Border
             DockPanel.SetDock(icon, Dock.Left);
             if (itemIcons is not null)
                 _ = SetIcon(icon, itemIcons, patch, entry.Id);
+            var tier = TierHexagon.Create(entry.Rating.TierText, 26, 29);
+            tier.Margin = new Thickness(6, 0, 0, 0);
+            tier.VerticalAlignment = VerticalAlignment.Top;
+            DockPanel.SetDock(tier, Dock.Right);
+            row.Children.Add(tier);
             var text = new StackPanel();
             text.Children.Add(new TextBlock
             {
-                Text = $"{entry.Rating.Name} · {entry.Rating.TierText}",
+                Text = entry.Rating.Name,
                 FontSize = OverlayPanelStyle.BodySize, FontWeight = FontWeights.SemiBold, Foreground = OverlayPanelStyle.Ink,
                 TextWrapping = TextWrapping.Wrap
             });

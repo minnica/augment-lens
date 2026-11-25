@@ -164,7 +164,7 @@ internal static class ChampionSelectTests
             var header = (DockPanel)((Border)panel.Children[0]).Child;
             var badge = header.Children.OfType<Border>().Single(IsTierBadge);
             Check(DockPanel.GetDock(badge) == Dock.Right && Elements(header).OfType<Image>().Count() == 1 &&
-                labels.ContainsKey("A") && labels.ContainsKey("Kennen") &&
+                badge is TierHexagon { Tier: "A" } && labels.ContainsKey("Kennen") &&
                 !labels.Keys.Any(text => text.Contains("Parche", StringComparison.OrdinalIgnoreCase) || text.Contains("OP.GG")) &&
                 !labels.ContainsKey("Hechizos") && labels["Kennen"].FontSize > labels["Principal"].FontSize &&
                 labels["Principal"].FontSize == labels["Alternativa"].FontSize &&
@@ -179,7 +179,7 @@ internal static class ChampionSelectTests
             Check(TextBlocks(panel).Where(text => text.Text.Contains("parche")).Select(text => text.Text)
                 .SequenceEqual(["Datos del parche anterior"]), "una misma advertencia identifica el tier y los hechizos anteriores");
             overlay.Render(current with { Source = new(null, "Consultando OP.GG…") });
-            Check(TextBlocks(panel).Select(text => text.Text).SequenceEqual(["A", "Kennen", "Consultando OP.GG…"]),
+            Check(Labels(panel).SequenceEqual(["A", "Kennen", "Consultando OP.GG…"]),
                 "la carga conserva el campeón y retira las combinaciones anteriores");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el panel se retira al salir de selección");
@@ -237,7 +237,7 @@ internal static class ChampionSelectTests
                 "el campeón preseleccionado conserva su tier aunque quede fuera del Top 30");
             overlay.Render(selected);
             var evaluation = (Border)panel.Children[0];
-            Check(TextBlocks(evaluation).Take(2).Select(text => text.Text).SequenceEqual([grade.Reason, "A"]) &&
+            Check(Labels(evaluation).Take(2).SequenceEqual([grade.Reason, "A"]) &&
                 RosterRow(0).SequenceEqual(["Campeón", "Estado", "Tier"]) &&
                 RosterRow(1).SequenceEqual([excludedChampion.Name, "TÚ", "Preselección", "B"]) &&
                 RosterRow(2).SequenceEqual(["Lillia", "Confirmado", "S"]) &&
@@ -245,7 +245,7 @@ internal static class ChampionSelectTests
                 "el equipo agrupa nombre, estado y tier sin el contador ni el porcentaje individual");
             var categories = Sections().Children.OfType<StackPanel>().ToArray();
             Check(categories.Length == composition.Length &&
-                categories.Zip(composition).All(pair => TextBlocks(pair.First).Select(text => text.Text).SequenceEqual(
+                categories.Zip(composition).All(pair => Labels(pair.First).SequenceEqual(
                     new[] { pair.Second.Category }.Concat(pair.Second.Options.SelectMany(option => new[] { option.Champion, option.Tier })))),
                 "la sección agrupa varias opciones con sus tiers en cada categoría");
             var headers = TextBlocks(panel).Where(text => text.Text is "Para tu equipo" or "Top 30 general").ToArray();
@@ -254,11 +254,11 @@ internal static class ChampionSelectTests
                 categories.SelectMany(category => category.Children.OfType<Grid>()).All(row => Grid.GetColumn(row.Children[1]) == 1),
                 "la evaluación encabeza el panel, las secciones comparten jerarquía y el tier se alinea con el nombre");
             overlay.Render(selected with { Grade = grade with { Tier = "S", Members = 3, Reason = "Equipo equilibrado" } });
-            Check(TextBlocks((Border)panel.Children[0]).Take(2).Select(text => text.Text).SequenceEqual(["Equipo equilibrado", "S"]),
+            Check(Labels((Border)panel.Children[0]).Take(2).SequenceEqual(["Equipo equilibrado", "S"]),
                 "la valoración se actualiza al cambiar los aliados aunque el campeón propio siga igual");
             var observed = new ArenaTeamResult(catalog.Patch, 80, 2.30m);
             overlay.Render(selected with { Grade = new(observed.Tier, grade.Reason, 3, 3, observed) });
-            Check(TextBlocks((Border)panel.Children[0]).Take(3).Select(text => text.Text).SequenceEqual(
+            Check(Labels((Border)panel.Children[0]).Take(3).SequenceEqual(
                 [grade.Reason, "Puesto medio 2.30 · 80 partidas", observed.Tier]),
                 "el puesto observado y su muestra quedan debajo de la necesidad");
 
@@ -300,7 +300,7 @@ internal static class ChampionSelectTests
             StackPanel Sections() => panel.Children.OfType<StackPanel>().Single();
             IEnumerable<string> RosterRow(int row) => ((StackPanel)((Border)panel.Children[0]).Child)
                 .Children.OfType<Grid>().Last().Children.OfType<FrameworkElement>()
-                .Where(cell => Grid.GetRow(cell) == row).OrderBy(Grid.GetColumn).SelectMany(TextBlocks).Select(text => text.Text);
+                .Where(cell => Grid.GetRow(cell) == row).OrderBy(Grid.GetColumn).SelectMany(Labels);
 
             void CheckRankingSelection(string champion, int row)
             {
@@ -340,7 +340,14 @@ internal static class ChampionSelectTests
         finally { overlay.Close(); }
     }
 
-    internal static bool IsTierBadge(Border border) => border.Background is DrawingBrush && border.Child is TextBlock;
+    internal static bool IsTierBadge(Border border) => border is TierHexagon { Background: ImageBrush };
+
+    internal static IEnumerable<string> Labels(FrameworkElement element) => Elements(element).Select(child => child switch
+    {
+        TierHexagon { Background: ImageBrush, Tier: { } tier } => tier,
+        TextBlock text => text.Text,
+        _ => null
+    }).OfType<string>();
 
     private static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => Elements(element).OfType<TextBlock>();
 

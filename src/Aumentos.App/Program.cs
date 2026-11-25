@@ -394,7 +394,7 @@ internal static class Program
                 window.Activate();
             }
 
-            void OpenTierSize(bool previewArenaItems = false)
+            void OpenTierSize()
             {
                 if (tierSizeWindow is not null)
                 {
@@ -404,7 +404,7 @@ internal static class Program
                     return;
                 }
 
-                var window = new BuildSizeWindow(overlay.TierSizePercent, overlay.CreateTierPreview(previewArenaItems), percent =>
+                var window = new BuildSizeWindow(overlay.TierSizePercent, overlay.CreateTierPreview(), percent =>
                 {
                     overlay.SetTierSize(percent);
                     return tierSizePreference.Save(percent);

@@ -125,12 +125,12 @@ internal static class MayhemChampionTests
             var placement = Native.Bounds(handle);
             var badges = (Canvas)((Viewbox)overlay.Content).Child;
             var hexagons = badges.Children.Cast<Border>().ToArray();
-            var displayed = badges.Children.Cast<Border>().Select(row => ((TextBlock)row.Child).Text);
+            var displayed = badges.Children.OfType<TierHexagon>().Select(badge => badge.Tier);
             Check(Native.IsWindowVisible(handle) && placement.Y >= bounds.Y + (int)(bounds.Height * 0.667) &&
                 placement.Y + placement.Height < bounds.Y + (int)(bounds.Height * 0.784) &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 &&
                 displayed.SequenceEqual(["C", "A", "A"]) && hexagons.All(ChampionSelectTests.IsTierBadge) &&
-                !Equals(((TextBlock)hexagons[0].Child).Foreground, ((TextBlock)hexagons[1].Child).Foreground),
+                !ReferenceEquals(hexagons[0].Background, hexagons[1].Background),
                 "debajo de las cartas aparecen los tiers hexagonales por color, en orden y con clics transparentes");
             overlay.Render(new MayhemChampionDisplay(bounds, 0, data, [choices[2]]));
             Check(badges.Children.Count == 1 && Canvas.GetLeft(badges.Children[0]) > 700,

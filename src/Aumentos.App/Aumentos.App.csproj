@@ -15,6 +15,7 @@
     <InternalsVisibleTo Include="Aumentos.Tests" />
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
+    <EmbeddedResource Include="../../assets/tier-icons/*.png" LogicalName="TierIcons.%(Filename)%(Extension)" />
     <Content Include="Assets/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="../../scripts/Get-Assets.ps1;../../scripts/Get-AramHexCompatibility.ps1;../../scripts/Get-ArenaWikiMechanics.ps1"
              Link="PatchTools/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

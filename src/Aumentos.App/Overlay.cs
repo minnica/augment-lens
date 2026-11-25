@@ -20,7 +20,6 @@ internal sealed class Overlay
     private const double LowerFrameToReroll = 0.037;
     private const int CompactTierWidth = 38;
     private const int CompactTierHeight = 42;
-    private const int CompactTierFontSize = 17;
     private readonly Func<int, bool>? saveTierSize;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     private BuildSizeButton? tierSizeButton;
@@ -63,11 +62,11 @@ internal sealed class Overlay
             Render(view);
     }
 
-    internal FrameworkElement CreateTierPreview(bool arenaItems = false) =>
-        new Border { Child = CreateCardBadge("A", arenaItems ? 4 : null), IsHitTestVisible = false, Focusable = false };
+    internal FrameworkElement CreateTierPreview() =>
+        new Border { Child = CreateCardBadge("A"), IsHitTestVisible = false, Focusable = false };
 
-    private static Border CreateCardBadge(string tier, int? rank) =>
-        TierHexagon.Create(tier, CompactTierWidth, CompactTierHeight, CompactTierFontSize, rank);
+    private static Border CreateCardBadge(string tier) =>
+        TierHexagon.Create(tier, CompactTierWidth, CompactTierHeight);
 
     internal void Render(OverlayUpdate update)
     {
@@ -145,10 +144,7 @@ internal sealed class Overlay
             int top = Math.Clamp(lowerEdge - height / 2, titleBottom, bottomLimit - height);
             int width = Math.Clamp((int)Math.Round(badgeWidth * scale), 1, widthLimit);
             int x = Math.Clamp(title.X + (title.Width - width) / 2, 0, bounds.Width - width);
-            if (label.ArenaChoice is { TopPosition: int rank } choice)
-                badge.SetTier(choice.Tier.ToString(), rank);
-            else
-                badge.SetTier(label.VisibleTierText, rank: null);
+            badge.SetTier(label.VisibleTierText);
             badge.Display(new(bounds.X + x, bounds.Y + top, width, height), dpi, allowUpscale: scale > 1);
         }
 
@@ -230,7 +226,7 @@ internal sealed class Overlay
     {
         private readonly Border badge = new();
         private readonly Viewbox frame;
-        private (string Tier, int? Rank)? displayed;
+        private string? displayed;
         private nint handle;
         private Int32Rect placement;
         internal bool NativeVisible => handle != 0 && Native.IsWindowVisible(handle);
@@ -264,12 +260,12 @@ internal sealed class Overlay
                 Hide();
         }
 
-        internal void SetTier(string tier, int? rank)
+        internal void SetTier(string tier)
         {
-            if (displayed == (tier, rank))
+            if (displayed == tier)
                 return;
-            badge.Child = CreateCardBadge(tier, rank);
-            displayed = (tier, rank);
+            badge.Child = CreateCardBadge(tier);
+            displayed = tier;
         }
 
         internal void Display(Int32Rect target, double dpi, bool allowUpscale)

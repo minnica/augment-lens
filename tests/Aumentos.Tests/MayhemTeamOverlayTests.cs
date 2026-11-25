@@ -275,7 +275,7 @@ internal static class MayhemTeamOverlayTests
             "la jerarquía mantiene tamaños consistentes para el título, las secciones, los nombres y los detalles");
     }
 
-    private static IEnumerable<string> Labels(FrameworkElement element) => TextBlocks(element).Select(label => label.Text);
+    private static IEnumerable<string> Labels(FrameworkElement element) => ChampionSelectTests.Labels(element);
 
     private static IEnumerable<TextBlock> TextBlocks(FrameworkElement element) => element switch
     {

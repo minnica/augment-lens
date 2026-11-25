@@ -976,7 +976,9 @@ internal static class Program
                 placement.X + placement.Width < bounds.X + layout.Titles[0].Pixels(bounds.Width, bounds.Height).X &&
                 sizeButton.IsVisible && buttonPosition.X == placement.X && buttonPosition.Y + buttonPosition.Height < placement.Y &&
                 rows.Length == 5 && rows[0].Children.OfType<StackPanel>().Single().Children.OfType<TextBlock>()
-                    .Select(text => text.Text).SequenceEqual(["Cuota del Segador · S+", "Velocidad de ataque y daño al impacto", "En oferta"]),
+                    .Select(text => text.Text).SequenceEqual(["Cuota del Segador", "Velocidad de ataque y daño al impacto", "En oferta"]) &&
+                rows.SelectMany(row => row.Children.OfType<TierHexagon>())
+                    .Select(badge => badge.Tier).SequenceEqual(top.Entries.Select(entry => entry.Rating.TierText)),
                 "panel prismático de cinco filas con su botón de tamaño encima, tier y disponibilidad");
 
             var peer = new ButtonAutomationPeer(button);
@@ -1103,8 +1105,8 @@ internal static class Program
                 !overlay.Windows[2].IsVisible, "Arena muestra solo el tier observado y oculta las opciones sin muestra");
 
             static Border Frame(Window window) => (Border)((Viewbox)window.Content).Child;
-            static string[] VisibleLines(Window window) => BuildElements<TextBlock>(Frame(window))
-                .Where(text => text.Visibility == Visibility.Visible).Select(text => text.Text).ToArray();
+            static string[] VisibleLines(Window window) => BuildElements<TierHexagon>(Frame(window))
+                .Where(badge => badge.IsVisible).Select(badge => badge.Tier).OfType<string>().ToArray();
 
             overlay.Render(new OverlayUpdate("Panel cerrado"));
             Check(!overlay.IsVisible, "overlay oculto tras cerrar el panel");
@@ -1201,30 +1203,20 @@ internal static class Program
                 Check(VisibleLines(overlay.Windows[0]).SequenceEqual(["C"]) &&
                     VisibleLines(overlay.Windows[1]).SequenceEqual(["A"]) &&
                     VisibleLines(overlay.Windows[2]).SequenceEqual(["S+"]),
-                    "cada objeto legendario muestra solo su tier y conserva S+ cuando no tiene posición");
+                    "cada objeto legendario muestra solo su tier, incluido S+");
 
                 CheckCentered(offer with { Labels = prismaticItems, ArenaItemOffer = true,
                     Prismatics = new PrismaticDisplay(new([], 0), fit, "26.23") }, regularTop);
-                Check(VisibleLines(overlay.Windows[0]).SequenceEqual(["C"]),
-                    "el objeto prismático sin posición muestra solo su tier");
-                CheckSuperscript(overlay.Windows[1], "#2");
-                CheckSuperscript(overlay.Windows[2], "#1");
+                var prismatics = overlay.Windows.Take(3).Select(window => BuildElements<TierHexagon>(Frame(window)).Single()).ToArray();
+                Check(prismatics.Select(badge => badge.Tier).SequenceEqual(["C", "S+", "S+"]) &&
+                    prismatics.All(badge => badge.Child is null) &&
+                    ReferenceEquals(prismatics[1].Background, TierHexagon.Create("S+", 38, 42).Background) &&
+                    ReferenceEquals(prismatics[1].Background, prismatics[2].Background),
+                    "las cartas prismáticas muestran solo la insignia original de su tier aunque estén en el Top 5");
                 overlay.Render(new OverlayUpdate("Panel cerrado"));
                 Check(!overlay.IsVisible, "cerrar el panel libera la posición que se conservó durante la oferta");
                 CheckCentered(offer with { ArenaCardTop = regularTop + 5 }, regularTop + 5);
                 overlay.Hide();
-
-                static void CheckSuperscript(Window window, string position)
-                {
-                    var grade = BuildElements<TextBlock>(Frame(window)).Single();
-                    var runs = grade.Inlines.OfType<Run>().ToArray();
-                    var inlineDetails = string.Join(", ", runs.Select(run => $"{run.Text} {run.BaselineAlignment} {run.FontSize} px"));
-                    Check(grade.IsVisible && grade.Inlines.Count == 2 && runs.Length == 2 &&
-                        runs[0].Text == "S" && runs[0].BaselineAlignment == BaselineAlignment.Baseline &&
-                        runs[1].Text == position && runs[1].BaselineAlignment == BaselineAlignment.Superscript &&
-                        runs[1].FontSize < runs[0].FontSize && grade.ActualWidth > grade.FontSize,
-                        $"el hexágono prismático muestra solo la letra y su posición en superíndice ({inlineDetails})");
-                }
 
                 void CheckCentered(OverlayUpdate offer, int cardTop)
                 {
@@ -1247,15 +1239,13 @@ internal static class Program
 
             static void CheckLowerTier(Window window, Int32Rect position, Int32Rect viewport, Int32Rect title, int expectedEdge)
             {
-                var hexagon = BuildElements<Border>(Frame(window)).Single(border => border.Background is DrawingBrush);
-                var letter = (TextBlock)hexagon.Child;
+                var hexagon = BuildElements<TierHexagon>(Frame(window)).Single();
                 var center = hexagon.TransformToAncestor(window).Transform(new Point(hexagon.ActualWidth / 2, hexagon.ActualHeight / 2));
                 var dpi = VisualTreeHelper.GetDpi(window);
                 double offsetY = position.Y + center.Y * dpi.DpiScaleY - expectedEdge;
                 double offsetX = position.X + center.X * dpi.DpiScaleX - (viewport.X + title.X + title.Width / 2);
-                var borderColor = ((GeometryDrawing)((DrawingBrush)hexagon.Background).Drawing).Pen.Brush;
-                Check(window.IsVisible && VisibleLines(window).SequenceEqual([letter.Text]) &&
-                    letter.FontSize / hexagon.Height < .45 && letter.Foreground == borderColor &&
+                Check(window.IsVisible && hexagon.IsVisible &&
+                    hexagon.Background is ImageBrush { IsFrozen: true, ImageSource: BitmapSource { PixelWidth: 608, PixelHeight: 672 } } &&
                     Math.Abs(offsetY) <= 3 && Math.Abs(offsetX) <= 2 &&
                     position.Y + position.Height <= expectedEdge + viewport.Height * .037 + 1,
                     $"el hexágono queda centrado en el borde inferior de la carta y por encima del botón de cambio ({offsetX:F1}, {offsetY:F1})");

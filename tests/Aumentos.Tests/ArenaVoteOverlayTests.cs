@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Aumentos;
 
@@ -27,6 +28,9 @@ internal static class ArenaVoteOverlayTests
             Check(ReadText(layer).SequenceEqual(
                 ["A", labels[0].Reason, "S", "Recomendado", labels[1].Reason, "—", labels[2].Reason]),
                 "muestra cada tier, su motivo y la recomendación");
+            var tierColumn = (Grid)((DockPanel)((Border)layer.Children[0]).Child).Children[0];
+            Check(tierColumn.Children[0] is TierHexagon { Background: ImageBrush, Tier: "A" },
+                "la votación muestra la misma insignia hexagonal que las cartas y la selección");
             Check((Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 && !overlay.IsHitTestVisible,
                 "la ventana no se activa ni intercepta clics");
             Check(((Border)layer.Children[1]).BorderBrush != ((Border)layer.Children[0]).BorderBrush,
@@ -109,6 +113,7 @@ internal static class ArenaVoteOverlayTests
 
     private static IEnumerable<string> ReadText(UIElement element) => element switch
     {
+        TierHexagon badge => [badge.Tier ?? "—"],
         TextBlock text => [text.Text],
         Panel panel => panel.Children.Cast<UIElement>().SelectMany(ReadText),
         Decorator { Child: { } child } => ReadText(child),

@@ -12,9 +12,6 @@ internal sealed record ArenaVoteDisplay(Int32Rect Bounds, nint Target, ArenaVote
 
 internal sealed class ArenaVoteOverlay : Window
 {
-    private static readonly Brush S = Overlay.Paint("#EDC675");
-    private static readonly Brush A = Overlay.Paint("#9ED5BF");
-    private static readonly Brush B = Overlay.Paint("#B7CCE3");
     private readonly Canvas layer = new() { ClipToBounds = true };
     private ArenaVoteDisplay? displayed;
     private double displayedDpi;
@@ -125,22 +122,18 @@ internal sealed class ArenaVoteOverlay : Window
     private static Border Badge(ArenaVoteLabel label, double width, double height, bool compact)
     {
         bool recommended = label.Recommended && label.Tier is not null;
-        var tier = new TextBlock
-        {
-            Text = label.Tier ?? "—",
-            FontSize = compact ? 17 : 20,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = label.Tier switch { "S" or "S+" => S, "A" => A, "B" => B, null => OverlayPanelStyle.Muted, _ => OverlayPanelStyle.Ink },
-            TextAlignment = TextAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
+        double tierHeight = Math.Min(height - 2, compact ? 24 : 30);
+        var tier = TierHexagon.Create(label.Tier, tierHeight * .9, tierHeight);
+        tier.VerticalAlignment = VerticalAlignment.Center;
+        tier.HorizontalAlignment = HorizontalAlignment.Center;
         UIElement content = tier;
         if (width >= 104 && height >= 28 && (recommended || !string.IsNullOrWhiteSpace(label.Reason)))
         {
-            tier.Width = compact ? 30 : 38;
+            var tierColumn = new Grid { Width = compact ? 30 : 38 };
+            tierColumn.Children.Add(tier);
             var row = new DockPanel();
-            DockPanel.SetDock(tier, Dock.Left);
-            row.Children.Add(tier);
+            DockPanel.SetDock(tierColumn, Dock.Left);
+            row.Children.Add(tierColumn);
             var detail = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 5, 0) };
             if (recommended)
                 detail.Children.Add(Detail("Recomendado", OverlayPanelStyle.BrightGold, OverlayPanelStyle.DetailSize, lines: 1, semibold: true));

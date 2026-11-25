@@ -278,7 +278,7 @@ internal abstract class ChampionRankingOverlay : Window
             text.Children.Add(Note($"{partial.Members}/{partial.TeamSize} campeones", OverlayPanelStyle.Muted));
         if (grade?.Detail is { } detail)
             text.Children.Add(Note(detail, OverlayPanelStyle.Muted));
-        var summary = TierRow(text, grade is null ? null : MayhemTierStyle.SelectionBadge(grade.Tier, 28, 31));
+        var summary = TierRow(text, grade is null ? null : TierHexagon.Create(grade.Tier, 28, 31));
         FrameworkElement content = summary;
         if (view.Roster is { Length: > 0 } roster)
         {
