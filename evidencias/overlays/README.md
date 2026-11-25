@@ -1,6 +1,6 @@
 # Capturas de los overlays
 
-**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Los tiers en partida están al **250 %**, el ajuste de tiers en selección de campeón al **200 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
+**Parche 26.23 · Actualizado el 25 de noviembre de 2026.** Las ofertas y tiendas se reprodujeron con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. El trío de Zyra, Olaf y Dr. Mundo se reprodujo con el registro de selección del cliente. Los tiers en partida están al **250 %**, el ajuste de tiers en selección de campeón al **200 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
 
 [![Las siete insignias desde S+ prismático hasta E grafito, al 250 % y al 100 %](paleta-de-tiers.png)](paleta-de-tiers.png)
 
@@ -16,7 +16,7 @@
 | --- | --- |
 | ARAM Caos | [Oferta de tres campeones y sugerencias para el equipo](aram-seleccion-tres-cartas.png) · [Oferta de dos con una carta ampliada](aram-seleccion-dos-cartas.png) |
 | ARAM Caos | [Banco con tiers centrados en el borde inferior de los retratos](aram-seleccion-banco.png) · [Hechizos principales y alternativos de Gragas](aram-hechizos.png) |
-| Arena | [Composición, estado de cada elección, sugerencias y Top 30 completo](arena-seleccion-top-30.png) |
+| Arena | [Composición, estado de cada elección, sugerencias y Top 30 completo](arena-seleccion-top-30.png) · [Zyra, Olaf y Dr. Mundo confirmados](arena-seleccion-equipo-completo.png) |
 
 ## Tiers en partida
 
@@ -24,8 +24,8 @@
 | --- | --- | --- |
 | Aumentos | [Cuatro cartas](aram-aumentos-cuatro.png) · [Tres cartas, una sin tier](aram-aumentos-tres.png) | [Tres aumentos](arena-aumentos.png) · [Mejoras de nivel](arena-mejoras.png) |
 | Yunque de estadísticas | [Tiers de los fragmentos](aram-fragmentos-yunque.png) | [Tiers de los fragmentos](arena-fragmentos-yunque.png) |
-| Ofertas de objetos | — | [Legendarios](arena-legendarios.png) · [Prismáticos con tier sobre cada carta y Top 5 al lado](arena-prismaticos-top-5.png) |
-| Invitados de Honor | — | [Tres opciones de voto con tiers junto al título](arena-invitados-de-honor.png) |
+| Ofertas de objetos | — | [Legendarios con Rell](arena-legendarios.png) · [Legendarios con Zyra](arena-legendarios-zyra.png) · [Prismáticos con tier sobre cada carta y Top 5 al lado](arena-prismaticos-top-5.png) |
+| Invitados de Honor | — | [Tres opciones de voto con tiers ampliados junto al título](arena-invitados-de-honor.png) |
 
 ## Builds y tienda
 

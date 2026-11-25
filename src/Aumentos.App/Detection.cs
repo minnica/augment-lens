@@ -227,10 +227,19 @@ internal sealed class Detection : IDisposable
                         item = true;
                         text = itemTitle;
                     }
-                    else if (RecoverCenteredArenaTitle(image, rect, text, alternative) is { } centered)
+                    else
                     {
-                        candidates = [centered];
-                        text = centered.Name;
+                        var centered = ReadCenteredArenaTitle(image, rect);
+                        if (ratings.IsArenaItem(centered))
+                        {
+                            item = true;
+                            text = centered;
+                        }
+                        else if (RecoverCenteredArenaAugment(centered, text, alternative) is { } augmentFromCenter)
+                        {
+                            candidates = [augmentFromCenter];
+                            text = augmentFromCenter.Name;
+                        }
                     }
                 }
                 var card = candidates is [var unique] ? unique : null;
@@ -285,12 +294,17 @@ internal sealed class Detection : IDisposable
         return new DetectionResult(true, ids, texts, items, shards, upgrades);
     }
 
-    private Augment? RecoverCenteredArenaTitle(BitmapSource image, Int32Rect title, string first, string second)
+    private string ReadCenteredArenaTitle(BitmapSource image, Int32Rect title)
     {
         // A bright card frame can look like stray characters beside a short, centered title.
         int inset = title.Width / 10;
         var middle = new Int32Rect(title.X + inset, title.Y, title.Width - inset * 2, title.Height);
-        var text = Ratings.Normalize(ReadTitle(image, middle, PageSegMode.SingleLine, minimumScale: 2));
+        return ReadTitle(image, middle, PageSegMode.SingleLine, minimumScale: 2);
+    }
+
+    private Augment? RecoverCenteredArenaAugment(string centered, string first, string second)
+    {
+        var text = Ratings.Normalize(centered);
         if (text.Length < 5 || text.Contains(' ') || ratings.Recognize(Mode.Arena, text) is not { } card ||
             Ratings.Normalize(card.Name) != text)
             return null;

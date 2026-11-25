@@ -28,6 +28,9 @@ internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick 
 internal sealed class ChampionSelectClient : IDisposable
 {
     private const string SelectionEndpoint = "/lol-champ-select/v1/session";
+    private const int ArenaTriosQueue = 1750;
+    private const int ArenaTrioSize = 3;
+    private const int ArenaTriosLobbySize = 18;
     private readonly X509Certificate2 root;
     private HttpClient? client;
     private string? install;
@@ -133,7 +136,7 @@ internal sealed class ChampionSelectClient : IDisposable
         {
             if (Number(queue, "id") == 2400 || TextIs(queue, "gameMode", "KIWI"))
                 return Mode.Caos;
-            if (Number(queue, "id") is 1700 or 1710 || TextIs(queue, "gameMode", "CHERRY"))
+            if (Number(queue, "id") is 1700 or 1710 or ArenaTriosQueue || TextIs(queue, "gameMode", "CHERRY"))
                 return Mode.Arena;
         }
         if (TextIs(data, "gameMode", "KIWI"))
@@ -209,6 +212,11 @@ internal sealed class ChampionSelectClient : IDisposable
         int localCell = Number(root, "localPlayerCellId");
         int localTeam = own is { } player ? ArenaTeamId(player) : -1;
         int teamSize = own is null ? 0 : 1;
+        var members = Elements(root, "myTeam").Where(member => member.ValueKind == JsonValueKind.Object).ToArray();
+        // Arena 3×6 can report the entire lobby as team 1. In that layout each trio occupies three consecutive cells.
+        bool flatTrios = Number(root, "queueId") == ArenaTriosQueue && members.Length == ArenaTriosLobbySize &&
+            members.All(member => ArenaTeamId(member) == localTeam) &&
+            members.Select(member => Number(member, "cellId")).ToHashSet().SetEquals(Enumerable.Range(0, ArenaTriosLobbySize));
         var actions = DraftActions(root).ToArray();
         var inProgressPicks = new Dictionary<int, int>();
         var completedPicks = new Dictionary<int, int>();
@@ -231,11 +239,13 @@ internal sealed class ChampionSelectClient : IDisposable
         var allySlots = new SortedDictionary<int, int?>();
         var unavailable = new HashSet<int>();
         var enemyCells = new HashSet<int>();
-        foreach (var ally in Elements(root, "myTeam"))
+        foreach (var ally in members)
         {
-            if (ally.ValueKind != JsonValueKind.Object || Number(ally, "cellId") is not (>= 0 and var cell) || cell == localCell)
+            if (Number(ally, "cellId") is not (>= 0 and var cell) || cell == localCell)
                 continue;
-            if (localTeam >= 0 && ArenaTeamId(ally) is >= 0 and var team && team != localTeam)
+            bool rival = flatTrios ? cell / ArenaTrioSize != localCell / ArenaTrioSize
+                : localTeam >= 0 && ArenaTeamId(ally) is >= 0 and var team && team != localTeam;
+            if (rival)
                 AddEnemy(ally);
             else if (own is not null)
             {

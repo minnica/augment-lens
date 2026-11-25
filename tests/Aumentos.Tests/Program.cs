@@ -50,7 +50,7 @@ internal static class Program
             Console.WriteLine("Captura de Aurelion Sol: Tirador Mágico, Hora del Slime y Poder Mejorado reconocidos.");
         }
         StatShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
-        ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"));
+        ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"), Option("--arena-legendary-zyra-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
         MayhemBuildTests.Run(ratings, assets);
         ShopItemStatsTests.Run(ratings.Catalog);

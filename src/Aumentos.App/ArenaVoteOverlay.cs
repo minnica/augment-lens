@@ -12,9 +12,11 @@ internal sealed record ArenaVoteDisplay(Int32Rect Bounds, nint Target, ArenaVote
 
 internal sealed class ArenaVoteOverlay : Window
 {
+    private const double BadgeHeight = 44;
     private readonly Canvas layer = new() { ClipToBounds = true };
     private ArenaVoteDisplay? displayed;
     private double displayedDpi;
+    private int displayedTierSize;
     private nint handle;
 
     internal ArenaVoteOverlay()
@@ -42,7 +44,7 @@ internal sealed class ArenaVoteOverlay : Window
         };
     }
 
-    internal void Render(ArenaVoteDisplay? view)
+    internal void Render(ArenaVoteDisplay? view, int tierSizePercent = BuildSizePreference.Default)
     {
         if (view is null || view.Labels.Length == 0 || view.Bounds.Width <= 0 || view.Bounds.Height <= 0)
         {
@@ -55,7 +57,8 @@ internal sealed class ArenaVoteOverlay : Window
         // Vote rows are in screen pixels. WPF lays out the badges at the overlay's DPI.
         double dpi = VisualTreeHelper.GetDpi(layer).DpiScaleX;
         var bounds = view.Bounds;
-        if (IsVisible && Native.IsWindowVisible(handle) && displayedDpi == dpi && displayed is { } previous &&
+        if (IsVisible && Native.IsWindowVisible(handle) && displayedDpi == dpi && displayedTierSize == tierSizePercent &&
+            displayed is { } previous &&
             previous.Bounds == bounds && previous.Target == view.Target && previous.Labels.SequenceEqual(view.Labels))
             return;
 
@@ -68,15 +71,16 @@ internal sealed class ArenaVoteOverlay : Window
             return;
         }
 
+        int preferredHeight = (int)Math.Round(BadgeHeight * dpi * tierSizePercent / 100);
         var positions = rows.Select(label =>
         {
             var row = label.Row;
-            int height = Math.Min(row.Height, (int)Math.Round(30 * dpi));
+            int height = Math.Min(row.Height, preferredHeight);
             int width = Math.Min(bounds.Width, (int)Math.Round(height * TierHexagon.ArtworkAspect));
             int left = Math.Clamp(row.X + row.Width - width / 2, 0, bounds.Width - width);
             // The name tab sits above the bordered title. Center the tier on the title's right edge.
             int titleTop = row.Y + row.Height / 3;
-            int top = titleTop + (row.Y + row.Height - titleTop - height) / 2;
+            int top = Math.Clamp(titleTop + (row.Y + row.Height - titleTop - height) / 2, 0, bounds.Height - height);
             return (Label: label, Left: left, Top: top, Width: width, Height: height);
         }).ToArray();
 
@@ -102,6 +106,7 @@ internal sealed class ArenaVoteOverlay : Window
         {
             displayed = view;
             displayedDpi = dpi;
+            displayedTierSize = tierSizePercent;
         }
     }
 

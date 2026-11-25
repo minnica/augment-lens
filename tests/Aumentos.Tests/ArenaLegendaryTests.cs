@@ -9,7 +9,7 @@ internal static class ArenaLegendaryTests
 {
     private static readonly string[] RellOffer = ["Flautas de Bandle", "Fuerza de la Naturaleza", "Convergencia de Zeke"];
 
-    internal static void Run(Ratings ratings, string assets, string? screenshot)
+    internal static void Run(Ratings ratings, string assets, string? screenshot, string? zyraScreenshot)
     {
         var rell = new GameContext(Mode.Arena, "Rell");
         var offer = new DetectionResult(true, new int?[3], RellOffer, [true, true, true]);
@@ -33,19 +33,39 @@ internal static class ArenaLegendaryTests
             "una carta ilegible conserva los tiers conocidos sin elegir la mejor de toda la oferta");
         CheckSharedChemtechTitle(ratings, assets);
 
+        var zyra = new GameContext(Mode.Arena, "Zyra");
+        var zyraOffer = offer with { Texts = ["Promesa sin Palabras", "Cinturón Cohete Hextech", "Perplejidad"] };
+        CheckZyraOffer(zyraOffer);
         if (screenshot is not null)
         {
-            var image = Diagnostics.OpenBitmap(screenshot);
+            CheckRellOffer(ratings, rell, ReadScreenshot(screenshot));
+            Console.WriteLine("Captura de Rell: Flautas de Bandle S recomendadas · Fuerza de la Naturaleza B · Convergencia de Zeke A.");
+        }
+        if (zyraScreenshot is not null)
+        {
+            CheckZyraOffer(ReadScreenshot(zyraScreenshot));
+            Console.WriteLine("Captura de Zyra: Promesa sin Palabras A · Cinturón Cohete Hextech A · Perplejidad A.");
+        }
+        Console.WriteLine("Tiers de objetos legendarios verificados con afinidad por campeón.");
+
+        DetectionResult ReadScreenshot(string path)
+        {
+            var image = Diagnostics.OpenBitmap(path);
             var layouts = new LayoutStore(Path.Combine(assets, "layouts.json"), "")
                 .Find(Mode.Arena, image.PixelWidth, image.PixelHeight);
             using var detector = new Detection(ratings, Path.Combine(assets, "tessdata"));
-            var read = detector.ReadPanel(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight),
-                layouts, Mode.Arena, previous: null);
-            Check(read is not null, "panel de objetos legendarios en la captura de Rell");
-            CheckRellOffer(ratings, rell, read!.Value.Result);
-            Console.WriteLine("Captura de Rell: Flautas de Bandle S recomendadas · Fuerza de la Naturaleza B · Convergencia de Zeke A.");
+            return detector.ReadPanel(image, new Int32Rect(0, 0, image.PixelWidth, image.PixelHeight),
+                layouts, Mode.Arena, previous: null)?.Result ??
+                throw new InvalidOperationException("No se encontró el panel de objetos legendarios en " + path);
         }
-        Console.WriteLine("Tiers de objetos legendarios verificados con afinidad por campeón.");
+
+        void CheckZyraOffer(DetectionResult read)
+        {
+            Check(ratings.Legendaries.Identify(read)?.Select(item => item?.Id).SequenceEqual([4016, 223152, 4015]) == true &&
+                ratings.Legendaries.ForOffer(zyra, read)?.Select(badge => badge?.Local).SequenceEqual(["A", "A", "A"]) == true &&
+                ratings.Prismatics.Identify(read) is null,
+                $"la oferta de Zyra incluye dos legendarios con IDs originales: {string.Join(" / ", read.Texts)}");
+        }
     }
 
     private static void CheckRellOffer(Ratings ratings, GameContext rell, DetectionResult offer)

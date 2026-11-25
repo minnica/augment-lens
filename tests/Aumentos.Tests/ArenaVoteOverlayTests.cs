@@ -30,6 +30,12 @@ internal static class ArenaVoteOverlayTests
                 "la votación muestra la misma insignia hexagonal que las cartas y la selección");
             Check((Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020 && !overlay.IsHitTestVisible,
                 "la ventana no se activa ni intercepta clics");
+            double defaultHeight = ((TierHexagon)layer.Children[0]).ActualHeight;
+            Check(defaultHeight > 30, "la insignia de votación es más grande con el tamaño predeterminado");
+            CheckPlacement(full, 250);
+            double enlargedHeight = ((TierHexagon)layer.Children[0]).ActualHeight;
+            Check(enlargedHeight > defaultHeight && enlargedHeight * dpi <= labels[0].Row.Height + 1,
+                "el tamaño guardado agranda una votación abierta dentro del espacio disponible");
 
             unawareTarget = CreateDpiUnawareWindow();
             Check(Native.GetDpiForWindow(unawareTarget) == 96, "la ventana de prueba simula la escala de League");
@@ -43,7 +49,7 @@ internal static class ArenaVoteOverlayTests
                     Row = new(label.Row.X / 2, label.Row.Y / 2, label.Row.Width / 2, label.Row.Height / 2)
                 }).ToArray()
             };
-            CheckPlacement(compact);
+            CheckPlacement(compact, Overlay.TierSizeMaximum);
 
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "se oculta al terminar la votación");
@@ -51,9 +57,9 @@ internal static class ArenaVoteOverlayTests
             overlay.Render(compact with { Labels = [new(new(1250, 540, 40, 40), "S")] });
             Check(!Native.IsWindowVisible(handle), "omite las posiciones inválidas sin cubrir la interfaz");
 
-            void CheckPlacement(ArenaVoteDisplay view)
+            void CheckPlacement(ArenaVoteDisplay view, int percent = BuildSizePreference.Default)
             {
-                overlay.Render(view);
+                overlay.Render(view, percent);
                 Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
                 var placement = Native.Bounds(handle);
                 int x = placement.X - view.Bounds.X;

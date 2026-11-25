@@ -203,7 +203,7 @@ internal static class Program
                 builds, shopItems, assets, app.Dispatcher, state =>
             {
                 overlay.Render(state);
-                arenaVoteOverlay.Render(state.ArenaVote);
+                arenaVoteOverlay.Render(state.ArenaVote, overlay.TierSizePercent);
                 var info = $"{state.Status} · {(overlay.IsVisible || arenaVoteOverlay.IsVisible ? "Overlay visible" : "Overlay oculto")}";
                 if (info != previous)
                 {

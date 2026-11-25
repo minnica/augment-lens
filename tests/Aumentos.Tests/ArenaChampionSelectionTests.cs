@@ -87,6 +87,34 @@ internal static class ArenaChampionSelectionTests
         if (!stable.AllySlots.SequenceEqual(new int?[] { null, 61 }))
             throw new InvalidOperationException("El aliado que fija primero su campeón conserva su plaza aunque quede otra vacía.");
 
+        // Reproduce the client's Arena 3×6 layout with Zyra in cell 13, between Olaf and Dr. Mundo.
+        using var trios = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            queueId = 1750,
+            localPlayerCellId = 13,
+            myTeam = Enumerable.Range(0, 18).Select(cell => new
+            {
+                cellId = cell, team = 1, championId = cell switch { 12 => 2, 13 => 143, 14 => 36, _ => 0 }
+            }).Reverse(),
+            theirTeam = Array.Empty<object>(),
+            actions = new[] { new[] { new { actorCellId = 15, type = "pick", championId = 115, completed = true } } },
+            bans = new { theirTeamBans = new[] { 22 } }
+        }));
+        var triosFinal = ChampionSelectClient.ArenaDraftIds(trios.RootElement, confirmedOnly: true);
+        if (triosFinal.Champion != 143 || !triosFinal.ChampionConfirmed || triosFinal.TeamSize != 3 ||
+            !triosFinal.Teammates.ToHashSet().SetEquals([2, 36]) ||
+            !triosFinal.ConfirmedTeammates.ToHashSet().SetEquals([2, 36]) ||
+            !triosFinal.AllySlots.SequenceEqual(new int?[] { 2, 36 }) ||
+            !triosFinal.Unavailable.ToHashSet().SetEquals([22, 115]))
+            throw new InvalidOperationException("Arena 3×6 debe leer el trío local y excluir las elecciones de los otros cinco equipos.");
+
+        using var triosPartial = JsonDocument.Parse(trios.RootElement.GetRawText().Replace(
+            "\"cellId\":12,\"team\":1,\"championId\":2", "\"cellId\":12,\"team\":1,\"championId\":0", StringComparison.Ordinal));
+        var openTrio = ChampionSelectClient.ArenaDraftIds(triosPartial.RootElement);
+        if (openTrio.TeamSize != 3 || !openTrio.ConfirmedTeammates.SequenceEqual([36]) ||
+            !openTrio.AllySlots.SequenceEqual(new int?[] { null, 36 }))
+            throw new InvalidOperationException("Arena 3×6 conserva la plaza propia pendiente y asigna a Dr. Mundo su plaza real.");
+
         Console.WriteLine("Preselección, aliados y bloqueos de Arena verificados sin cambiar los hechizos de ARAM Caos.");
     }
 }

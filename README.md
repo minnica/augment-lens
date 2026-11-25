@@ -76,7 +76,7 @@ Para auditar la cobertura desde PowerShell con el paquete de desarrollo, ejecuta
 
 ## Votar por Invitados de Honor en Arena
 
-Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Cada opción valorada muestra su insignia de **S a C** centrada en el borde derecho del recuadro del título. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
+Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Cada opción valorada muestra su insignia de **S a C** centrada en el borde derecho del recuadro del título. El tamaño sigue el ajuste **Tamaño de los tiers de cartas** y se adapta al espacio de cada opción. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
 
 Cada invitado cambia las reglas de todo el lobby. La letra estima cuánto favorece al equipo según tu campeón, los aliados confirmados, las compras y los rivales detectados. También considera la ronda y la vida del equipo cuando puede leerlas en el marcador. Antes de que la partida confirme a los aliados por sus combates, la app puede usar la composición fijada en la selección si la reconoce en la lista de jugadores. Por ejemplo, **Negociación Oscura** de Tahm Kench puede perder valor en composiciones que dependen de la vida máxima. Las reglas se contrastaron con los datos del cliente de **26.23**. [Textos del cliente 16.23](https://raw.communitydragon.org/16.23/game/es_mx/data/menu/en_us/lol.stringtable.json)
 
@@ -194,6 +194,7 @@ La suite verifica las fuentes, el historial, las builds, la selección de campe�
 - `--arena-vote-round-eight-shot "ruta\votacion-ronda-8.png"` reproduce la votación de Garen, Jarvan IV y Annie y verifica la lectura de la ronda y la vida del equipo.
 - `--arena-vote-kayle-shot "ruta\votacion-kayle.png"` verifica que la captura con Tahm Kench, Atakhan y Kayle produce tres valoraciones en sus filas.
 - `--arena-prismatic-goredrinker-shot "ruta\prismaticos-aurelion.png"` comprueba los tres tiers y el Top 5 en una oferta con Bebedor de Sangre.
+- `--arena-legendary-zyra-shot "ruta\legendarios-zyra.png"` comprueba la lectura y los tiers de Promesa sin Palabras, Cinturón Cohete Hextech y Perplejidad.
 - `--arena-augmented-power-shot "ruta\aumentos-aurelion.png"` verifica la lectura de Tirador Mágico con el prefijo «Quebrantado», Hora del Slime y Poder Mejorado.
 - `--patch-update-smoke` verifica con datos públicos el catálogo que se descarga para el parche incluido y la lectura de tríos y objetos de GGEZ.GG. Genera las copias de prueba en una carpeta temporal.
 - `--mayhem-draft-shot "ruta\oferta.png" --mayhem-locked-shot "ruta\campeon-elegido.png"` comprueba la oferta de referencia de Kai'Sa, Jinx y Aurelion Sol y el cierre al elegir.

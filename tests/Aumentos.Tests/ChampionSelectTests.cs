@@ -19,12 +19,14 @@ internal static class ChampionSelectTests
         using var normalAram = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":450}}}""");
         using var otherMayhem = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"gameMode":"KIWI"}}""");
         using var arena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":1710}}}""");
+        using var arenaTrios = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"id":1750}}}""");
         using var otherArena = JsonDocument.Parse("""{"phase":"ChampSelect","gameData":{"queue":{"gameMode":"CHERRY"}}}""");
         Check(ChampionSelectClient.SelectMode(lobby.RootElement) == Mode.Caos &&
             ChampionSelectClient.SelectMode(started.RootElement) is null &&
             ChampionSelectClient.SelectMode(normalAram.RootElement) is null &&
             ChampionSelectClient.SelectMode(otherMayhem.RootElement) == Mode.Caos &&
             ChampionSelectClient.SelectMode(arena.RootElement) == Mode.Arena &&
+            ChampionSelectClient.SelectMode(arenaTrios.RootElement) == Mode.Arena &&
             ChampionSelectClient.SelectMode(otherArena.RootElement) == Mode.Arena, "fase y colas de selección");
 
         using var selection = JsonDocument.Parse("""

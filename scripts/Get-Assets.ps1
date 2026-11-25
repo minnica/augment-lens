@@ -255,14 +255,21 @@ if ($sharedTitles.Count) {
 $champions = (Get-Json "https://ddragon.leagueoflegends.com/cdn/$ChampionVersion/data/es_MX/champion.json").data.PSObject.Properties.Value
 $arenaItemSource = "$localized/items.json"
 $allItems = Get-Json $arenaItemSource
+# Some legendary Arena items retain their original IDs. Data Dragon identifies their map.
+$arenaLegacyLegendaryIds = @($itemData.PSObject.Properties | Where-Object {
+    [int]$_.Name -lt 220000 -and $_.Value.maps.'30' -and $_.Value.gold.total -eq 2500 -and
+        $_.Value.gold.purchasable -and !$_.Value.hideFromAll
+} | ForEach-Object { [int]$_.Name })
 $arenaItems = @($allItems | Where-Object {
-    (($_.id -ge 440000 -and $_.id -lt 450000) -or ($_.id -ge 220000 -and $_.id -lt 230000)) -and $_.name
+    (($_.id -ge 440000 -and $_.id -lt 450000) -or ($_.id -ge 220000 -and $_.id -lt 230000) -or
+        $_.id -in $arenaLegacyLegendaryIds) -and $_.name
 } | Select-Object -ExpandProperty name | Sort-Object -Unique)
 if (!$arenaItems.Count) { throw 'No se encontraron objetos de Arena.' }
 # Goredrinker is offered by Prismatic Anvils under its older Arena item ID.
 $legacyPrismaticIds = @(226630)
 $legendaryNames = @($allItems | Where-Object {
-    $_.id -ge 220000 -and $_.id -lt 230000 -and $_.inStore -and $_.id -notin $legacyPrismaticIds
+    (($_.id -ge 220000 -and $_.id -lt 230000) -or $_.id -in $arenaLegacyLegendaryIds) -and
+        $_.inStore -and $_.id -notin $legacyPrismaticIds
 } |
     Select-Object -ExpandProperty name)
 $arenaPrismatics = @($allItems | Where-Object {
@@ -279,7 +286,8 @@ function Test-ArenaShopItem($item) {
         !$item.isEnchantment -and $item.specialRecipe -eq 0 -and $item.id -notin @(223005, 224403, 228009)
 }
 $arenaLegendaries = @($allItems | Where-Object {
-    $_.id -ge 220000 -and $_.id -lt 230000 -and $_.inStore -and $_.name -and $_.priceTotal -eq 2500
+    (($_.id -ge 220000 -and $_.id -lt 230000) -or $_.id -in $arenaLegacyLegendaryIds) -and
+        $_.inStore -and $_.name -and $_.priceTotal -eq 2500
 } | Sort-Object id | ForEach-Object {
     [ordered]@{ id=$_.id; name=$_.name; sharedName=($_.name -in $prismaticNames); categories=@($_.categories); buyable=(Test-ArenaShopItem $_) }
 })
