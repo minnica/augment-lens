@@ -16,11 +16,11 @@ internal sealed partial class BuildSizeWindow : Window
     }
 
     internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply)
-        : this(percent, preview, apply, Overlay.TierSizeTitle, tierBadges: true)
+        : this(percent, preview, apply, Overlay.TierSizeTitle, Overlay.TierSizeMaximum)
     {
     }
 
-    internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, string heading, bool tierBadges = false)
+    internal BuildSizeWindow(int percent, FrameworkElement preview, Func<int, bool> apply, string heading, int? tierMaximum = null)
     {
         InitializeComponent();
         Heading.Text = heading;
@@ -28,7 +28,7 @@ internal sealed partial class BuildSizeWindow : Window
         var content = (UIElement)Content;
         Content = null;
         OverlayWindowFrame.Apply(this, content);
-        if (tierBadges)
+        if (tierMaximum.HasValue)
         {
             ScaleLabel.Text = "Escala del distintivo";
             AutomationProperties.SetName(SizeSlider, "Escala del distintivo en porcentaje");
@@ -44,7 +44,7 @@ internal sealed partial class BuildSizeWindow : Window
         Height = Math.Min(Height, workArea.Height);
 
         preview.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        int maximum = tierBadges ? Overlay.TierSizeMaximum : BuildSizePreference.Maximum;
+        int maximum = tierMaximum ?? BuildSizePreference.Maximum;
         double maxScale = maximum / 100.0;
         PreviewStage.Width = preview.DesiredSize.Width * maxScale;
         PreviewStage.Height = preview.DesiredSize.Height * maxScale;

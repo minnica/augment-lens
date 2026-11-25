@@ -10,7 +10,7 @@ namespace Aumentos;
 internal sealed record MayhemChampionDisplay(Int32Rect Bounds, nint Target,
     MayhemChampionTierList Tiers, MayhemDraftChoice[] Choices, MayhemBenchChoice[]? Bench = null)
 {
-    internal int Top => Bench is not null ? 16 : Choices.Select(choice => choice.Bottom).DefaultIfEmpty(752).Max() + 1;
+    internal int Top => Choices.Select(choice => choice.Bottom).DefaultIfEmpty(752).Max() + 1;
 
     internal static MayhemChampionDisplay? Create(Int32Rect bounds, nint target, MayhemChampionTierList? tiers,
         ChampionSelection? selected, MayhemDraftChoice[]? choices, MayhemBenchChoice[] bench)
@@ -25,13 +25,17 @@ internal sealed record MayhemChampionDisplay(Int32Rect Bounds, nint Target,
 
 internal sealed class MayhemChampionOverlay : Window
 {
+    internal const string TierSizeTitle = "Tamaño de los tiers de campeones";
+    internal const int TierSizeMaximum = 200;
     private const int LeftEdge = 510;
     private const int WidthInClient = 980;
-    private const int HeightInClient = 72;
-    private readonly Canvas badges = new() { Width = WidthInClient, Height = HeightInClient };
+    private const int BenchBadgeWidth = 36;
+    private const int BenchBadgeCenter = MayhemBenchPortraits.PortraitTop + MayhemBenchPortraits.PortraitSize + 2;
+    private readonly Canvas badges = new() { Width = WidthInClient };
     private MayhemChampionDisplay? displayed;
     private Int32Rect placement;
     private nint handle;
+    internal int TierSizePercent { get; private set; } = BuildSizePreference.Default;
 
     internal MayhemChampionOverlay()
     {
@@ -54,6 +58,22 @@ internal sealed class MayhemChampionOverlay : Window
         };
     }
 
+    internal void SetTierSize(int percent)
+    {
+        int updated = Math.Clamp(percent, BuildSizePreference.Minimum, TierSizeMaximum);
+        if (TierSizePercent == updated)
+            return;
+        TierSizePercent = updated;
+        if (displayed is { } view)
+        {
+            displayed = null;
+            Render(view);
+        }
+    }
+
+    internal static FrameworkElement CreateTierPreview() =>
+        TierHexagon.Create("A", BenchBadgeWidth, BenchBadgeWidth / TierHexagon.ArtworkAspect);
+
     internal void Render(MayhemChampionDisplay? view)
     {
         if (view is null)
@@ -63,15 +83,26 @@ internal sealed class MayhemChampionOverlay : Window
             return;
         }
 
-        if (displayed is null || displayed.Tiers != view.Tiers || displayed.Bounds.Width != view.Bounds.Width ||
+        var bounds = view.Bounds;
+        bool bench = view.Bench is not null;
+        double screenScale = Math.Clamp((double)MayhemDraftReader.ReferenceWidth / bounds.Width, 1, 1.35);
+        double width = (bench ? BenchBadgeWidth : 54) * screenScale * TierSizePercent / 100.0;
+        if (bench)
+            width = Math.Min(width, MayhemBenchPortraits.PortraitSize - 4);
+        var size = new Size(width, width / TierHexagon.ArtworkAspect);
+        int top = bench ? (int)Math.Floor(BenchBadgeCenter - size.Height / 2) : view.Top;
+        int height = (int)Math.Ceiling(size.Height) + (bench ? 2 : 8);
+
+        if (displayed is null || displayed.Tiers != view.Tiers || displayed.Bounds.Width != bounds.Width ||
             !displayed.Choices.SequenceEqual(view.Choices) || (displayed.Bench is null) != (view.Bench is null) ||
             !(displayed.Bench ?? []).SequenceEqual(view.Bench ?? []))
-            Draw(view);
+        {
+            badges.Height = height;
+            Draw(view, size, bench ? BenchBadgeCenter - size.Height / 2 - top : 7);
+        }
         displayed = view;
 
-        var bounds = view.Bounds;
-        int height = view.Bench is null ? HeightInClient : 82;
-        var relative = MayhemDraftReader.Scaled(LeftEdge, view.Top, WidthInClient, height, bounds.Width, bounds.Height);
+        var relative = MayhemDraftReader.Scaled(LeftEdge, top, WidthInClient, height, bounds.Width, bounds.Height);
         var position = new Int32Rect(bounds.X + relative.X, bounds.Y + relative.Y, relative.Width, relative.Height);
         if (IsVisible && Native.IsWindowVisible(handle) && position == placement)
             return;
@@ -84,31 +115,28 @@ internal sealed class MayhemChampionOverlay : Window
             placement = position;
     }
 
-    private void Draw(MayhemChampionDisplay view)
+    private void Draw(MayhemChampionDisplay view, Size size, double top)
     {
         badges.Children.Clear();
-        badges.Height = view.Bench is null ? HeightInClient : 82;
-        double scale = Math.Clamp((double)MayhemDraftReader.ReferenceWidth / view.Bounds.Width, 1, 1.35);
         if (view.Bench is { } bench)
         {
             foreach (var choice in bench)
             {
                 if (view.Tiers.Letter(choice.Champion.Key) is not { } letter)
                     continue;
-                var badge = MayhemTierStyle.ChampionBadge(letter, choice.Champion.Name, 27 * scale, 30 * scale);
-                var right = MayhemBenchPortraits.PortraitLeft(choice.Slot) + MayhemBenchPortraits.PortraitSize - 4;
-                Canvas.SetLeft(badge, right - LeftEdge - badge.Width);
-                Canvas.SetTop(badge, MayhemBenchPortraits.PortraitSize - 3 - badge.Height);
-                badges.Children.Add(badge);
+                double center = MayhemBenchPortraits.PortraitLeft(choice.Slot) + MayhemBenchPortraits.PortraitSize / 2.0;
+                AddBadge(letter, choice.Champion.Name, center);
             }
             return;
         }
         foreach (var choice in view.Choices)
+            AddBadge(view.Tiers.Letter(choice.Champion.Key), choice.Champion.Name, choice.Center);
+
+        void AddBadge(string? tier, string champion, double center)
         {
-            var badge = MayhemTierStyle.ChampionBadge(view.Tiers.Letter(choice.Champion.Key), choice.Champion.Name,
-                40 * scale, 44 * scale);
-            Canvas.SetLeft(badge, choice.Center - LeftEdge - badge.Width / 2);
-            Canvas.SetTop(badge, 7);
+            var badge = MayhemTierStyle.ChampionBadge(tier, champion, size.Width, size.Height);
+            Canvas.SetLeft(badge, center - LeftEdge - size.Width / 2);
+            Canvas.SetTop(badge, top);
             badges.Children.Add(badge);
         }
     }

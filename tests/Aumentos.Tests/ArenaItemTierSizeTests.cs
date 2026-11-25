@@ -93,7 +93,7 @@ internal static class ArenaItemTierSizeTests
                 Math.Abs(largest.X + largest.Width / 2.0 - (bounds.X + titles[1].X + titles[1].Width / 2)) <= 1,
                 "el tamaño máximo de los tiers de objetos crece hacia arriba y deja libre el botón de cambio");
             Check(preference.Load() == Overlay.TierSizeMaximum && overlay.TierSizePercent == Overlay.TierSizeMaximum &&
-                ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "300 %" &&
+                ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == $"{Overlay.TierSizeMaximum} %" &&
                 Position(sizeButton) == editorPosition, "el ajuste visible y la preferencia reflejan el porcentaje");
             slider.Value = BuildSizePreference.Default;
             Check(preference.Load() == BuildSizePreference.Default && Position(overlay.Windows[1]) == initial,
@@ -188,12 +188,12 @@ internal static class ArenaItemTierSizeTests
                 var title = fixture.Titles[1].Pixels(viewport.Width, viewport.Height);
                 int theoreticalTop = offer.Mode == Mode.Arena ? cardTop : title.Y - (int)Math.Round(viewport.Height * .213);
                 int viewportRerollTop = viewport.Y + theoreticalTop + (int)Math.Round(viewport.Height * .465) + (int)(viewport.Height * .037);
-                Check(newMaximum.Width > formerMaximum.Width * 1.6 && newMaximum.Height > formerMaximum.Height * 1.6 &&
+                Check(newMaximum.Width > formerMaximum.Width && newMaximum.Height > formerMaximum.Height &&
                     Math.Abs(newMaximum.X + newMaximum.Width / 2.0 - (viewport.X + title.X + title.Width / 2)) <= 1 &&
                     newMaximum.Y >= viewport.Y + title.Y + title.Height && newMaximum.Y + newMaximum.Height <= viewportRerollTop,
                     $"el nuevo máximo agranda los hexágonos de {offer.Status} a {viewport.Width}×{viewport.Height} y libera los botones");
                 Check(preference.Load() == Overlay.TierSizeMaximum &&
-                    ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == "300 %",
+                    ((TextBlock)((BuildScaleEditor)sizeButton.Content).FindName("PercentText")).Text == $"{Overlay.TierSizeMaximum} %",
                     "el nuevo máximo se muestra y se guarda");
             }
 

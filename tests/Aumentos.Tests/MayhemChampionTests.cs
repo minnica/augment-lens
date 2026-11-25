@@ -148,14 +148,50 @@ internal static class MayhemChampionTests
             MayhemBenchChoice[] bench = [new(3, Champion("Gragas")), new(6, Champion("Belveth"))];
             overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, selected, choices, bench));
             placement = Native.Bounds(handle);
-            Check(placement.Y == bounds.Y + 10 && displayed.SequenceEqual(["B", "A"]) &&
+            Check(displayed.SequenceEqual(["B", "A"]) &&
                 badges.Children.Cast<Border>().All(ChampionSelectTests.IsTierBadge) &&
-                Canvas.GetLeft(badges.Children[0]) < Canvas.GetLeft(badges.Children[1]),
+                CenteredOnBench(),
                 "después de elegir solo se dibujan los tiers del banco superior aunque aún lleguen cartas de la oferta anterior");
+            double usualWidth = ((TierHexagon)badges.Children[0]).Width;
+            var sizeWindow = new BuildSizeWindow(overlay.TierSizePercent, MayhemChampionOverlay.CreateTierPreview(), value =>
+            {
+                overlay.SetTierSize(value);
+                return true;
+            }, MayhemChampionOverlay.TierSizeTitle, MayhemChampionOverlay.TierSizeMaximum);
+            var slider = (Slider)sizeWindow.FindName("SizeSlider");
+            Check(slider.Maximum == MayhemChampionOverlay.TierSizeMaximum && slider.Value == BuildSizePreference.Default,
+                "la ventana de campeones usa el rango y la escala de la selección");
+            slider.Value = slider.Maximum;
+            Check(((TierHexagon)badges.Children[0]).Width > usualWidth && CenteredOnBench(),
+                "el tamaño máximo crece sin perder el centro ni salir del ancho de los retratos");
+            slider.Value = slider.Minimum;
+            Check(((TierHexagon)badges.Children[0]).Width < usualWidth && CenteredOnBench(),
+                "el tamaño mínimo conserva el anclaje al borde inferior");
+            slider.Value = BuildSizePreference.Default;
+            sizeWindow.Close();
             overlay.Render(MayhemChampionDisplay.Create(bounds, 0, data, null, choices, []));
             Check(displayed.SequenceEqual(["C", "A", "A"]), "una nueva oferta vuelve a mostrar sus tiers debajo de las cartas");
             overlay.Render(null);
             Check(!Native.IsWindowVisible(handle), "el tier bajo las cartas se oculta al salir de la selección");
+
+            bool CenteredOnBench()
+            {
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                placement = Native.Bounds(handle);
+                var dpi = VisualTreeHelper.GetDpi(overlay);
+                return badges.Children.OfType<TierHexagon>().Zip(bench).All(pair =>
+                {
+                    var badge = pair.First;
+                    var center = badge.TranslatePoint(new Point(badge.ActualWidth / 2, badge.ActualHeight / 2), overlay);
+                    double x = (MayhemBenchPortraits.PortraitLeft(pair.Second.Slot) + MayhemBenchPortraits.PortraitSize / 2.0) *
+                        bounds.Width / MayhemDraftReader.ReferenceWidth;
+                    double y = (MayhemBenchPortraits.PortraitTop + MayhemBenchPortraits.PortraitSize + 2) *
+                        (double)bounds.Height / MayhemDraftReader.ReferenceHeight;
+                    return badge.Width < MayhemBenchPortraits.PortraitSize &&
+                        Math.Abs(placement.X - bounds.X + center.X * dpi.DpiScaleX - x) <= 2 &&
+                        Math.Abs(placement.Y - bounds.Y + center.Y * dpi.DpiScaleY - y) <= 2;
+                });
+            }
         }
         finally { overlay.Close(); }
         Console.WriteLine("Tiers de ARAM Caos debajo de las cartas verificados en WPF.");

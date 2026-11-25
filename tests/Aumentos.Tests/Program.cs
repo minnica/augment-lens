@@ -1242,13 +1242,15 @@ internal static class Program
                 var hexagon = BuildElements<TierHexagon>(Frame(window)).Single();
                 var center = hexagon.TransformToAncestor(window).Transform(new Point(hexagon.ActualWidth / 2, hexagon.ActualHeight / 2));
                 var dpi = VisualTreeHelper.GetDpi(window);
-                double offsetY = position.Y + center.Y * dpi.DpiScaleY - expectedEdge;
+                int rerollTop = expectedEdge + (int)(viewport.Height * .037);
+                double expectedCenter = Math.Min(expectedEdge, rerollTop - position.Height / 2.0);
+                double offsetY = position.Y + center.Y * dpi.DpiScaleY - expectedCenter;
                 double offsetX = position.X + center.X * dpi.DpiScaleX - (viewport.X + title.X + title.Width / 2);
                 Check(window.IsVisible && hexagon.IsVisible &&
                     hexagon.Background is ImageBrush { IsFrozen: true, ImageSource: BitmapSource { PixelWidth: 608, PixelHeight: 672 } } &&
                     Math.Abs(offsetY) <= 3 && Math.Abs(offsetX) <= 2 &&
-                    position.Y + position.Height <= expectedEdge + viewport.Height * .037 + 1,
-                    $"el hexágono queda centrado en el borde inferior de la carta y por encima del botón de cambio ({offsetX:F1}, {offsetY:F1})");
+                    position.Y >= viewport.Y + title.Y + title.Height && position.Y + position.Height <= rerollTop + 1,
+                    $"el hexágono queda centrado bajo el título y libera el botón de cambio ({offsetX:F1}, {offsetY:F1})");
             }
         }
         finally { overlay.Close(); }

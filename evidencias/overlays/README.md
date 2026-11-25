@@ -1,8 +1,8 @@
 # Capturas de los overlays
 
-**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Las insignias de cartas están al **255 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
+**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Las insignias de cartas están al **300 %**, las de cartas y retratos de selección al **150 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
 
-[![Las siete insignias desde S+ prismático hasta E grafito, al 255 % y al 100 %](paleta-de-tiers.png)](paleta-de-tiers.png)
+[![Las siete insignias desde S+ prismático hasta E grafito, al 300 % y al 100 %](paleta-de-tiers.png)](paleta-de-tiers.png)
 
 | Selección de campeón en ARAM Caos | Top 5 prismáticos en Arena |
 | --- | --- |
@@ -15,7 +15,7 @@
 | Modo | Capturas |
 | --- | --- |
 | ARAM Caos | [Oferta de tres campeones y sugerencias para el equipo](aram-seleccion-tres-cartas.png) · [Oferta de dos con una carta ampliada](aram-seleccion-dos-cartas.png) |
-| ARAM Caos | [Banco, tiers y equipo equilibrado con Gragas](aram-seleccion-banco.png) · [Hechizos principales y alternativos de Gragas](aram-hechizos.png) |
+| ARAM Caos | [Banco con tiers centrados en el borde inferior de los retratos](aram-seleccion-banco.png) · [Hechizos principales y alternativos de Gragas](aram-hechizos.png) |
 | Arena | [Composición, estado de cada elección, sugerencias y Top 30 completo](arena-seleccion-top-30.png) |
 
 ## Tiers en partida
@@ -42,6 +42,7 @@ Cuando el cliente aún no identifica al campeón, ambos modos muestran el mismo 
 | Elemento | Control en partida | Vista previa desde la bandeja |
 | --- | --- | --- |
 | Tiers de cartas | [Deslizador junto a la oferta](ajuste-tiers.png) | [Tamaño de los tiers de cartas](bandeja-tamano-tiers.png) |
+| Tiers al seleccionar campeón | [Insignias de los retratos del banco](aram-seleccion-banco.png) | [Tamaño de los tiers de campeones](bandeja-tamano-tiers-campeones.png) |
 | Builds | [Deslizador sobre la build](ajuste-build.png) | [Tamaño de las builds](bandeja-tamano-build.png) |
 | Top 5 prismáticos | [Deslizador sobre el Top 5](ajuste-prismaticos.png) | [Tamaño del panel de prismáticos](bandeja-tamano-prismaticos.png) |
 

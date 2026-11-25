@@ -11,15 +11,15 @@ namespace Aumentos;
 internal sealed class Overlay
 {
     internal const string TierSizeTitle = "Tamaño de los tiers de cartas";
-    internal const int TierSizeMaximum = 300;
+    internal const int TierSizeMaximum = 400;
     private const string TierSizeButtonLabel = "Tamaño de los tiers";
     private const int TierSizeButtonWidth = 148;
     private const double MayhemTitleToCardEdge = 0.213;
     private const double ArenaTitleToCardEdge = 0.207;
     private const double CardTopToLowerFrame = 0.465;
     private const double LowerFrameToReroll = 0.037;
-    private const int CompactTierWidth = 38;
-    private const int CompactTierHeight = 42;
+    private const int CompactTierWidth = 52;
+    private const int CompactTierHeight = 58;
     private readonly Func<int, bool>? saveTierSize;
     private readonly BadgeWindow[] badges = Enumerable.Range(1, 4).Select(slot => new BadgeWindow(slot)).ToArray();
     private BuildSizeButton? tierSizeButton;

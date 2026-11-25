@@ -12,6 +12,7 @@ namespace Aumentos;
 
 internal sealed class TierHexagon : Border
 {
+    internal const double ArtworkAspect = 608.0 / 672.0;
     private static readonly Dictionary<string, Lazy<ImageBrush>> Art = new(StringComparer.Ordinal)
     {
         ["S+"] = Artwork("s-plus"), ["S"] = Artwork("s"), ["A"] = Artwork("a"), ["B"] = Artwork("b"),

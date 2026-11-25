@@ -183,6 +183,9 @@ internal static class Program
             var arenaChampionOverlay = new ArenaChampionOverlay(championPortraits);
             var arenaVoteOverlay = new ArenaVoteOverlay();
             var mayhemChampionOverlay = new MayhemChampionOverlay();
+            var championTierSize = new BuildSizePreference(Path.Combine(settings, "champion-tier-size.json"), MayhemChampionOverlay.TierSizeMaximum);
+            mayhemChampionOverlay.SetTierSize(championTierSize.Load());
+            BuildSizeWindow? championTierSizeWindow = null;
             var mayhemTeamOverlay = new MayhemTeamOverlay(championPortraits);
             var championTiers = new ArenaChampionTierSource(ratings.Catalog, settings, http);
             var arenaTeams = new ArenaTeamSource(ratings.Catalog, settings, http);
@@ -256,6 +259,7 @@ internal static class Program
                 OpenProviderPage("https://wasfun.lol/es", "Wasfun"));
             menu.Items.Add(references);
             menu.Items.Add($"{Overlay.TierSizeTitle}…", null, (_, _) => OpenTierSize());
+            menu.Items.Add($"{MayhemChampionOverlay.TierSizeTitle}…", null, (_, _) => OpenChampionTierSize());
             menu.Items.Add($"{BuildOverlay.PrismaticSizeTitle}…", null, (_, _) => OpenPrismaticSize());
             var showBuild = new Forms.ToolStripMenuItem("Mostrar u ocultar build de OP.GG", null, (_, _) => ToggleBuild());
             menu.Items.Add(showBuild);
@@ -411,6 +415,27 @@ internal static class Program
                 });
                 tierSizeWindow = window;
                 window.Closed += (_, _) => tierSizeWindow = null;
+                window.Show();
+                window.Activate();
+            }
+
+            void OpenChampionTierSize()
+            {
+                if (championTierSizeWindow is not null)
+                {
+                    if (championTierSizeWindow.WindowState == WindowState.Minimized)
+                        championTierSizeWindow.WindowState = WindowState.Normal;
+                    championTierSizeWindow.Activate();
+                    return;
+                }
+
+                var window = new BuildSizeWindow(mayhemChampionOverlay.TierSizePercent, MayhemChampionOverlay.CreateTierPreview(), percent =>
+                {
+                    mayhemChampionOverlay.SetTierSize(percent);
+                    return championTierSize.Save(percent);
+                }, MayhemChampionOverlay.TierSizeTitle, MayhemChampionOverlay.TierSizeMaximum);
+                championTierSizeWindow = window;
+                window.Closed += (_, _) => championTierSizeWindow = null;
                 window.Show();
                 window.Activate();
             }

@@ -221,7 +221,7 @@ internal abstract class ChampionRankingOverlay : Window
             category.Children.Add(Label(group.Category, OverlayPanelStyle.DetailSize, OverlayPanelStyle.Gold, bold: true));
             foreach (var option in group.Options)
             {
-                var row = TierRow(ChampionIdentity(option.Champion, 16), ChampionTier(option.Champion, option.Tier, compact: true));
+                var row = TierRow(ChampionIdentity(option.Champion, 16), ChampionTier(option.Champion, option.Tier, height: 22));
                 row.MinHeight = 18;
                 category.Children.Add(row);
             }
@@ -278,7 +278,7 @@ internal abstract class ChampionRankingOverlay : Window
             text.Children.Add(Note($"{partial.Members}/{partial.TeamSize} campeones", OverlayPanelStyle.Muted));
         if (grade?.Detail is { } detail)
             text.Children.Add(Note(detail, OverlayPanelStyle.Muted));
-        var summary = TierRow(text, grade is null ? null : TierHexagon.Create(grade.Tier, 28, 31));
+        var summary = TierRow(text, grade is null ? null : TierHexagon.Create(grade.Tier, 32, 35));
         FrameworkElement content = summary;
         if (view.Roster is { Length: > 0 } roster)
         {
@@ -401,8 +401,8 @@ internal abstract class ChampionRankingOverlay : Window
         return identity;
     }
 
-    private Border ChampionTier(string champion, string? tier, bool compact = false) =>
-        MayhemTierStyle.ChampionBadge(tier, champion, compact ? 17 : 21, compact ? 18 : 22,
+    private Border ChampionTier(string champion, string? tier, double height = 28) =>
+        MayhemTierStyle.ChampionBadge(tier, champion, height * TierHexagon.ArtworkAspect, height,
             mayhem ? "OP.GG" : "GGEZ.GG");
 
     private static void AddRowBackground(Grid grid, int row, bool selected)
@@ -445,7 +445,7 @@ internal abstract class ChampionRankingOverlay : Window
     {
         var grid = new Grid { Margin = new Thickness(0, 6, 0, 0) };
         const int headerHeight = 19;
-        int rowHeight = compact ? 18 : 22;
+        int rowHeight = compact ? 20 : 24;
 
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(compact ? 25 : 30) });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -474,7 +474,7 @@ internal abstract class ChampionRankingOverlay : Window
             AddCell(line, 0, line.ToString(Spanish), OverlayPanelStyle.DetailSize,
                 selected ? OverlayPanelStyle.Gold : OverlayPanelStyle.Muted, TextAlignment.Right);
             AddCellElement(line, 1, ChampionIdentity(row.Champion, compact ? 15 : 18, selected));
-            var tier = ChampionTier(row.Champion, row.Tier, compact);
+            var tier = ChampionTier(row.Champion, row.Tier, rowHeight);
             tier.VerticalAlignment = VerticalAlignment.Center;
             AddCellElement(line, 2, tier);
             if (row.TopThreePercent is { } topThree)

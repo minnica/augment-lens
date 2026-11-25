@@ -19,10 +19,11 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
 {
     private const int GridSize = 8;
     private const int SignatureSize = GridSize * GridSize * 3;
-    // Ignore the lower-right quadrant, where the client lock or our tier badge can cover the portrait.
+    // Ignore the lower-right quadrant where the client can draw a lock over the portrait.
     private static readonly int[] PortraitChannels = Enumerable.Range(0, SignatureSize)
         .Where(channel => channel / (GridSize * 3) < GridSize / 2 || channel / 3 % GridSize < GridSize / 2).ToArray();
     internal const int FirstPortrait = 550;
+    internal const int PortraitTop = 17;
     internal const int PortraitSize = 76;
     internal static int PortraitLeft(int slot) => FirstPortrait + (int)Math.Round(slot * 91.7);
 
@@ -52,7 +53,7 @@ internal sealed class MayhemBenchPortraits(Catalog catalog, string settings, Htt
         var choices = new List<MayhemBenchChoice>();
         for (int slot = 0; slot < 10; slot++)
         {
-            var portrait = MayhemDraftReader.Scaled(PortraitLeft(slot), 17, PortraitSize, PortraitSize,
+            var portrait = MayhemDraftReader.Scaled(PortraitLeft(slot), PortraitTop, PortraitSize, PortraitSize,
                 frame.PixelWidth, frame.PixelHeight);
             var sample = Signature(new CroppedBitmap(frame, portrait));
             if (!IsAvailablePortrait(sample))
