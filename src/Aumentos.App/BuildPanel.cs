@@ -21,8 +21,6 @@ internal sealed class BuildPanel : Border
     private static readonly Brush Accent = OverlayPanelStyle.Accent;
     private static readonly Brush PreviousPatch = OverlayPanelStyle.BrightGold;
     private static readonly Brush PurchaseAccent = OverlayPanelStyle.Gold;
-    private static readonly Brush PurchaseSurface = OverlayPanelStyle.HighlightSurface;
-    private static readonly Brush PurchaseBorder = OverlayPanelStyle.Frame;
     private static readonly Brush Divider = OverlayPanelStyle.Divider;
     private static readonly Brush ItemSurface = OverlayPanelStyle.Inset;
     private static readonly Brush PhysicalDamage = Overlay.Paint("#F2AD6B");
@@ -30,7 +28,6 @@ internal sealed class BuildPanel : Border
     private static readonly Brush TrueDamage = Overlay.Paint("#EDE8DC");
 
     private readonly StackPanel content = new();
-    private readonly List<(FrameworkElement Row, OpGgBuildItem Item)> itemRows = [];
     private readonly TextBlock shopTitle = new() { FontSize = OverlayPanelStyle.TitleSize, FontFamily = OverlayPanelStyle.Heading,
         FontWeight = FontWeights.Bold, Foreground = OverlayPanelStyle.Ink, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Path shopGrip = new()
@@ -57,7 +54,6 @@ internal sealed class BuildPanel : Border
     internal void RenderPreview(string patch)
     {
         content.Children.Clear();
-        itemRows.Clear();
         AddShopHeader(null);
         AddLine("Primer objeto", OverlayPanelStyle.SectionSize, PurchaseAccent, bold: true);
         AddPurchase(new(new(6653, "El Tormento de Liandry")), patch, best: true);
@@ -66,7 +62,6 @@ internal sealed class BuildPanel : Border
     internal void Render(BuildDisplay view, double layoutWidth = ShopWidth)
     {
         content.Children.Clear();
-        itemRows.Clear();
         Width = view.Prismatics is null ? layoutWidth : PrismaticWidth;
         Padding = view.Prismatics is not null ? new Thickness(16, 12, 16, 14)
             : Compact ? new Thickness(9, 7, 9, 9) : new Thickness(12, 8, 12, 11);
@@ -280,7 +275,11 @@ internal sealed class BuildPanel : Border
         card.Children.Add(SwapItem("Entra", swap.Incoming));
         card.Children.Add(new TextBlock { Text = swap.Reason, FontSize = OverlayPanelStyle.BodySize, Foreground = Muted,
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
-        AddPurchaseCard(card);
+        content.Children.Add(new Border
+        {
+            Child = card, Background = OverlayPanelStyle.SelectionSurface, BorderBrush = OverlayPanelStyle.SelectionBorder,
+            BorderThickness = OverlayPanelStyle.FrameThickness, Padding = new Thickness(Compact ? 6 : 8), SnapsToDevicePixels = true
+        });
 
         DockPanel SwapItem(string label, OpGgBuildItem item)
         {
@@ -293,7 +292,6 @@ internal sealed class BuildPanel : Border
             text.Children.Add(new TextBlock { Text = item.Name, FontSize = OverlayPanelStyle.BodySize,
                 Foreground = OverlayPanelStyle.Ink, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
             row.Children.Add(text);
-            itemRows.Add((row, item));
             return row;
         }
     }
@@ -322,15 +320,16 @@ internal sealed class BuildPanel : Border
             text.Children.Add(new TextBlock { Text = reason, FontSize = OverlayPanelStyle.DetailSize, Foreground = Muted,
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) });
         row.Children.Add(text);
-        var container = new Border { Child = row, Background = best ? PurchaseSurface : null,
-            Padding = new Thickness(7, 5, 7, 5), Margin = new Thickness(0, 4, 0, 0) };
-        content.Children.Add(container);
-        itemRows.Add((container, item));
+        content.Children.Add(new Border
+        {
+            Child = row,
+            Background = best ? OverlayPanelStyle.SelectionSurface : null,
+            BorderBrush = best ? OverlayPanelStyle.SelectionBorder : null,
+            BorderThickness = best ? OverlayPanelStyle.FrameThickness : new Thickness(0),
+            Padding = best ? new Thickness(6, 4, 6, 4) : new Thickness(7, 5, 7, 5),
+            Margin = new Thickness(0, 4, 0, 0), SnapsToDevicePixels = true
+        });
     }
-
-    private void AddPurchaseCard(UIElement child) =>
-        content.Children.Add(new Border { Child = child, Background = PurchaseSurface, BorderBrush = PurchaseBorder,
-            BorderThickness = new Thickness(1), Padding = new Thickness(Compact ? 6 : 8) });
 
     internal void RenderPrismatics(string champion, ArenaPrismaticTop top, string patch)
     {
@@ -375,22 +374,10 @@ internal sealed class BuildPanel : Border
                 text.Children.Add(new TextBlock { Text = "En oferta", FontSize = OverlayPanelStyle.DetailSize, Foreground = Accent });
             row.Children.Add(text);
             content.Children.Add(row);
-            itemRows.Add((row, new(entry.Id, entry.Rating.Name)));
         }
     }
 
-    internal (FrameworkElement Row, OpGgBuildItem Item)? ItemAt(Point position)
-    {
-        foreach (var (row, item) in itemRows)
-        {
-            var bounds = row.TransformToAncestor(this).TransformBounds(new Rect(row.RenderSize));
-            if (bounds.Contains(position))
-                return (row, item);
-        }
-        return null;
-    }
-
-    internal Border ItemIcon(OpGgBuildItem item, string patch, double size)
+    private Border ItemIcon(OpGgBuildItem item, string patch, double size)
     {
         var image = new Image { Stretch = Stretch.UniformToFill };
         AutomationProperties.SetName(image, item.Name);

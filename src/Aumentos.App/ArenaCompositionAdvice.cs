@@ -4,23 +4,20 @@ using System.Linq;
 
 namespace Aumentos;
 
-internal sealed record ArenaCompositionOption(string Champion, string? Tier);
-internal sealed record ArenaCompositionGroup(string Category, ArenaCompositionOption[] Options);
-internal sealed record ArenaCompositionGrade(string Tier, string Reason, int Members, int TeamSize, ArenaTeamResult? Observed = null,
-    ArenaCompositionAdvice.Coverage PrimaryNeed = ArenaCompositionAdvice.Coverage.None);
+internal sealed record ArenaCompositionMember(string Champion, bool Confirmed);
+internal sealed record ArenaComposition(string Tier, string Reason, ArenaCompositionMember[] Members);
+internal sealed record ArenaCompositionGrade(string Tier, string Reason, int Members, int TeamSize, ArenaTeamResult? Observed = null);
 
 internal static class ArenaCompositionAdvice
 {
-    private const int CategoryLimit = 2;
-    private const int OptionsPerCategory = 4;
+    private const int RecommendationLimit = 4;
     private const string TierOrder = "SABCD";
 
     [Flags]
-    internal enum Coverage
+    private enum Coverage
     {
         None = 0,
         Frontline = 1,
-        Tank = 2,
         SustainedDamage = 4,
         Control = 8,
         Protection = 16,
@@ -32,7 +29,9 @@ internal static class ArenaCompositionAdvice
         CoverDamage = HoldGround | Protection
     }
 
-    private sealed record Need(Coverage Coverage, int Weight);
+    private sealed record Candidate(Champion Champion, Coverage Profile, decimal Popularity);
+    private readonly record struct LineupOption(Candidate First, Candidate? Second, int Score,
+        bool AddressesNeed, decimal Popularity);
 
     internal static ArenaCompositionGrade? Evaluate(Ratings ratings, string? selected, ArenaDraftTeam? team, ArenaTeamResult? observed = null)
     {
@@ -50,98 +49,174 @@ internal static class ArenaCompositionAdvice
         if (profiles.Length < 2)
             return null;
 
-        // Arena teams need a way to convert control into a takedown or keep their damage alive as the ring closes.
-        bool protectedDamage = HasPair(Coverage.SustainedDamage, Coverage.CoverDamage);
-        bool damageAfterControl = HasPair(Coverage.Control, Coverage.FollowUpDamage);
-        int controlCount = profiles.Count(profile => profile.HasFlag(Coverage.Control));
-        bool chainControl = damageAfterControl && controlCount >= 2;
-        bool holdsSpace = HasPair(Coverage.HoldGround, Coverage.Control | Coverage.Protection);
-        bool sustainedDamage = profiles.Any(profile => profile.HasFlag(Coverage.SustainedDamage));
-        bool mixedDamage = HasPair(Coverage.PhysicalDamage, Coverage.MagicDamage);
+        var (score, primary) = Assess(profiles);
+        string tier = TierForScore(score);
+        int teamSize = Math.Max(team.Size, profiles.Length);
+        string reason = primary != Coverage.None ? $"Falta {CategoryName(primary).ToLowerInvariant()}" :
+            profiles.Length == teamSize ? "Equipo equilibrado" : "Sin carencias claras";
+        var result = team.Size == 3 && profiles.Length == 3 && observed is { Games: >= ArenaTeamSource.MinimumGames } &&
+            observed.Patch == ratings.Catalog.Patch ? observed : null;
+        return new(result?.Tier ?? tier, reason, profiles.Length, teamSize, result);
+    }
 
+    internal static string[] ConfirmedPicks(string? selected, ArenaDraftTeam? team)
+    {
+        if (team is null)
+            return [];
+
+        return (team.OwnConfirmed == true && selected is not null ? new[] { selected } : [])
+            .Concat(team.ConfirmedTeammates ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    internal static ArenaComposition[] Recommend(Ratings ratings, ArenaChampionTierList? tiers,
+        string[] confirmed, string[] unavailable, int teamSize)
+    {
+        if (confirmed.Length == 0 || confirmed.Length >= teamSize)
+            return [];
+
+        var champions = ratings.Catalog.Champions.ToDictionary(champion => champion.Key, StringComparer.OrdinalIgnoreCase);
+        var locked = confirmed.Select(key => champions.GetValueOrDefault(key)).OfType<Champion>().ToArray();
+        if (locked.Length != confirmed.Length)
+            return [];
+
+        var excluded = unavailable.Concat(confirmed).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var statistics = tiers?.ClientPatch == ratings.Catalog.Patch ? tiers.Champions : null;
+        var candidates = champions.Values.Where(champion => !excluded.Contains(champion.Key)).Select(champion =>
+            new Candidate(champion, CombatProfile(ratings, champion),
+                statistics?.GetValueOrDefault(champion.Key)?.TopThreePercent ?? 0)).ToArray();
+        var lineup = new Coverage[teamSize];
+        for (int i = 0; i < locked.Length; i++)
+            lineup[i] = CombatProfile(ratings, locked[i]);
+
+        var prior = Assess(lineup.AsSpan(0, locked.Length));
+        var covered = lineup.Aggregate(Coverage.None, (total, profile) => total | profile);
+        int firstOpen = locked.Length;
+        bool twoOpen = teamSize - firstOpen == 2;
+        var options = new List<LineupOption>();
+        for (int first = 0; first < candidates.Length; first++)
+        {
+            lineup[firstOpen] = candidates[first].Profile;
+            if (!twoOpen)
+                AddOption(candidates[first], null);
+            else
+            {
+                for (int second = first + 1; second < candidates.Length; second++)
+                {
+                    lineup[firstOpen + 1] = candidates[second].Profile;
+                    AddOption(candidates[first], candidates[second]);
+                }
+            }
+        }
+
+        var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var suggestions = new List<ArenaComposition>(RecommendationLimit);
+        var ranked = options.OrderByDescending(option => option.Score).ThenByDescending(option => option.AddressesNeed)
+            .ThenByDescending(option => option.Popularity)
+            .ThenBy(option => option.First.Champion.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        foreach (var band in ranked.GroupBy(option => TierRank(option.Score)))
+        {
+            foreach (var option in band)
+            {
+                if (!shown.Contains(option.First.Champion.Key) &&
+                    (option.Second is null || !shown.Contains(option.Second.Champion.Key)))
+                    AddSuggestion(option);
+                if (suggestions.Count == RecommendationLimit)
+                    return suggestions.ToArray();
+            }
+            foreach (var option in band)
+            {
+                if (!shown.Contains(option.First.Champion.Key) ||
+                    option.Second is { } partner && !shown.Contains(partner.Champion.Key))
+                    AddSuggestion(option);
+                if (suggestions.Count == RecommendationLimit)
+                    return suggestions.ToArray();
+            }
+        }
+        return suggestions.ToArray();
+
+        void AddOption(Candidate first, Candidate? second)
+        {
+            var added = first.Profile | (second?.Profile ?? Coverage.None);
+            int score = Assess(lineup).Score;
+            options.Add(new(first, second, score, (added & prior.PrimaryNeed) != 0,
+                first.Popularity + (second?.Popularity ?? 0)));
+        }
+
+        void AddSuggestion(LineupOption option)
+        {
+            Candidate[] additions = option.Second is { } second ? [option.First, second] : [option.First];
+            foreach (var addition in additions)
+                shown.Add(addition.Champion.Key);
+            var members = locked.Select(champion => new ArenaCompositionMember(champion.Name, Confirmed: true))
+                .Concat(additions.Select(addition => new ArenaCompositionMember(addition.Champion.Name, Confirmed: false))).ToArray();
+            var added = additions.Aggregate(Coverage.None, (total, addition) => total | addition.Profile);
+            suggestions.Add(new(TierForScore(option.Score), CompositionReason(covered, added, prior.PrimaryNeed), members));
+        }
+    }
+
+    private static string CompositionReason(Coverage covered, Coverage added, Coverage primary)
+    {
+        Coverage[] contributions =
+            [Coverage.Frontline, Coverage.SustainedDamage, Coverage.Control, Coverage.Protection, Coverage.MagicDamage,
+             Coverage.PhysicalDamage, Coverage.FollowUpDamage, Coverage.HoldGround];
+        var reason = (added & primary) != 0 ? primary : contributions.FirstOrDefault(role =>
+            (added & role) != 0 && (covered & role) == 0);
+        if (reason != Coverage.None)
+            return "Aporta " + CategoryName(reason).ToLowerInvariant();
+        if ((added & Coverage.Control) != 0 && (covered & Coverage.FollowUpDamage) != 0)
+            return "Prepara el daño del equipo";
+        if ((added & Coverage.FollowUpDamage) != 0 && (covered & Coverage.Control) != 0)
+            return "Aprovecha el control aliado";
+        return "Refuerza " + CategoryName(contributions.FirstOrDefault(role => (added & role) != 0)).ToLowerInvariant();
+    }
+
+    private static (int Score, Coverage PrimaryNeed) Assess(ReadOnlySpan<Coverage> profiles)
+    {
+        bool protectedDamage = HasPair(profiles, Coverage.SustainedDamage, Coverage.CoverDamage);
+        bool damageAfterControl = HasPair(profiles, Coverage.Control, Coverage.FollowUpDamage);
+        bool holdsSpace = HasPair(profiles, Coverage.HoldGround, Coverage.Control | Coverage.Protection);
+        bool mixedDamage = HasPair(profiles, Coverage.PhysicalDamage, Coverage.MagicDamage);
+        var combined = Coverage.None;
+        int controlCount = 0;
+        foreach (var profile in profiles)
+        {
+            combined |= profile;
+            if ((profile & Coverage.Control) != 0)
+                controlCount++;
+        }
+
+        bool chainControl = damageAfterControl && controlCount >= 2;
+        bool sustainedDamage = (combined & Coverage.SustainedDamage) != 0;
         int score = (protectedDamage ? 3 : 0) + (damageAfterControl ? 2 : 0) + (chainControl ? 2 : 0) +
             (holdsSpace ? 2 : 0) + (sustainedDamage ? 1 : 0) + (mixedDamage ? 1 : 0);
-        string tier = score switch { >= 8 => "S", >= 6 => "A", >= 3 => "B", >= 1 => "C", _ => "D" };
-        int teamSize = Math.Max(team.Size, profiles.Length);
         var primary = (sustainedDamage, protectedDamage, controlCount, damageAfterControl) switch
         {
             (false, _, _, _) => Coverage.SustainedDamage,
             (_, false, _, _) => Coverage.CoverDamage,
             (_, _, 0, _) => Coverage.Control,
             (_, _, _, false) => Coverage.FollowUpDamage,
-            _ when tier != "S" && !profiles.Any(profile => profile.HasFlag(Coverage.HoldGround)) => Coverage.HoldGround,
+            _ when score < 8 && (combined & Coverage.HoldGround) == 0 => Coverage.HoldGround,
             _ => Coverage.None
         };
-        string reason = primary != Coverage.None ? $"Falta {CategoryName(primary).ToLowerInvariant()}" :
-            profiles.Length == teamSize ? "Equipo equilibrado" : "Sin carencias claras";
-        var result = team.Size == 3 && profiles.Length == 3 && observed is { Games: >= ArenaTeamSource.MinimumGames } &&
-            observed.Patch == ratings.Catalog.Patch ? observed : null;
-        return new(result?.Tier ?? tier, reason, profiles.Length, teamSize, result, primary);
-
-        bool HasPair(Coverage first, Coverage second)
-        {
-            int partners = profiles.Count(profile => (profile & second) != 0);
-            return profiles.Any(profile => (profile & first) != 0 && partners > ((profile & second) != 0 ? 1 : 0));
-        }
+        return (score, primary);
     }
 
-    internal static ArenaCompositionGroup[] Recommend(Ratings ratings, ArenaChampionTierList? tiers, ArenaDraftTeam? team,
-        string? selected = null, ArenaCompositionGrade? grade = null)
+    private static bool HasPair(ReadOnlySpan<Coverage> profiles, Coverage first, Coverage second)
     {
-        if (team is null || team.Teammates.Length == 0)
-            return [];
-
-        var teammates = team.Teammates.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var champions = ratings.Catalog.Champions;
-        var allies = champions.Where(champion => teammates.Contains(champion.Key)).ToArray();
-        if (allies.Length == 0)
-            return [];
-
-        var allyCoverage = allies.Aggregate(Coverage.None, (combined, ally) => combined | CombatProfile(ratings, ally));
-        var current = champions.FirstOrDefault(champion => string.Equals(champion.Key, selected, StringComparison.OrdinalIgnoreCase));
-        var covered = current is null ? allyCoverage : allyCoverage | CombatProfile(ratings, current);
-        var replacementNeeds = Priorities(allyCoverage).ToArray();
-        var categories = Priorities(covered).OrderByDescending(need => need.Weight)
-            .Concat(replacementNeeds.OrderByDescending(need => need.Weight))
-            .Select(need => need.Coverage).Prepend(grade?.PrimaryNeed ?? Coverage.None)
-            .Where(need => need != Coverage.None).DistinctBy(CategoryName);
-        var unavailable = team.Unavailable.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        unavailable.UnionWith(teammates);
-        if (selected is not null)
-            unavailable.Add(selected);
-        var statistics = tiers?.ClientPatch == ratings.Catalog.Patch ? tiers.Champions : null;
-        var candidates = champions.Where(champion => !unavailable.Contains(champion.Key)).Select(champion =>
-            {
-                var profile = CombatProfile(ratings, champion);
-                return (Champion: champion, Profile: profile, Rating: statistics?.GetValueOrDefault(champion.Key),
-                    Score: replacementNeeds.Where(need => (need.Coverage & profile) != 0).Sum(need => need.Weight));
-            })
-            .OrderBy(option => TierRank(option.Rating?.Tier))
-            .ThenByDescending(option => option.Score)
-            .ThenByDescending(option => option.Rating?.TopThreePercent)
-            .ThenBy(option => option.Champion.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var shown = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var groups = new List<ArenaCompositionGroup>();
-        foreach (var category in categories)
-        {
-            var options = candidates.Where(option => (option.Profile & category) != 0 && !shown.Contains(option.Champion.Key))
-                .Take(OptionsPerCategory).ToArray();
-            if (options.Length == 0)
-                continue;
-            shown.UnionWith(options.Select(option => option.Champion.Key));
-            groups.Add(new(CategoryName(category), options.Select(option =>
-                new ArenaCompositionOption(option.Champion.Name, option.Rating?.Tier)).ToArray()));
-            if (groups.Count == CategoryLimit)
-                break;
-        }
-        return groups.ToArray();
+        for (int i = 0; i < profiles.Length; i++)
+            for (int j = 0; j < profiles.Length; j++)
+                if (i != j && (profiles[i] & first) != 0 && (profiles[j] & second) != 0)
+                    return true;
+        return false;
     }
+
+    private static string TierForScore(int score) => TierOrder[TierRank(score)].ToString();
+
+    private static int TierRank(int score) => score switch { >= 8 => 0, >= 6 => 1, >= 3 => 2, >= 1 => 3, _ => 4 };
 
     private static string CategoryName(Coverage need) => need switch
     {
-        Coverage.Frontline or Coverage.Tank => "Primera línea",
+        Coverage.Frontline => "Primera línea",
         Coverage.SustainedDamage => "Daño sostenido",
         Coverage.Control => "Control",
         Coverage.Protection or Coverage.CoverDamage => "Protección",
@@ -152,49 +227,11 @@ internal static class ArenaCompositionAdvice
         _ => "Presión ofensiva"
     };
 
-    private static IEnumerable<Need> Priorities(Coverage covered)
-    {
-        bool front = covered.HasFlag(Coverage.Frontline);
-        bool sustained = covered.HasFlag(Coverage.SustainedDamage);
-        bool control = covered.HasFlag(Coverage.Control);
-        bool protection = covered.HasFlag(Coverage.Protection);
-        var damage = covered & Coverage.Damage;
-
-        if (!front)
-        {
-            yield return new(Coverage.Frontline, 6);
-            yield return new(Coverage.Tank, 2);
-        }
-        if (!sustained)
-            yield return new(Coverage.SustainedDamage, damage == Coverage.None ? 7 : 4);
-        if (!control)
-            yield return new(Coverage.Control, 3);
-        if (!protection)
-            yield return new(Coverage.Protection, sustained ? 4 : 2);
-
-        if (damage == Coverage.PhysicalDamage)
-            yield return new(Coverage.MagicDamage, 5);
-        else if (damage == Coverage.MagicDamage)
-            yield return new(Coverage.PhysicalDamage, 5);
-        else if (damage == Coverage.None)
-            yield return new(Coverage.Damage, 2);
-
-        if (front && sustained && control && protection && damage == Coverage.Damage)
-        {
-            yield return new(Coverage.Control, 3);
-            yield return new(Coverage.Protection, 2);
-            yield return new(Coverage.Frontline, 2);
-            yield return new(Coverage.SustainedDamage, 2);
-        }
-    }
-
     private static Coverage Profile(Ratings ratings, Champion champion)
     {
         var role = champion.Roles[0];
         var profile = Coverage.None;
-        if (role == "Tank")
-            profile |= Coverage.Frontline | Coverage.Tank;
-        else if (role == "Fighter")
+        if (role is "Tank" or "Fighter")
             profile |= Coverage.Frontline;
         if (role == "Marksman" || ratings.HasTrait(champion.Key, "attackspeed") ||
             (role == "Fighter" && ratings.HasTrait(champion.Key, "attacks")))
@@ -230,7 +267,4 @@ internal static class ArenaCompositionAdvice
             profile |= Coverage.Damage;
         return profile;
     }
-
-    private static int TierRank(string? tier) => tier is { Length: 1 } && TierOrder.IndexOf(tier[0]) is >= 0 and var rank
-        ? rank : TierOrder.Length;
 }

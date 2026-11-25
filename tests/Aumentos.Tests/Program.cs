@@ -599,8 +599,7 @@ internal static class Program
     {
         using var http = new System.Net.Http.HttpClient(new TestIcons());
         var icons = new BuildItemIcons(http);
-        var shopItems = ShopItemCatalog.Load(Path.Combine(AppContext.BaseDirectory, "Assets"), "16.23");
-        var overlay = new BuildOverlay(icons, shopItems: shopItems);
+        var overlay = new BuildOverlay(icons);
         try
         {
             var bounds = new Int32Rect(10, 10, 1040, 720);
@@ -628,8 +627,10 @@ internal static class Program
                 displayedIcons.Select(icon => System.Windows.Automation.AutomationProperties.GetName(icon))
                     .SequenceEqual(["El Tormento de Liandry", "Cetro de Cristal de Rylai"]) &&
                 route.SelectMany(BuildElements<TextBlock>).Select(text => text.Text)
-                    .SequenceEqual(["El mejor", "El Tormento de Liandry", "Cetro de Cristal de Rylai"]),
-                "el núcleo publicado muestra los iconos y resalta el primer candidato");
+                    .SequenceEqual(["El mejor", "El Tormento de Liandry", "Cetro de Cristal de Rylai"]) &&
+                route[0].Parent is Border { Background: LinearGradientBrush, BorderBrush: not null, BorderThickness.Left: 1 } &&
+                route[1].Parent is Border { Background: null, BorderBrush: null, BorderThickness.Left: 0 },
+                "el núcleo publicado muestra los iconos y enmarca solo el primer candidato dentro del panel");
 
             var plan = new MayhemBuildPlan([
                 new(new(6653, "El Tormento de Liandry"), "Comprado", Owned: true), new(new(3020, "Botas del Hechicero")),
@@ -647,11 +648,6 @@ internal static class Program
                 !Labels().Contains("El Tormento de Liandry") && !Labels().Contains("Morellonomicón"),
                 "ARAM Caos muestra tres compras y el mejor candidato");
             CheckDamageBar(rows, 78, 8);
-            CheckHover("Cetro de Cristal de Rylai", "2,600 de oro");
-            var arenaPlan = new MayhemBuildPlan([new(new(223152, "Cinturón Cohete Hextech"))]);
-            overlay.Render(view with { Mode = Mode.Arena, Source = null, Plan = arenaPlan, ClientPatch = "16.23" });
-            CheckHover("Cinturón Cohete Hextech", "2,500 de oro");
-            overlay.Render(view);
             Check(rows.Children.OfType<TextBlock>().Any(text => text.Text == "Objetos iniciales"),
                 "las referencias iniciales aparecen antes de comprar");
             view = view with { HideStartingItems = true };
@@ -727,27 +723,6 @@ internal static class Program
             string[] BestLabels() => ItemRows(rows).Select(row => BuildElements<TextBlock>(row).Select(text => text.Text).ToArray())
                 .Single(texts => texts.Contains("El mejor"));
 
-            void CheckHover(string name, string price)
-            {
-                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                var row = ItemRows(rows).Single(item => BuildElements<TextBlock>(item).Any(text => text.Text == name));
-                var cursor = row.PointToScreen(new Point(row.ActualWidth / 2, row.ActualHeight / 2));
-                overlay.TrackItemHover(cursor, 100);
-                Check(!overlay.OwnedWindows.OfType<BuildItemCard>().Any(card => card.IsVisible), "el hover espera a que se detenga el cursor");
-                overlay.TrackItemHover(cursor, 400);
-                var card = overlay.OwnedWindows.OfType<BuildItemCard>().Single();
-                var cardHandle = new WindowInteropHelper(card).Handle;
-                var cardBounds = Native.Bounds(cardHandle);
-                var cardText = BuildElements<TextBlock>((UIElement)((Viewbox)card.Content).Child).Select(text => text.Text).ToArray();
-                Check(card.IsVisible && cardText.Contains(name) && cardText.Contains(price) &&
-                    (Native.GetWindowLongW(cardHandle, -20) & 0x08000020) == 0x08000020 &&
-                    cardBounds.X >= bounds.X && cardBounds.Y >= bounds.Y &&
-                    cardBounds.X + cardBounds.Width <= bounds.X + bounds.Width &&
-                    cardBounds.Y + cardBounds.Height <= bounds.Y + bounds.Height,
-                    "la ficha muestra el objeto del modo, cabe en la ventana y deja pasar los clics");
-                overlay.TrackItemHover(new Point(-30000, -30000), 500);
-                Check(!card.IsVisible, "la ficha se oculta al sacar el cursor");
-            }
         }
         finally { overlay.Close(); }
 

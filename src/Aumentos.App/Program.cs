@@ -174,7 +174,7 @@ internal static class Program
             var shopItems = ShopItemCatalog.Load(assets, ratings.Catalog.Patch);
             var sizePreference = new BuildSizePreference(Path.Combine(settings, "build-size.json"));
             var prismaticSizePreference = new BuildSizePreference(Path.Combine(settings, "prismatic-panel-size.json"));
-            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save, prismaticSizePreference.Save, shopItems);
+            var buildOverlay = new BuildOverlay(itemIcons, sizePreference.Save, prismaticSizePreference.Save);
             buildOverlay.SetSize(sizePreference.Load());
             buildOverlay.SetPrismaticSize(prismaticSizePreference.Load());
             BuildSizeWindow? buildSizeWindow = null;

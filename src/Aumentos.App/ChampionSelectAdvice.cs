@@ -43,6 +43,8 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
         int? draftGeneration = null;
         SpellDisplay? previous = null;
         ArenaChampionDisplay? previousArena = null;
+        (string[] Confirmed, string[] Unavailable, int Size, ArenaChampionTierList? Tiers) compositionInput = ([], [], 0, null);
+        ArenaComposition[] composition = [];
         MayhemChampionDisplay? previousMayhem = null;
         MayhemTeamDisplay? previousMayhemTeam = null;
         long checkPatchAt = 0;
@@ -117,8 +119,15 @@ internal sealed class ChampionSelectAdvice(Ratings ratings, string assets, OpGgB
                             var source = tiers.Current(cancellation);
                             var observed = teams?.Find(session.ArenaChampion, session.ArenaTeam, cancellation);
                             var grade = ArenaCompositionAdvice.Evaluate(ratings, session.ArenaChampion, session.ArenaTeam, observed);
-                            var composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, session.ArenaTeam,
-                                session.ArenaChampion, grade);
+                            var confirmed = ArenaCompositionAdvice.ConfirmedPicks(session.ArenaChampion, session.ArenaTeam);
+                            var unavailable = session.ArenaTeam?.Unavailable ?? [];
+                            int size = session.ArenaTeam?.DisplaySize ?? 3;
+                            if (compositionInput.Size != size || compositionInput.Tiers != source.Data ||
+                                !compositionInput.Confirmed.SequenceEqual(confirmed) || !compositionInput.Unavailable.SequenceEqual(unavailable))
+                            {
+                                compositionInput = (confirmed, unavailable, size, source.Data);
+                                composition = ArenaCompositionAdvice.Recommend(ratings, source.Data, confirmed, unavailable, size);
+                            }
                             arena = ArenaChampionDisplay.Create(window.Bounds, window.Handle, catalog, source,
                                 session.ArenaChampion, composition, grade, session.ArenaTeam);
                         }

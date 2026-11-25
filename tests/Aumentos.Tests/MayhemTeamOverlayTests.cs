@@ -84,7 +84,9 @@ internal static class MayhemTeamOverlayTests
                 .OfType<Image>().Single();
             WaitForPortraits(selectedPortrait, wukongPortrait);
             Check(Labels(own).Contains("Sivir") && ReadPortrait(selectedPortrait) > ReadPortrait(wukongPortrait) &&
-                own.Children[0] is Border { Background: SolidColorBrush, BorderBrush: not null, BorderThickness.Left: > 0 },
+                own.Children[0] is Border selectionFrame && selectionFrame.Background == OverlayPanelStyle.SelectionSurface &&
+                selectionFrame.BorderBrush == OverlayPanelStyle.SelectionBorder &&
+                selectionFrame.BorderThickness == OverlayPanelStyle.FrameThickness,
                 "tu campeón se distingue dentro de la tabla y los retratos corresponden al campeón aunque el alias interno sea distinto");
             handler.Offline = true;
             var cached = new ChampionSelectPortraits(portraitCatalog, settings.FullName, http);

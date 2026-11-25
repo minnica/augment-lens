@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -222,14 +223,16 @@ internal static class ChampionSelectTests
             Check(Native.IsWindowVisible(handle) &&
                 (Native.GetWindowLongW(handle, -20) & 0x08000020) == 0x08000020,
                 "el ranking lateral se muestra sin interceptar los clics");
-            Check(Sections().Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(["Top 30 general"]),
-                "el Top 30 abre directamente en la tabla");
+            Check(global.Roster is [{ Own: true, Champion: null }, { Champion: null }, { Champion: null }] &&
+                Roster().Children.Cast<FrameworkElement>().All(slot => Labels(slot).Contains("Sin elegir")) &&
+                Sections().Children.OfType<TextBlock>().Any(text => text.Text == "Confirma un campeón para ver sugerencias."),
+                "la selección comienza mostrando tres plazas vacías y el ranking");
             CheckColumn(bounds);
 
             var excludedChampion = otherChampions[0];
-            ArenaCompositionGroup[] composition =
-                [new("Daño sostenido", [new("Jinx", "A"), new("Vayne", "B"), new("Diana", "B"), new("Azir", "C")]),
-                 new("Daño mágico", [new("Lux", "B"), new("Annie", "C"), new("Syndra", "C"), new("Veigar", "D")])];
+            ArenaComposition[] composition =
+                [new("S", "Aporta daño sostenido", [new("Lillia", true), new("Jinx", false), new("Azir", false)]),
+                 new("A", "Aporta protección", [new("Lillia", true), new("Janna", false), new("Vayne", false)])];
             var grade = new ArenaCompositionGrade("A", "Falta daño sostenido", 2, 3);
             var selected = ArenaChampionDisplay.Create(bounds, 0, catalog, source, excludedChampion.Key, composition, grade,
                 new(["Lillia"], [], 3, OwnConfirmed: false, ConfirmedTeammates: ["Lillia"]));
@@ -238,21 +241,20 @@ internal static class ChampionSelectTests
             overlay.Render(selected);
             var evaluation = (Border)panel.Children[0];
             Check(Labels(evaluation).Take(2).SequenceEqual([grade.Reason, "A"]) &&
-                RosterRow(0).SequenceEqual(["Campeón", "Estado", "Tier"]) &&
-                RosterRow(1).SequenceEqual([excludedChampion.Name, "TÚ", "Preselección", "B"]) &&
-                RosterRow(2).SequenceEqual(["Lillia", "Confirmado", "S"]) &&
+                RosterSlot(0).SequenceEqual(["B", excludedChampion.Name, "Tú · Preselección"]) &&
+                RosterSlot(1).SequenceEqual(["S", "Lillia", "Confirmado"]) &&
+                RosterSlot(2).SequenceEqual(["?", "—", "Sin elegir"]) &&
                 !TextBlocks(panel).Any(text => text.Text is "50 % top 3" or "2/3 campeones"),
-                "el equipo agrupa nombre, estado y tier sin el contador ni el porcentaje individual");
-            var categories = Sections().Children.OfType<StackPanel>().ToArray();
-            Check(categories.Length == composition.Length &&
-                categories.Zip(composition).All(pair => Labels(pair.First).SequenceEqual(
-                    new[] { pair.Second.Category }.Concat(pair.Second.Options.SelectMany(option => new[] { option.Champion, option.Tier })))),
-                "la sección agrupa varias opciones con sus tiers en cada categoría");
-            var headers = TextBlocks(panel).Where(text => text.Text is "Para tu equipo" or "Top 30 general").ToArray();
+                "cada plaza muestra retrato, estado y tier o su marcador vacío");
+            var lineupCards = Sections().Children.OfType<Border>().Where(card => card.Child is StackPanel).ToArray();
+            Check(lineupCards.Length == composition.Length &&
+                Labels(lineupCards[0]).SequenceEqual(["Jinx + Azir", "S", "Aporta daño sostenido"]) &&
+                lineupCards.All(card => Elements(card).OfType<Image>().Count() == 3),
+                "cada sugerencia muestra los retratos del equipo completo, las nuevas elecciones, su aporte y el tier");
+            var headers = TextBlocks(panel).Where(text => text.Text is "Composiciones sugeridas" or "Top 30 general").ToArray();
             Check(headers.Length == 2 && headers.All(text => text.FontSize == OverlayPanelStyle.SectionSize) &&
-                TextBlocks(evaluation).First().FontSize == OverlayPanelStyle.TitleSize &&
-                categories.SelectMany(category => category.Children.OfType<Grid>()).All(row => Grid.GetColumn(row.Children[1]) == 1),
-                "la evaluación encabeza el panel, las secciones comparten jerarquía y el tier se alinea con el nombre");
+                TextBlocks(evaluation).First().FontSize == OverlayPanelStyle.TitleSize,
+                "la evaluación encabeza el panel y las secciones comparten jerarquía");
             overlay.Render(selected with { Grade = grade with { Tier = "S", Members = 3, Reason = "Equipo equilibrado" } });
             Check(Labels((Border)panel.Children[0]).Take(2).SequenceEqual(["Equipo equilibrado", "S"]),
                 "la valoración se actualiza al cambiar los aliados aunque el campeón propio siga igual");
@@ -262,13 +264,23 @@ internal static class ChampionSelectTests
                 [grade.Reason, "Puesto medio 2.30 · 80 partidas", observed.Tier]),
                 "el puesto observado y su muestra quedan debajo de la necesidad");
 
-            overlay.Render(selected with { Roster = [selected.Roster[0] with { Confirmed = true }, selected.Roster[1]] });
-            Check(RosterRow(1).SequenceEqual([excludedChampion.Name, "TÚ", "Confirmado", "B"]),
+            overlay.Render(selected with { Roster = [selected.Roster[0] with { Confirmed = true }, ..selected.Roster.Skip(1)] });
+            Check(RosterSlot(0).SequenceEqual(["B", excludedChampion.Name, "Tú · Confirmado"]),
                 "confirmar actualiza los estados aunque sigan iguales los campeones y las sugerencias");
             CheckColumn(bounds);
-            overlay.Render(selected with { Selection = null, Grade = null, Roster = [selected.Roster[1]] });
-            Check(TextBlocks((Border)panel.Children[0]).First().Text == "Esperando tu elección" &&
-                RosterRow(1).SequenceEqual(["Lillia", "Confirmado", "S"]), "los aliados se muestran antes de elegir tu campeón");
+            overlay.Render(selected with { Selection = null, Grade = null,
+                Roster = [global.Roster[0], global.Roster[1], selected.Roster[1]] });
+            Check(TextBlocks((Border)panel.Children[0]).First().Text == "Tu equipo" &&
+                RosterSlot(1).Contains("Sin elegir") && RosterSlot(2).SequenceEqual(["S", "Lillia", "Confirmado"]),
+                "los aliados se mantienen en su plaza antes de elegir tu campeón");
+            var roomy = new Int32Rect(bounds.X, bounds.Y, 2560, 1800);
+            overlay.Render(selected with { Bounds = roomy });
+            var withSuggestions = Native.Bounds(handle);
+            overlay.Render(selected with { Bounds = roomy,
+                Roster = [selected.Roster[0] with { Confirmed = true }, selected.Roster[1], new("Jinx", "A", true)] });
+            Check(!TextBlocks(Sections()).Any(text => text.Text == "Composiciones sugeridas") && RosterSlot(2).Contains("Jinx") &&
+                Native.Bounds(handle).Height < withSuggestions.Height,
+                "al completar el equipo se retiran las sugerencias y la ventana ajusta su altura enseguida");
 
             CheckRankingSelection("Jax", 3);
             CheckRankingSelection("Lillia", 1);
@@ -281,12 +293,12 @@ internal static class ChampionSelectTests
             CheckColumn(narrow);
             var unavailable = ArenaChampionDisplay.Create(bounds, 0, catalog, source, "Aurora");
             overlay.Render(unavailable);
-            Check(RosterRow(1).SequenceEqual(["Aurora", "TÚ", "—", "—"]) &&
-                TextBlocks((Border)panel.Children[0]).First().Text == "Esperando un aliado",
+            Check(RosterSlot(0).Contains("Aurora") && !Elements(Roster()).OfType<TierHexagon>().Any() &&
+                TextBlocks((Border)panel.Children[0]).First().Text == "Tu equipo",
                 "muestra el campeón cuando la fuente carece de una valoración");
             overlay.Render(global);
-            Check(panel.Children.Count == 1 && Sections().Children[0] is TextBlock { Text: "Top 30 general" },
-                "al quitar la preselección el ranking pasa al frente");
+            Check(RosterSlot(0).Contains("Sin elegir") && TextBlocks(Sections()).Any(text => text.Text == "Top 30 general"),
+                "al quitar la preselección, su plaza se libera y el ranking permanece visible");
             var previous = LeaguePatch.Previous(catalog.Patch) ?? catalog.Patch;
             overlay.Render(ArenaChampionDisplay.Create(bounds, 0, catalog,
                 new(data with { SourcePatch = previous }, "Prueba"), null));
@@ -298,9 +310,8 @@ internal static class ChampionSelectTests
             Console.WriteLine("Panel de campeones de Arena en WPF verificado.");
 
             StackPanel Sections() => panel.Children.OfType<StackPanel>().Single();
-            IEnumerable<string> RosterRow(int row) => ((StackPanel)((Border)panel.Children[0]).Child)
-                .Children.OfType<Grid>().Last().Children.OfType<FrameworkElement>()
-                .Where(cell => Grid.GetRow(cell) == row).OrderBy(Grid.GetColumn).SelectMany(Labels);
+            UniformGrid Roster() => Elements((Border)panel.Children[0]).OfType<UniformGrid>().Single();
+            IEnumerable<string> RosterSlot(int index) => Labels((FrameworkElement)Roster().Children[index]);
 
             void CheckRankingSelection(string champion, int row)
             {

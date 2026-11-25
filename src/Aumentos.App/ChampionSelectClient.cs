@@ -16,7 +16,10 @@ namespace Aumentos;
 
 internal sealed record ChampionSelection(string Champion, string? FirstSpell, string? SecondSpell);
 internal sealed record ArenaDraftTeam(string[] Teammates, string[] Unavailable, int Size = 0,
-    bool? OwnConfirmed = null, string[]? ConfirmedTeammates = null);
+    bool? OwnConfirmed = null, string[]? ConfirmedTeammates = null, string?[]? AllySlots = null)
+{
+    internal int DisplaySize => Size == 2 ? 2 : 3;
+}
 internal sealed record MayhemDraftTeam(string[] Teammates, string[] Bench, string[] Unavailable, bool BenchKnown);
 internal sealed record ChampionSelectSession(Mode Mode, ChampionSelection? Pick = null,
     string? ArenaChampion = null, ArenaDraftTeam? ArenaTeam = null, MayhemDraftTeam? MayhemTeam = null,
@@ -62,16 +65,17 @@ internal sealed class ChampionSelectClient : IDisposable
             if (selection is null)
                 return default;
             bool picksClosed = ArenaPicksClosed(selection.RootElement);
-            var (champion, teammates, unavailable, teamSize, confirmed, confirmedTeammates) =
+            var (champion, teammates, unavailable, teamSize, confirmed, confirmedTeammates, allySlots) =
                 ArenaDraftIds(selection.RootElement, confirmedOnly: picksClosed);
             if (champion is null && teammates.Length == 0 && unavailable.Length == 0)
-                return default;
+                return (null, new([], [], teamSize), picksClosed);
             if (await ChampionNames(connection, cancellation).ConfigureAwait(false) is not { } names)
                 return default;
 
             return (champion is { } id ? names.GetValueOrDefault(id) : null,
                 new ArenaDraftTeam(Keys(teammates), Keys(unavailable), teamSize, champion is null ? null : confirmed,
-                    Keys(confirmedTeammates)), picksClosed);
+                    Keys(confirmedTeammates), allySlots.Select(id => id is { } ally ? names.GetValueOrDefault(ally) : null).ToArray()),
+                picksClosed);
 
             string[] Keys(int[] ids) => ids.Select(id => names.GetValueOrDefault(id)).OfType<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -196,10 +200,10 @@ internal sealed class ChampionSelectClient : IDisposable
         (TextIs(timer, "phase", "FINALIZATION") || TextIs(timer, "phase", "GAME_STARTING"));
 
     internal static (int? Champion, int[] Teammates, int[] Unavailable, int TeamSize, bool ChampionConfirmed,
-        int[] ConfirmedTeammates) ArenaDraftIds(JsonElement root, bool confirmedOnly = false)
+        int[] ConfirmedTeammates, int?[] AllySlots) ArenaDraftIds(JsonElement root, bool confirmedOnly = false)
     {
         if (root.ValueKind != JsonValueKind.Object)
-            return (null, [], [], 0, false, []);
+            return (null, [], [], 0, false, [], []);
 
         var own = OwnPlayer(root);
         int localCell = Number(root, "localPlayerCellId");
@@ -224,18 +228,21 @@ internal sealed class ChampionSelectClient : IDisposable
 
         var teammates = new HashSet<int>();
         var confirmedTeammates = new HashSet<int>();
+        var allySlots = new SortedDictionary<int, int?>();
         var unavailable = new HashSet<int>();
         var enemyCells = new HashSet<int>();
         foreach (var ally in Elements(root, "myTeam"))
         {
-            if (ally.ValueKind != JsonValueKind.Object || Number(ally, "cellId") < 0 || Number(ally, "cellId") == localCell)
+            if (ally.ValueKind != JsonValueKind.Object || Number(ally, "cellId") is not (>= 0 and var cell) || cell == localCell)
                 continue;
             if (localTeam >= 0 && ArenaTeamId(ally) is >= 0 and var team && team != localTeam)
                 AddEnemy(ally);
             else if (own is not null)
             {
                 teamSize++;
-                if (Pick(ally) is { } teammate)
+                var pick = Pick(ally);
+                allySlots[cell] = pick?.Champion;
+                if (pick is { } teammate)
                 {
                     teammates.Add(teammate.Champion);
                     if (teammate.Confirmed)
@@ -256,7 +263,7 @@ internal sealed class ChampionSelectClient : IDisposable
         }
         var ownPick = own is { } local ? Pick(local) : null;
         return (ownPick?.Champion, [.. teammates], [.. unavailable], teamSize, ownPick?.Confirmed == true,
-            [.. confirmedTeammates]);
+            [.. confirmedTeammates], [.. allySlots.Values]);
 
         (int Champion, bool Confirmed)? Pick(JsonElement member) => confirmedOnly
             ? Number(member, "championId") is > 0 and var id ? (id, true) : null

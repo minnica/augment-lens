@@ -19,8 +19,8 @@ internal static class OverlayPanelStyle
     public static readonly Brush Divider = Overlay.Paint("#625237");
     public static readonly Brush HeaderSurface = Overlay.Paint("#5C102A37");
     public static readonly Brush Inset = Overlay.Paint("#C805131D");
-    public static readonly Brush HighlightSurface = Overlay.Paint("#B910333D");
-    public static readonly Brush SelectedSurface = Overlay.Paint("#DE292517");
+    public static readonly Brush SelectionSurface = VerticalGradient("#D91A2731", "#E6141D23");
+    public static readonly Brush SelectionBorder = Overlay.Paint("#45535B");
     public static readonly Brush Ink = Overlay.Paint("#F0E6D2");
     public static readonly Brush Muted = Overlay.Paint("#B9AF9A");
     public static readonly Brush Gold = Overlay.Paint("#CDB17B");
@@ -41,7 +41,7 @@ internal static class OverlayPanelStyle
         TextOptions.SetTextFormattingMode(panel, TextFormattingMode.Display);
     }
 
-    private static Brush VerticalGradient(string top, string bottom)
+    internal static Brush VerticalGradient(string top, string bottom)
     {
         var brush = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(top),
             (Color)ColorConverter.ConvertFromString(bottom), 90);

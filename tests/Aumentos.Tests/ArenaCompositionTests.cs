@@ -18,47 +18,35 @@ internal static class ArenaCompositionTests
                 ["Braum"] = new("Braum", "S", 63m, 790)
             });
 
-        Check(ArenaCompositionAdvice.Recommend(ratings, tiers, null).Length == 0 &&
-            ArenaCompositionAdvice.Recommend(ratings, tiers, Team(["Desconocido"], "Vayne")).Length == 0,
-            "la composición necesita al menos un compañero reconocido");
-
-        var openFront = Team(["Jinx", "LUX"], "Nunu", "Malphite", "Alistar", "Leona", "Vayne", "Jinx");
-        var recommendations = ArenaCompositionAdvice.Recommend(ratings, tiers,
-            openFront with { Unavailable = [.. openFront.Unavailable, "lEOnA"] });
-        Check(recommendations is [{ Category: "Primera línea" }] &&
-            recommendations[0].Options.Select(pick => (pick.Champion, pick.Tier)).SequenceEqual(
-                [("Nunu y Willump", "S"), ("Malphite", "S"), ("Alistar", "A")]),
-            "la primera línea faltante manda, el tier desempata y se excluyen bloqueos y compañeros");
-
-        var openCarry = Team(["Alistar", "Leona"], "Braum", "Kaisa", "Vayne", "Sona");
-        var damage = ArenaCompositionAdvice.Recommend(ratings, tiers, openCarry);
-        Check(damage is [{ Category: "Daño sostenido" }, { Category: "Protección" }] &&
-            damage[0].Options.Select(pick => pick.Champion).SequenceEqual(["Kai'Sa", "Vayne"]) &&
-            damage[1].Options.Any(pick => pick.Champion == "Sona"),
-            "dos tanques necesitan daño sostenido y no priorizan un tercer tanque por su tier global");
-
-        var openMagic = Team(["Jax", "Tristana"], "Jinx", "Lux", "Brand", "Nami");
-        var withoutTiers = ArenaCompositionAdvice.Recommend(ratings, null, openMagic);
-        Check(withoutTiers is [{ Category: "Protección" }] &&
-            withoutTiers[0].Options.Select(pick => pick.Champion).SequenceEqual(["Lux", "Nami"]) &&
-            withoutTiers[0].Options.All(pick => pick.Tier is null),
-            "los perfiles equilibran daño y protección aunque GGEZ.GG no tenga datos");
-
-        var balanced = ArenaCompositionAdvice.Recommend(ratings, tiers,
-            Team(["Jax", "Lux"], "Nunu", "Braum", "Rell"));
-        Check(balanced is [{ Category: "Control", Options.Length: 3 }],
-            "una composición equilibrada puede reforzar su control");
-        var partial = Team(["Illaoi"], "Diana", "Kayle", "Jinx", "Brand", "Azir",
-            "Lux", "Katarina", "Annie", "Syndra", "Veigar", "Milio") with { Size = 3 };
-        var grade = ArenaCompositionAdvice.Evaluate(ratings, "Milio", partial);
-        var preview = ArenaCompositionAdvice.Recommend(ratings, tiers, partial, "Milio", grade);
-        var options = preview.SelectMany(group => group.Options).Select(pick => pick.Champion).ToArray();
-        Check(preview is [{ Category: "Daño sostenido", Options.Length: 4 }, { Category: "Daño mágico", Options.Length: 4 }] &&
-            preview[0].Options[0] is { Champion: "Jinx", Tier: "S" } &&
-            options.Distinct().Count() == 8 && !options.Contains("Milio") && !options.Contains("Illaoi"),
-            "la carencia del encabezado va primero y cada categoría ofrece cuatro alternativas distintas");
-
         var waiting = new ArenaDraftTeam([], [], 3);
+        var hover = new ArenaDraftTeam(["Leona", "Lux"], ["Vayne"], 3, OwnConfirmed: false, ConfirmedTeammates: ["Leona"]);
+        Check(ArenaCompositionAdvice.ConfirmedPicks("Jinx", hover).SequenceEqual(["Leona"]) &&
+            ArenaCompositionAdvice.ConfirmedPicks("Jinx", hover with { OwnConfirmed = true }).SequenceEqual(["Jinx", "Leona"]) &&
+            ArenaCompositionAdvice.Recommend(ratings, tiers, [], [], 3).Length == 0,
+            "las sugerencias comienzan con una elección confirmada y no se anclan a preselecciones");
+
+        var firstPick = ArenaCompositionAdvice.Recommend(ratings, tiers, ["Leona"], ExcludeExcept("Jinx", "Lux", "Alistar", "Braum"), 3);
+        Check(firstPick.Length > 1 &&
+            firstPick[0].Members.Select(member => member.Champion).ToHashSet().SetEquals(["Leona", "Jinx", "Lux"]) &&
+            firstPick.All(option => option.Members is [{ Champion: "Leona", Confirmed: true }, { Confirmed: false }, { Confirmed: false }]),
+            "con una elección se sugieren dos compañeros para lograr daño sostenido con protección y control");
+
+        var lastPick = ArenaCompositionAdvice.Recommend(ratings, null, ["Leona", "Jinx"],
+            ExcludeExcept("Lux", "Nunu", "Alistar"), 3);
+        Check(lastPick.Length == 3 && lastPick[0] is { Tier: "S", Members: [_, _, { Champion: "Lux" }] } &&
+            lastPick.All(option => option.Members is [{ Champion: "Leona", Confirmed: true },
+                { Champion: "Jinx", Confirmed: true }, { Confirmed: false }]) &&
+            lastPick.All(option => option.Reason.Length > 0) &&
+            ArenaCompositionAdvice.Recommend(ratings, tiers, ["Leona", "Jinx", "Lux"], [], 3).Length == 0,
+            "la segunda elección recalcula la plaza restante sin datos externos y un trío completo deja de mostrar sugerencias");
+
+        Check(ArenaCompositionAdvice.Recommend(ratings, tiers, ["Jinx"], ExcludeExcept("Braum"), 2)
+            is [{ Members: [{ Champion: "Jinx", Confirmed: true }, { Champion: "Braum", Confirmed: false }] }] &&
+            ArenaCompositionAdvice.Recommend(ratings, tiers, ["Jinx"], ExcludeExcept("Braum"), 3).Length == 0,
+            "los dúos ofrecen una plaza y los tríos requieren dos opciones disponibles distintas");
+
+        var partial = new ArenaDraftTeam(["Illaoi"], [], 3);
+        var grade = ArenaCompositionAdvice.Evaluate(ratings, "Milio", partial);
         var protectedCarry = new ArenaDraftTeam(["Janna", "Chogath"], [], 3);
         var exposedCarry = new ArenaDraftTeam(["Jinx", "Tristana"], [], 3);
         var fullGrade = ArenaCompositionAdvice.Evaluate(ratings, "KogMaw", protectedCarry);
@@ -88,9 +76,8 @@ internal static class ArenaCompositionTests
             "la estadística del trío conserva su tier sin desplazar la necesidad detectada");
         Console.WriteLine("Recomendaciones de composición de Arena verificadas por perfiles, bloqueos y desempates.");
 
-        ArenaDraftTeam Team(string[] teammates, params string[] candidates) => new(teammates,
-            ratings.Catalog.Champions.Select(champion => champion.Key)
-                .Except(candidates, StringComparer.OrdinalIgnoreCase).ToArray());
+        string[] ExcludeExcept(params string[] candidates) => ratings.Catalog.Champions.Select(champion => champion.Key)
+            .Except(candidates, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private static void Check(bool condition, string message)

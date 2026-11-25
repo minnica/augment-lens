@@ -17,8 +17,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Frame" Property="Background" Value="{x:Static local:OverlayPanelStyle.HighlightSurface}"/>
-                            <Setter TargetName="Frame" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.Gold}"/>
+                            <Setter TargetName="Frame" Property="Background" Value="{x:Static local:OverlayPanelStyle.SelectionSurface}"/>
+                            <Setter TargetName="Frame" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.SelectionBorder}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Frame" Property="Background" Value="{x:Static local:OverlayPanelStyle.Surface}"/>
@@ -46,15 +46,18 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ComboBoxItem">
-                                <Border x:Name="Item" Background="Transparent" Padding="8,4">
+                                <Border x:Name="Item" Background="Transparent" Padding="7,3"
+                                        BorderThickness="{x:Static local:OverlayPanelStyle.FrameThickness}" SnapsToDevicePixels="True">
                                     <ContentPresenter/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter TargetName="Item" Property="Background" Value="{x:Static local:OverlayPanelStyle.SelectedSurface}"/>
+                                        <Setter TargetName="Item" Property="Background" Value="{x:Static local:OverlayPanelStyle.SelectionSurface}"/>
+                                        <Setter TargetName="Item" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.SelectionBorder}"/>
                                     </Trigger>
                                     <Trigger Property="IsHighlighted" Value="True">
-                                        <Setter TargetName="Item" Property="Background" Value="{x:Static local:OverlayPanelStyle.HighlightSurface}"/>
+                                        <Setter TargetName="Item" Property="Background" Value="{x:Static local:OverlayPanelStyle.SelectionSurface}"/>
+                                        <Setter TargetName="Item" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.SelectionBorder}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -94,7 +97,8 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Frame" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.Gold}"/>
+                            <Setter TargetName="Frame" Property="Background" Value="{x:Static local:OverlayPanelStyle.SelectionSurface}"/>
+                            <Setter TargetName="Frame" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.SelectionBorder}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="Frame" Property="BorderBrush" Value="{x:Static local:OverlayPanelStyle.Accent}"/>

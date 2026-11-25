@@ -1,14 +1,14 @@
 # Capturas de los overlays
 
-**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Las insignias de cartas están al **300 %**, las de cartas y retratos de selección al **150 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
+**Parche 26.23 · 24 de noviembre de 2026.** Estas capturas muestran el estilo de la compilación instalada de Aumentos LoL. Se reprodujeron las ofertas y tiendas con capturas de League, las tablas del parche y equipos e inventarios de ejemplo. Los tiers en partida están al **250 %**, el ajuste de tiers en selección de campeón al **200 %**, las builds al **150 %** y el panel de prismáticos al **150 %**. En este equipo se usaron Cambria y Segoe UI.
 
-[![Las siete insignias desde S+ prismático hasta E grafito, al 300 % y al 100 %](paleta-de-tiers.png)](paleta-de-tiers.png)
+[![Las siete insignias desde S+ prismático hasta E grafito, al 250 % y al 100 %](paleta-de-tiers.png)](paleta-de-tiers.png)
 
 | Selección de campeón en ARAM Caos | Top 5 prismáticos en Arena |
 | --- | --- |
 | [![Oferta de Kai’Sa, Jinx y Aurelion Sol con un tier bajo cada carta y sugerencias a la derecha](aram-seleccion-tres-cartas.png)](aram-seleccion-tres-cartas.png) | [![Top 5 de Tristana con el S+ sobre la Cuota del Segador](arena-prismaticos-top-5.png)](arena-prismaticos-top-5.png) |
 | **Build junto a la tienda en ARAM Caos** | **Invitados de Honor en Arena** |
-| [![Tienda abierta con la build de Kennen y la compra prioritaria señalada](aram-build-tienda.png)](aram-build-tienda.png) | [![Votación de Yone, Evelynn y Tahm Kench con sus tiers y Yone recomendado](arena-invitados-de-honor.png)](arena-invitados-de-honor.png) |
+| [![Tienda abierta con la build de Kennen y la compra prioritaria señalada](aram-build-tienda.png)](aram-build-tienda.png) | [![Votación de Yone, Evelynn y Tahm Kench con los tiers sobre el borde derecho de cada título](arena-invitados-de-honor.png)](arena-invitados-de-honor.png) |
 
 ## Selección de campeón
 
@@ -25,7 +25,7 @@
 | Aumentos | [Cuatro cartas](aram-aumentos-cuatro.png) · [Tres cartas, una sin tier](aram-aumentos-tres.png) | [Tres aumentos](arena-aumentos.png) · [Mejoras de nivel](arena-mejoras.png) |
 | Yunque de estadísticas | [Tiers de los fragmentos](aram-fragmentos-yunque.png) | [Tiers de los fragmentos](arena-fragmentos-yunque.png) |
 | Ofertas de objetos | — | [Legendarios](arena-legendarios.png) · [Prismáticos con tier sobre cada carta y Top 5 al lado](arena-prismaticos-top-5.png) |
-| Invitados de Honor | — | [Tres opciones de voto con tier y motivo](arena-invitados-de-honor.png) |
+| Invitados de Honor | — | [Tres opciones de voto con tiers junto al título](arena-invitados-de-honor.png) |
 
 ## Builds y tienda
 

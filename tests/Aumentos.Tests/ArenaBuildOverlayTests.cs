@@ -32,9 +32,10 @@ internal static class ArenaBuildOverlayTests
             "Arena distingue los rivales recientes de los que identifica en todo el lobby");
         var next = (Border)panel.Children[2];
         var pending = (Border)panel.Children[3];
-        Check(panel.Children[0] == renderer.DragHandle && next.Background is not null &&
-            panel.Children.OfType<Border>().All(row => row.BorderThickness == new Thickness(0) &&
-                (row == next || row.Background is null)) &&
+        Check(panel.Children[0] == renderer.DragHandle && next.Background == OverlayPanelStyle.SelectionSurface &&
+            next.BorderBrush == OverlayPanelStyle.SelectionBorder && next.BorderThickness == OverlayPanelStyle.FrameThickness &&
+            panel.Children.OfType<Border>().Where(row => row != next)
+                .All(row => row.Background is null && row.BorderBrush is null && row.BorderThickness == new Thickness(0)) &&
             ((DockPanel)next.Child).Children.OfType<TextBlock>().Single().Text == "El mejor" &&
             ReadText(next).SequenceEqual(["El mejor", "Sierraespada Quimpunk", "Para reducir la curación de Karma y Zed"]) &&
             ReadText(pending).SequenceEqual(["Presagio de Randuin", "Contra los golpes críticos de Zed"]) &&
@@ -72,7 +73,9 @@ internal static class ArenaBuildOverlayTests
             "Arena aconseja conservar el inventario lleno cuando no hay un cambio, también en el panel estrecho");
         var swap = new BuildSwap(full.Steps[^1].Item, new(223156, "Fauces de Malmortius"), "Contra el daño mágico de Brand");
         renderer.Render(view with { Plan = full with { Swap = swap }, Source = null }, 215);
-        Check(ReadText(panel.Children[1]).SequenceEqual(
+        var swapCard = (Border)panel.Children[1];
+        Check(swapCard.Background == next.Background && swapCard.BorderBrush == next.BorderBrush &&
+            swapCard.BorderThickness == next.BorderThickness && ReadText(swapCard).SequenceEqual(
             ["Cambio sugerido", "Sale", "Presagio de Randuin", "Entra", "Fauces de Malmortius", "Contra el daño mágico de Brand"]) &&
             !ReadText(panel).Contains("Build completa") && ReadText(panel).Contains("Daño rival estimado"),
             "el cambio muestra los dos objetos y el motivo sin alterar el inventario equipado");

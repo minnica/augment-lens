@@ -44,15 +44,16 @@ internal static class ArenaChampionSelectionTests
                {"actorCellId":8,"championId":19,"completed":false,"type":"pick"},
                {"actorCellId":10,"championId":20,"completed":false,"type":"ban"}]]}
             """);
-        var (self, allies, unavailable, teamSize, confirmed, confirmedTeammates) =
+        var (self, allies, unavailable, teamSize, confirmed, confirmedTeammates, allySlots) =
             ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement);
         if (self != 902 || !confirmed || !allies.SequenceEqual([86, 61]) || !confirmedTeammates.SequenceEqual([86]) ||
-            unavailable.Length != 6 ||
+            !allySlots.SequenceEqual(new int?[] { 86, 61 }) || unavailable.Length != 6 ||
             !unavailable.ToHashSet().SetEquals([1, 2, 11, 12, 99, 103]) || teamSize != 3)
             throw new InvalidOperationException("Falló el alcance de equipo o las exclusiones confirmadas en Arena.");
         var final = ChampionSelectClient.ArenaDraftIds(teamDraft.RootElement, confirmedOnly: true);
         if (final.Champion != 902 || !final.ChampionConfirmed || final.TeamSize != 3 ||
-            !final.Teammates.SequenceEqual([86]) || !final.ConfirmedTeammates.SequenceEqual([86]))
+            !final.Teammates.SequenceEqual([86]) || !final.ConfirmedTeammates.SequenceEqual([86]) ||
+            !final.AllySlots.SequenceEqual(new int?[] { 86, null }))
             throw new InvalidOperationException("La composición fijada para la votación omite las intenciones de campeón.");
 
         using var hovering = JsonDocument.Parse("""
@@ -78,6 +79,13 @@ internal static class ArenaChampionSelectionTests
         var interim = ChampionSelectClient.ArenaDraftIds(allyLocked.RootElement);
         if (!interim.Teammates.SequenceEqual(partial.Teammates) || !interim.ConfirmedTeammates.SequenceEqual([40]))
             throw new InvalidOperationException("La acción completada confirma la elección aunque el campeón del aliado tarde en sincronizarse.");
+
+        using var secondSlot = JsonDocument.Parse("""
+            {"localPlayerCellId":4,"myTeam":[{"cellId":6,"championId":61},{"cellId":4,"championId":0},{"cellId":5,"championId":0}]}
+            """);
+        var stable = ChampionSelectClient.ArenaDraftIds(secondSlot.RootElement);
+        if (!stable.AllySlots.SequenceEqual(new int?[] { null, 61 }))
+            throw new InvalidOperationException("El aliado que fija primero su campeón conserva su plaza aunque quede otra vacía.");
 
         Console.WriteLine("Preselección, aliados y bloqueos de Arena verificados sin cambiar los hechizos de ARAM Caos.");
     }
