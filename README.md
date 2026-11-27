@@ -6,6 +6,7 @@ Aumentos LoL muestra recomendaciones de **aumentos**, **objetos**, **campeones**
 | --- | --- | --- |
 | Comparación de aumentos en partida | OP.GG, estimación local, respaldo de AramHex y popularidad de ARAMMayhem.com | Posiciones observadas de GGEZ.GG y afinidad local por campeón, objetos y nivel con mecánicas de LoL Wiki |
 | Builds de OP.GG | Al abrir la tienda con **P** | Al abrir la tienda con **P** |
+| Variantes en **Conjuntos de objetos** | Rutas de compra de ARAMKit | Builds por estilo de LoLArena |
 | Hechizos de OP.GG | En la selección de campeón | — |
 | Tiers de campeones | OP.GG en la selección de campeón | GGEZ.GG en la selección de campeón |
 | Invitados de Honor | — | Tier local junto a las opciones de votación |
@@ -79,6 +80,20 @@ Para auditar la cobertura desde PowerShell con el paquete de desarrollo, ejecuta
 Cuando aparecen los **Invitados de Honor**, la app reconoce las tres opciones del cliente en español de México. Cada opción valorada muestra su insignia de **S a C** centrada en el borde derecho del recuadro del título. El tamaño sigue el ajuste **Tamaño de los tiers de cartas** y se adapta al espacio de cada opción. Las insignias se retiran al cerrar la votación y puedes seguir votando directamente en el cliente. [Invitados de Honor en Arena, Riot Games](https://www.leagueoflegends.com/es-mx/news/dev/dev-leveling-up-arena/)
 
 Cada invitado cambia las reglas de todo el lobby. La letra estima cuánto favorece al equipo según tu campeón, los aliados confirmados, las compras y los rivales detectados. También considera la ronda y la vida del equipo cuando puede leerlas en el marcador. Antes de que la partida confirme a los aliados por sus combates, la app puede usar la composición fijada en la selección si la reconoce en la lista de jugadores. Por ejemplo, **Negociación Oscura** de Tahm Kench puede perder valor en composiciones que dependen de la vida máxima. Las reglas se contrastaron con los datos del cliente de **26.23**. [Textos del cliente 16.23](https://raw.communitydragon.org/16.23/game/es_mx/data/menu/en_us/lol.stringtable.json)
+
+## Elegir una build en Conjuntos de objetos
+
+En **ARAM Caos** o **Arena**, abre la tienda con **P**, entra en **Conjuntos de objetos** y pulsa el nombre del conjunto debajo del buscador. Con Malphite o Maokai puedes elegir **AP** o **Tanque**. Las entradas de la app llevan **Aumentos LoL** al final. Puedes cambiar de estilo desde ese mismo desplegable durante la partida. [Conjuntos de objetos en League, Riot Games](https://support.riotgames.com/en-us/league-of-legends/gameplay/item-sets)
+
+En **ARAM Caos**, **Orden de compra** muestra los tres objetos del núcleo en el orden observado. **Inicio**, **Botas** y **Opciones para completar** reúnen compras de esa misma ruta. La app usa las estadísticas de **ARAMKit** de todos los rangos del parche, considera los estilos con al menos **2 %** de las builds analizadas y elige el orden más jugado entre los publicados con al menos **200 partidas**. Agrupa los núcleos equivalentes y comprueba qué objetos se pueden comprar en el mapa. [Malphite en ARAMKit](https://aramkit.com/en-US/champions/malphite) · [Maokai en ARAMKit](https://aramkit.com/en-US/champions/maokai)
+
+En **Arena**, **Compras principales** reúne dos o tres legendarios comprables que **LoLArena** destaca para ese campeón y estilo. La app exige que la fuente valore el estilo con al menos **100 partidas** y **2 %** de la muestra clasificada del campeón. Los núcleos de AP y AD incluyen objetos que aportan esa estadística. **Botas del campeón** incluye las que aparecen en su núcleo y las más frecuentes del campeón. **Alternativas por afinidad** filtra objetos de la tabla general del campeón por las estadísticas del estilo y una muestra de al menos **20 partidas** por objeto. **Prismáticos del estilo** identifica los que conviene buscar cuando el juego te ofrezca uno. Los conjuntos del parche **26.23** proceden de Arena de tríos. Si un campeón solo tiene un estilo con suficiente muestra y compras distintas, aparece un conjunto. [Malphite en LoLArena](https://lolarena.pro/champion/malphite) · [Maokai en LoLArena](https://lolarena.pro/champion/maokai)
+
+Cuando faltan variantes de Arena, aparece **General** si LoLArena reúne al menos 100 builds de los primeros puestos y dos legendarios comprables con suficiente muestra.
+
+Al iniciar la app fuera de partida, los conjuntos se preparan para todos los campeones con datos, incluidos los que puedas recibir en un intercambio de último segundo. La compilación incluye los del parche **26.23**. Para un parche nuevo, la app descarga los datos en segundo plano, los guarda en `%LOCALAPPDATA%\AumentosLoL\conjuntos` y espera a que termine cualquier partida antes de actualizar la tienda. Cada variante tiene su propio archivo en `Config\Champions\<campeón>\Recommended` dentro de la instalación de League, con el prefijo `AumentosLoL-KIWI-` para ARAM Caos o `AumentosLoL-CHERRY-` para Arena. La desinstalación retira los archivos de la app.
+
+Para verificarlo, busca **Conjuntos de objetos** en `%LOCALAPPDATA%\AumentosLoL\estado.log`. En una partida con Malphite o Maokai, alterna entre **AP** y **Tanque** y comprueba los iconos del núcleo. El nombre del bloque incluye su parche. Puedes plegar el panel lateral de OP.GG con **−** en ARAM Caos o alternar su visibilidad con **Ctrl + Alt + B** en ambos modos.
 
 ## Builds de OP.GG en partida
 
@@ -170,6 +185,8 @@ El instalador generado carece de firma de editor. Si Windows exige una firma de 
 Ejecuta `powershell -File scripts/Publicar.ps1` para crear el paquete de desarrollo en `dist/win-x64`, con el lanzador `Iniciar.cmd` que usan los ejemplos. Puedes elegir otra carpeta con `-Destination`.
 
 Para actualizar el catálogo incluido en una compilación, ejecuta `powershell -File scripts/Get-Assets.ps1 -Patch 16.23 -ChampionVersion 16.23.1` con las versiones nuevas. Revisa los cambios de mecánicas y las excepciones en `src/Aumentos.App/Assets/ratings.json`, corre las pruebas y vuelve a publicar.
+
+Para regenerar los conjuntos incluidos, ejecuta `.\dist\win-x64\Iniciar.cmd --generar-conjuntos Caos .\src\Aumentos.App\Assets\mayhem-item-sets.json` y `.\dist\win-x64\Iniciar.cmd --generar-conjuntos Arena .\src\Aumentos.App\Assets\arena-item-sets.json` con el catálogo del parche que vas a distribuir. [Ediciones de datos de ARAMKit](https://data.aramkit.com/data/versions.json) · [Estilos de Arena en LoLArena](https://lolarena.pro/tierlist)
 
 Después de actualizar el catálogo, ejecuta `powershell -File scripts/Get-AramHexCompatibility.ps1` para verificar las cartas de ARAM Caos cuyas mecánicas coinciden con el parche anterior de la misma temporada.
 

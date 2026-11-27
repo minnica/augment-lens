@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -45,7 +44,7 @@ internal static class OpGgPage
 
         // The public page includes the data used to render its badges and Arena tables.
         // Reassemble the stream before reading records: one table can span several script tags.
-        using var records = new StringReader(ComponentStream(html));
+        using var records = new StringReader(NextPage.ComponentStream(html));
         while (records.ReadLine() is { } line)
         {
             var offset = line.IndexOf(':') + 1;
@@ -72,31 +71,6 @@ internal static class OpGgPage
                     sourcePatch == patch ? null : sourcePatch);
         }
         throw new InvalidDataException("OP.GG no publicó una tabla de aumentos reconocible.");
-    }
-
-    private static string ComponentStream(string html)
-    {
-        const string marker = "self.__next_f.push(";
-        var output = new StringBuilder();
-        int offset = 0;
-        while ((offset = html.IndexOf(marker, offset, StringComparison.Ordinal)) >= 0)
-        {
-            offset += marker.Length;
-            var end = html.IndexOf("</script>", offset, StringComparison.OrdinalIgnoreCase);
-            if (end < 0) break;
-            var close = html.LastIndexOf(')', end, end - offset + 1);
-            if (close > offset)
-            {
-                using var json = JsonDocument.Parse(html.AsMemory(offset, close - offset));
-                var args = json.RootElement;
-                if (args.ValueKind == JsonValueKind.Array && args.GetArrayLength() == 2 &&
-                    args[0].ValueKind == JsonValueKind.Number && args[0].TryGetInt32(out var type) && type == 1 &&
-                    args[1].ValueKind == JsonValueKind.String)
-                    output.Append(args[1].GetString());
-            }
-            offset = end;
-        }
-        return output.ToString();
     }
 
     private static void ReadCards(JsonElement rows, Mode mode, IReadOnlyDictionary<int, Augment> catalog,

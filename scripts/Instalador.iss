@@ -41,3 +41,6 @@ Name: "{userstartup}\Aumentos LoL"; Filename: "{app}\{#AppExe}"; Parameters: "--
 
 [Run]
 Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Description: "Abrir Aumentos LoL"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{app}\{#AppExe}"; Parameters: "--quitar-conjuntos"; Flags: runhidden waituntilterminated

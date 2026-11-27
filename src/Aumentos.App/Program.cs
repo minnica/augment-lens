@@ -22,6 +22,32 @@ internal static class Program
         var patchCatalog = new PatchCatalog(bundled, settings, Path.Combine(AppContext.BaseDirectory, "PatchTools"));
         var assets = patchCatalog.Select(LeaguePatch.Installed());
         using var http = OpGgRatings.CreateClient();
+        if (args.FirstOrDefault() is "--generar-conjuntos" or "--quitar-conjuntos")
+        {
+            try
+            {
+                if (args is ["--quitar-conjuntos"])
+                {
+                    if (LeaguePatch.InstallDirectory() is { } install)
+                        foreach (var gameMode in Enum.GetValues<Mode>()) NativeItemSets.RemoveObsolete(install, gameMode);
+                    return 0;
+                }
+                if (args is not ["--generar-conjuntos", var selectedMode, var destination] ||
+                    !Enum.TryParse<Mode>(selectedMode, true, out var setMode) || !Enum.IsDefined(setMode))
+                    throw new ArgumentException("Uso: --generar-conjuntos Caos|Arena archivo.json");
+                var catalog = Ratings.Read<Catalog>(Path.Combine(assets, "catalog.json"));
+                var data = ShopItemSetCatalog.Download(setMode, catalog, http, CancellationToken.None).GetAwaiter().GetResult();
+                if (!StatsCache.Write(Path.GetFullPath(destination), data))
+                    throw new IOException("No se pudo escribir el catálogo de conjuntos.");
+                Console.WriteLine($"{data.Champions.Length} campeones · {data.Champions.Sum(entry => entry.Variants.Length)} conjuntos · {data.Release}");
+                return 0;
+            }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine(error.Message);
+                return 1;
+            }
+        }
         if (args.FirstOrDefault() == "--verificar-build")
             return VerifyBuild(args, assets, settings, http);
         if (args.FirstOrDefault() == "--verificar-tiers")
@@ -307,6 +333,8 @@ internal static class Program
                         Close();
                     }), stop.Token));
                 RunMaintenance(() => patchStatistics.Watch(PostStatus, stop.Token));
+                foreach (var mode in Enum.GetValues<Mode>())
+                    RunMaintenance(() => NativeItemSets.Watch(mode, ratings.Catalog, assets, settings, http, PostStatus, stop.Token));
                 _ = Task.Run(async () =>
                 {
                     try { await worker.Run(stop.Token).ConfigureAwait(false); }

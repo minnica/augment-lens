@@ -52,6 +52,7 @@ internal static class Program
         StatShardTests.Run(ratings, assets, Option("--arena-shard-shot"));
         ArenaLegendaryTests.Run(ratings, assets, Option("--arena-legendary-shot"), Option("--arena-legendary-zyra-shot"));
         BuildTests.Run(ratings).GetAwaiter().GetResult();
+        NativeItemSetTests.Run(ratings.Catalog, assets);
         MayhemBuildTests.Run(ratings, assets);
         ShopItemStatsTests.Run(ratings.Catalog);
         MayhemAugmentAdviceTests.Run(ratings, assets, Option("--mayhem-tie-shot"));
